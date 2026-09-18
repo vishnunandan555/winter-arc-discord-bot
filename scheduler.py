@@ -22,6 +22,9 @@ TIMEZONE_NAME = os.getenv("BOT_TIMEZONE", "Asia/Kolkata")
 BOT_TZ = ZoneInfo(TIMEZONE_NAME)
 
 
+DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "1550511682344845352"))
+
+
 def get_now_ist() -> datetime:
     return datetime.now(BOT_TZ)
 
@@ -36,18 +39,22 @@ class WinterArcScheduler:
     def start(self):
         if not self.ticker_loop.is_running():
             self.ticker_loop.start()
-            logger.info(f"Winter Arc Scheduler active in timezone {TIMEZONE_NAME}.")
+            logger.info("Scheduler ticker loop started (evaluating every 30s in Asia/Kolkata).")
 
     def stop(self):
         if self.ticker_loop.is_running():
-            self.ticker_loop.cancel()
+            self.ticker_loop.stop()
+            logger.info("Scheduler ticker loop stopped.")
 
-    @tasks.loop(seconds=30)
+    # ==========================================
+    # Main Ticker Loop (Every 30 seconds)
+    # ==========================================
+
+    @tasks.loop(seconds=30.0)
     async def ticker_loop(self):
-        await self.bot.wait_until_ready()
         now = get_now_ist()
-        today_str = now.strftime("%Y-%m-%d")
         current_time_str = now.strftime("%H:%M")
+        today_str = now.date().isoformat()
 
         # 1. 05:00 IST - Morning Kickoff
         if current_time_str == "05:00" and self._last_morning_date != today_str:
@@ -78,7 +85,7 @@ class WinterArcScheduler:
     def _get_target_channel_and_ping(self, guild: discord.Guild):
         settings = db.get_server_settings(guild.id)
         channel_id = settings.get("channel_id", 0)
-        role_id = settings.get("role_id", 0)
+        role_id = settings.get("role_id", 0) or DEFAULT_ROLE_ID
 
         channel = guild.get_channel(channel_id) if channel_id else None
         role_ping = ""
@@ -86,6 +93,8 @@ class WinterArcScheduler:
             role = guild.get_role(role_id)
             if role:
                 role_ping = f"{role.mention} "
+            else:
+                role_ping = f"<@&{role_id}> "
         if not role_ping:
             for r in guild.roles:
                 if r.name.lower() in ["winter arc", "winterarc", "the winter arc"]:

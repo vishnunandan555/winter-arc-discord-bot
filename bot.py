@@ -35,6 +35,7 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 TEST_GUILD_ID = os.getenv("TEST_GUILD_ID")
+DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "1550511682344845352"))
 
 
 def make_progress_bar(current: float, target: float, length: int = 10) -> str:
@@ -240,7 +241,7 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
 async def get_or_create_arc_role(guild: discord.Guild) -> Optional[discord.Role]:
     """Finds configured role, or finds an existing 'Winter Arc' role, or auto-creates one."""
     settings = db.get_server_settings(guild.id)
-    role_id = settings.get("role_id", 0)
+    role_id = settings.get("role_id", 0) or DEFAULT_ROLE_ID
     if role_id:
         role = guild.get_role(role_id)
         if role:
