@@ -49,13 +49,13 @@ def make_progress_bar(current: float, target: float, length: int = 10) -> str:
 
 def format_rank_badge(idx: int) -> str:
     if idx == 0:
-        return "`#1` 👑"
+        return "👑"
     elif idx == 1:
-        return "`#2` ⚔️"
+        return "⚔️"
     elif idx == 2:
-        return "`#3` 🛡️"
+        return "🛡️"
     else:
-        return f"`#{idx+1:>2}` ▫️"
+        return f"▫️ #{idx+1}"
 
 
 def build_daily_leaderboard_embed() -> discord.Embed:
@@ -68,22 +68,22 @@ def build_daily_leaderboard_embed() -> discord.Embed:
     for idx, entry in enumerate(data):
         rank = format_rank_badge(idx)
         pct = int(entry["completion_rate"] * 100)
+        pts = entry["points"]
         star = " ⭐" if entry["perfect_day"] else ""
-        lines.append(f"{rank} **{entry['username']}** — `{entry['points']} / 500 PTS` ({pct}%){star}")
+        lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){star}")
 
     if not lines:
-        lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
+        lines.append("_No activity logged today yet. Use `/enroll` and `/log` to start._")
 
     embed = discord.Embed(
-        title="🏆 WINTER ARC — DAILY STANDINGS",
+        title="🏆 Winter Arc — Daily Standings",
         description=(
-            f"📅 **{date_display}**\n"
-            f"_Daily progress resets and locks at 00:00 IST._\n\n"
-            + "\n".join(lines)
+            f"📅 **{date_display}**\n\n"
+            + "\n\n".join(lines)
         ),
         color=0xF1C40F
     )
-    embed.set_footer(text="Updated live • Switch view with buttons below")
+    embed.set_footer(text="Updated live • Resets daily at 00:00 IST")
     return embed
 
 
@@ -93,23 +93,26 @@ def build_overall_leaderboard_embed() -> discord.Embed:
     lines = []
     for idx, entry in enumerate(data):
         rank = format_rank_badge(idx)
-        streak_part = f" • 🔥 `{entry['streak']}d`" if entry.get("streak", 0) > 0 else ""
-        perfect_part = f" • ⭐ `{entry['perfect_days']} clean`" if entry.get("perfect_days", 0) > 0 else ""
-        lines.append(f"{rank} **{entry['username']}** — `{entry['total_points']:,} PTS`{streak_part}{perfect_part}")
+        extras = []
+        if entry.get("streak", 0) > 0:
+            extras.append(f"🔥 {entry['streak']}d")
+        if entry.get("perfect_days", 0) > 0:
+            extras.append(f"⭐ {entry['perfect_days']} clean")
+        extra_str = f"  •  {' • '.join(extras)}" if extras else ""
+        lines.append(f"{rank}  **{entry['username']}** — **{entry['total_points']:,} pts**{extra_str}")
 
     if not lines:
-        lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
+        lines.append("_No enrolled participants found._")
 
     embed = discord.Embed(
-        title="🏆 WINTER ARC — OVERALL STANDINGS",
+        title="🏆 Winter Arc — Overall Standings",
         description=(
-            "🌐 **All-Time Standings**\n"
-            "_Cumulative points across all active challenge days._\n\n"
-            + "\n".join(lines)
+            "🌐 **All-Time Standings**\n\n"
+            + "\n\n".join(lines)
         ),
         color=0x3498DB
     )
-    embed.set_footer(text="Updated live • Switch view with buttons below")
+    embed.set_footer(text="Updated live • Ranked by lifetime points")
     return embed
 
 
@@ -324,7 +327,7 @@ async def get_or_create_arc_role(guild: discord.Guild) -> Optional[discord.Role]
 # Enrollment & Core User Commands
 # ==========================================
 
-@bot.tree.command(name="enroll", description="Enroll in the Winter Arc challenge and receive the warrior role.")
+@bot.tree.command(name="enroll", description="Enroll in the Winter Arc challenge.")
 async def enroll(interaction: discord.Interaction):
     is_already = db.is_user_enrolled(interaction.user.id)
     user_record = db.enroll_user(interaction.user.id, interaction.user.name)
@@ -336,33 +339,35 @@ async def enroll(interaction: discord.Interaction):
         if role:
             try:
                 await interaction.user.add_roles(role)
-                role_msg = f"\n🛡️ Granted role: **{role.name}**"
+                role_msg = f"\n🛡️ Role assigned: **{role.name}**"
             except discord.Forbidden:
                 role_msg = (
-                    f"\n⚠️ *(Could not assign {role.name} role — make sure the bot's own role "
-                    f"is dragged ABOVE {role.name} in Server Settings -> Roles)*"
+                    f"\n⚠️ *(Could not assign {role.name} — please ensure bot's role is higher in Server Settings)*"
                 )
             except Exception as e:
                 role_msg = f"\n⚠️ *(Could not assign role: {e})*"
         else:
-            role_msg = "\nℹ️ *(Admin: run `/admin set_role` or grant the bot 'Manage Roles' to auto-assign)*"
+            role_msg = "\nℹ️ *(Admin: run `/admin set_role` or grant 'Manage Roles' to auto-assign)*"
 
     active_tasks = db.get_active_tasks()
-    task_lines = [f"• **{t['name']}**: `{t['target']} {t['unit']}` ({t['max_points']} pts)" for t in active_tasks]
+    task_lines = [f"• **{t['name']}**: `{int(t['target']) if t['target'].is_integer() else t['target']} {t['unit']}` *(max {t['max_points']} pts)*" for t in active_tasks]
+    disciplines_block = "\n".join(task_lines) if task_lines else "_No disciplines configured._"
 
     title = "⚔️ Enrolled in Winter Arc" if not is_already else "⚔️ Enrollment Re-activated"
     embed = discord.Embed(
         title=title,
         description=(
-            f"Welcome, **{interaction.user.display_name}**.{role_msg}\n\n"
-            "**Guidelines:**\n"
-            "• Complete your daily targets every day (500 pts max).\n"
-            "• Scheduled check-ins: 05:00, 16:30, 00:00 IST.\n"
-            "• Use **/log** to add activity, **/set** to override/reset, and **/today** for status."
+            f"Welcome to the Winter Arc, **{interaction.user.display_name}**.{role_msg}\n\n"
+            "**Daily Disciplines (500 pts max)**\n"
+            f"{disciplines_block}\n\n"
+            "**Core Commands**\n"
+            "• `/today` — View daily progress & streak\n"
+            "• `/log [task] [amount]` — Log completed reps or km\n"
+            "• `/set [task] [amount]` — Set count directly *(or 0 to reset)*\n"
+            "• `/leaderboard` — View daily & overall standings"
         ),
         color=0x2ECC71
     )
-    embed.add_field(name="📋 Daily Challenge Disciplines", value="\n".join(task_lines) if task_lines else "None configured.", inline=False)
     embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
     await safe_react(interaction, "🐺", "⚔️")
@@ -387,77 +392,55 @@ async def leave_arc(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🏳️ Unenrolled from Winter Arc",
-        description=f"{interaction.user.mention} has stepped away from the Winter Arc.\nYour historical data is preserved. Run `/enroll` anytime to rejoin.",
+        description=f"{interaction.user.mention} has unenrolled from Winter Arc.\nYour history is saved. Run `/enroll` anytime to rejoin.",
         color=0x7F8C8D
     )
     embed.set_footer(text="Winter Arc")
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="ping", description="Check whether Winter Arc bot is online and measure gateway latency.")
+@bot.tree.command(name="ping", description="Check bot status and gateway latency.")
 async def ping(interaction: discord.Interaction):
     latency_ms = round(bot.latency * 1000)
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Winter Arc is operational.\n**Gateway Latency**: `{latency_ms} ms`\n**Timezone**: `{BOT_TZ}`",
+        description=f"Winter Arc is operational.\n\n• **Gateway Latency**: `{latency_ms} ms`\n• **Timezone**: `{BOT_TZ}`",
         color=0x2ECC71
     )
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="help", description="View the Winter Arc manual, commands, and rules.")
+@bot.tree.command(name="help", description="View commands and challenge rules.")
 async def help_cmd(interaction: discord.Interaction):
+    desc = (
+        "**Daily Targets (500 pts max)**\n"
+        "• 💪 **Push-ups**: 100 reps *(1 pt / rep)*\n"
+        "• 🧗 **Pull-ups**: 100 reps *(1 pt / rep)*\n"
+        "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
+        "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
+        "• 🏃 **Running**: 10 km *(1 pt / 100m)*\n\n"
+        "**Core Commands**\n"
+        "• `/today` — Check your progress & streak\n"
+        "• `/log [task] [amount]` — Add reps or km\n"
+        "• `/set [task] [amount]` — Set count directly *(0 to reset)*\n"
+        "• `/leaderboard` — Daily & all-time standings\n"
+        "• `/stats` — Lifetime volume & records\n"
+        "• `/history` — 7-day point history\n"
+        "• `/profile` — Member profile & join date\n"
+        "• `/enroll` • `/leave_arc` • `/ping`"
+    )
+
     embed = discord.Embed(
-        title="❄️ WINTER ARC // COMMAND DIRECTORY",
-        description=(
-            "**500 Points Daily • Consistency Beats Motivation**\n"
-            "Track daily workout sets, build streaks, and stay accountable with your crew."
-        ),
+        title="❄️ Winter Arc — Commands & Rules",
+        description=desc,
         color=0x2B2D31
     )
-
-    disciplines_text = (
-        "```yaml\n"
-        "Push-ups  : 100 reps   (1 pt / rep  -> 100 max)\n"
-        "Pull-ups  : 100 reps   (1 pt / rep  -> 100 max)\n"
-        "Squats    : 100 reps   (1 pt / rep  -> 100 max)\n"
-        "Sit-ups   : 100 reps   (1 pt / rep  -> 100 max)\n"
-        "Running   : 10 km      (1 pt / 100m -> 100 max)\n"
-        "Daily Max : 500 PTS    (Hit all 5 for Clean Day)\n"
-        "```"
-    )
-    embed.add_field(name="Daily Disciplines", value=disciplines_text, inline=False)
-
-    tracking_text = (
-        "• `/enroll` — Join the Winter Arc and get the role\n"
-        "• `/today` — View your current progress bars, points, and streak\n"
-        "• `/log [task] [amount]` — Add reps or km to today's count\n"
-        "• `/set [task] [amount]` — Override count directly *(or `0` to reset typos)*\n"
-        "• `/leave_arc` — Unenroll from the challenge"
-    )
-    embed.add_field(name="Workout Tracking", value=tracking_text, inline=False)
-
-    stats_text = (
-        "• `/leaderboard` — Interactive Daily & Overall all-time podium\n"
-        "• `/stats` — Lifetime volume, 100% clean days, and total points\n"
-        "• `/history` — 7-day score completion timeline\n"
-        "• `/profile` — Member card, streak, and joined date\n"
-        "• `/ping` — Check bot response latency"
-    )
-    embed.add_field(name="Performance & Standings", value=stats_text, inline=False)
-
-    schedule_text = (
-        "`05:00 IST` Kickoff • `16:30 IST` Check-in • `00:00 IST` Day Finalized\n"
-        "*Broadcasts exclusively in the dedicated channel set by admins.*"
-    )
-    embed.add_field(name="Automated Schedule", value=schedule_text, inline=False)
-
-    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    embed.set_footer(text="05:00 Kickoff • 16:30 Check-in • 00:00 Finalization (IST)")
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="today", description="View your progress, targets, points, and streak for today.")
-@app_commands.describe(member="Optional: View another enrolled member's progress")
+@bot.tree.command(name="today", description="View today's progress, points, and streak.")
+@app_commands.describe(member="Optional: View another member's progress")
 async def today(interaction: discord.Interaction, member: Optional[discord.Member] = None):
     target_user = member or interaction.user
 
@@ -473,42 +456,38 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
 
     now = datetime.now(BOT_TZ)
     today_str = now.strftime("%Y-%m-%d")
-    date_display = now.strftime("%B %d, %Y").upper()
+    date_display = now.strftime("%A, %B %d, %Y")
 
     progress = db.get_user_daily_progress(target_user.id, today_str)
     streak = db.calculate_streak(target_user.id, today_str)
 
-    embed = discord.Embed(
-        title=f"❄️ WINTER ARC — {date_display}",
-        description=f"Warrior: **{target_user.display_name}**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        color=0x1ABC9C if progress["perfect_day"] else 0x3498DB
-    )
+    task_icons = {"push-ups": "💪", "pull-ups": "🧗", "squats": "🦵", "sit-ups": "🧘", "running": "🏃"}
 
-    task_icons = {"push-ups": "💪", "sit-ups": "🧘", "squats": "🦵", "running": "🏃", "pull-ups": "🧗"}
-
+    task_lines = []
     for t in progress["tasks"]:
         icon = task_icons.get(t["name"].lower(), "🎯")
         cur = int(t["current_amount"]) if t["current_amount"].is_integer() else t["current_amount"]
         tgt = int(t["target"]) if t["target"].is_integer() else t["target"]
-        bar = make_progress_bar(t["current_amount"], t["target"], length=8)
-        status_check = "✅" if t["completed"] else ""
-        embed.add_field(
-            name=f"{icon} {t['name']} {status_check}",
-            value=f"`{bar}` **{cur} / {tgt} {t['unit']}**\nPoints: **{t['points_earned']} / {t['max_points']}**",
-            inline=False
-        )
+        check = " ✅" if t["completed"] else ""
+        task_lines.append(f"{icon}  **{t['name']}** — {cur} / {tgt} {t['unit']} *({t['points_earned']} pts)*{check}")
 
     pct = int(progress["overall_completion_rate"] * 100)
-    embed.add_field(
-        name="📊 Daily Summary",
-        value=(
-            f"**Points**: `{progress['total_points']} / {progress['max_possible_points']}`\n"
-            f"**Completion**: `{pct}%`\n"
-            f"**Current Streak**: 🔥 `{streak} days`"
-        ),
-        inline=False
+    bar = make_progress_bar(progress["total_points"], progress["max_possible_points"], length=10)
+
+    desc = (
+        f"**{target_user.display_name}** • {date_display}\n\n"
+        f"`{bar}`  **{progress['total_points']} / {progress['max_possible_points']} pts** ({pct}%)\n"
+        f"🔥 Current Streak: **{streak} days**\n\n"
+        "**Daily Disciplines**\n"
+        + "\n".join(task_lines)
     )
-    embed.set_footer(text="Record reps with /log | View rankings with /leaderboard")
+
+    embed = discord.Embed(
+        title="❄️ Winter Arc — Today",
+        description=desc,
+        color=0x1ABC9C if progress["perfect_day"] else 0x3498DB
+    )
+    embed.set_footer(text="Log with /log • Set with /set • Standings with /leaderboard")
     await interaction.response.send_message(embed=embed)
     if progress["perfect_day"]:
         await safe_react(interaction, "⭐", "🔥")
@@ -516,7 +495,7 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
         await safe_react(interaction, "🐺", "❄️")
 
 
-@bot.tree.command(name="log", description="Log activity towards a task (e.g. 30 push-ups, 5 km running).")
+@bot.tree.command(name="log", description="Add completed reps or km to today's count.")
 @app_commands.describe(
     task="Select the task to log",
     amount="Amount completed (e.g. 30 reps or 5 km)"
@@ -552,31 +531,23 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
     tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
     amt = int(amount) if amount.is_integer() else amount
 
-    bar = make_progress_bar(result["new_total"], result["target"], length=10)
-    delta_str = f"+{result['points_earned_delta']} pts" if result['points_earned_delta'] > 0 else "Max points capped"
+    bar = make_progress_bar(result["new_total"], result["target"], length=8)
+    delta_str = f"+{result['points_earned_delta']} pts" if result['points_earned_delta'] > 0 else "Capped"
+
+    desc = (
+        f"**+{amt} {result['unit']}** logged to **{result['task_name']}**\n\n"
+        f"`{bar}`  **{cur} / {tgt} {result['unit']}**\n\n"
+        f"🎯 Discipline: **{result['task_points_total']} / {result['task_max_points']} pts** ({delta_str})\n"
+        f"📊 Today Total: **{result['daily_points_total']} / {result['daily_points_max']} pts**"
+    )
 
     embed = discord.Embed(
-        title=f"✅ Logged: {result['task_name']}",
+        title=f"✅ {result['task_name']}",
+        description=desc,
         color=0x2ECC71
     )
-    embed.add_field(
-        name="Activity",
-        value=f"Added: **+{amt} {result['unit']}**\nTotal: **{cur} / {tgt} {result['unit']}**\n`{bar}`",
-        inline=False
-    )
-    embed.add_field(
-        name="Scoring",
-        value=(
-            f"Task Points: **{result['task_points_total']} / {result['task_max_points']}** (`{delta_str}`)\n"
-            f"Daily Points: **{result['daily_points_total']} / {result['daily_points_max']}**"
-        ),
-        inline=False
-    )
-
     if result["is_target_reached"] and result["previous_total"] < result["target"]:
-        embed.set_footer(text="🎉 Target completed for this task today! Keep going!")
-    else:
-        embed.set_footer(text="Keep it up! Use /today to view full status.")
+        embed.set_footer(text="⭐ Target completed for this discipline!")
 
     await interaction.response.send_message(embed=embed)
     if result["is_target_reached"]:
@@ -585,7 +556,7 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
         await safe_react(interaction, "🐺", "💪")
 
 
-@bot.tree.command(name="set", description="Directly set or reset your today's total for a task (e.g. fix a typo or reset to 0).")
+@bot.tree.command(name="set", description="Override today's count (or set 0 to reset).")
 @app_commands.describe(
     task="Select the task to set/override",
     amount="Exact total to set for today (e.g. 50, or 0 to reset)"
@@ -621,31 +592,22 @@ async def set_activity_cmd(interaction: discord.Interaction, task: str, amount: 
     tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
     prev = int(result["previous_total"]) if result["previous_total"].is_integer() else result["previous_total"]
 
-    bar = make_progress_bar(result["new_total"], result["target"], length=10)
+    bar = make_progress_bar(result["new_total"], result["target"], length=8)
+
+    desc = (
+        f"**{result['task_name']}** adjusted: **{prev}** ➔ **{cur} {result['unit']}**\n\n"
+        f"`{bar}`  **{cur} / {tgt} {result['unit']}**\n\n"
+        f"🎯 Discipline: **{result['task_points_total']} / {result['task_max_points']} pts**\n"
+        f"📊 Today Total: **{result['daily_points_total']} / {result['daily_points_max']} pts**"
+    )
 
     embed = discord.Embed(
         title=f"🔄 Set: {result['task_name']}",
-        description=f"Adjusted today's total from **{prev} {result['unit']}** ➔ **{cur} {result['unit']}**.",
+        description=desc,
         color=0x3498DB
     )
-    embed.add_field(
-        name="Total Progress",
-        value=f"Count: **{cur} / {tgt} {result['unit']}**\n`{bar}`",
-        inline=False
-    )
-    embed.add_field(
-        name="Scoring",
-        value=(
-            f"Task Points: **{result['task_points_total']} / {result['task_max_points']}**\n"
-            f"Daily Points: **{result['daily_points_total']} / {result['daily_points_max']}**"
-        ),
-        inline=False
-    )
-
     if amount == 0:
-        embed.set_footer(text="Reset to 0. Log your actual sets with /log or /set.")
-    else:
-        embed.set_footer(text="Updated. Use /today to view full status.")
+        embed.set_footer(text="Discipline reset to 0.")
 
     await interaction.response.send_message(embed=embed)
     if result["is_target_reached"]:
@@ -654,7 +616,7 @@ async def set_activity_cmd(interaction: discord.Interaction, task: str, amount: 
         await safe_react(interaction, "🐺", "🔄")
 
 
-@bot.tree.command(name="leaderboard", description="View daily or all-time Winter Arc podium standings.")
+@bot.tree.command(name="leaderboard", description="View daily and overall standings.")
 async def leaderboard(interaction: discord.Interaction):
     embed = build_daily_leaderboard_embed()
     view = LeaderboardView(current_tab="daily")
@@ -662,7 +624,7 @@ async def leaderboard(interaction: discord.Interaction):
     await safe_react(interaction, "🏆")
 
 
-@bot.tree.command(name="stats", description="View all-time statistics, lifetime volume, and records.")
+@bot.tree.command(name="stats", description="View lifetime volume and performance statistics.")
 @app_commands.describe(member="Optional: View another member's statistics")
 async def stats(interaction: discord.Interaction, member: Optional[discord.Member] = None):
     target_user = member or interaction.user
@@ -671,38 +633,40 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
             return
     else:
         if not db.is_user_enrolled(target_user.id):
-            await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+            await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
             return
 
     data = db.get_user_stats(target_user.id)
-    embed = discord.Embed(
-        title=f"⚡ PERFORMANCE RECORD — {target_user.display_name.upper()}",
-        color=0x2ECC71 if data.get('current_streak', 0) > 0 else 0x34495E
-    )
-    embed.add_field(
-        name="Consistency & Discipline",
-        value=(
-            f"• **Current Streak**: `{data.get('current_streak', 0)} Days`\n"
-            f"• **100% Clean Days**: `{data.get('perfect_days', 0)} Days`\n"
-            f"• **Active Sessions**: `{data.get('active_days', 0)} Days`\n"
-            f"• **Total Points**: `{data.get('lifetime_points', 0):,} PTS`"
-        ),
-        inline=False
-    )
+    streak = data.get('current_streak', 0)
+    clean = data.get('perfect_days', 0)
+    active = data.get('active_days', 0)
+    pts = data.get('lifetime_points', 0)
 
     volume_lines = []
     for t in data.get("task_totals", []):
         vol = int(t["total_volume"]) if t["total_volume"].is_integer() else t["total_volume"]
-        volume_lines.append(f"• **{t['name']}**: `{vol:,} {t['unit']}`")
+        volume_lines.append(f"• **{t['name']}**: {vol:,} {t['unit']}")
 
-    if volume_lines:
-        embed.add_field(name="Aggregate Volume", value="\n".join(volume_lines), inline=False)
+    desc = (
+        f"**{target_user.display_name}**\n\n"
+        f"🔥 **Current Streak**: {streak} days\n"
+        f"⭐ **Clean Days**: {clean}\n"
+        f"💎 **Total Points**: {pts:,} pts\n"
+        f"📅 **Active Days**: {active}\n\n"
+        "**Lifetime Volume**\n"
+        + ("\n".join(volume_lines) if volume_lines else "_No sets logged yet._")
+    )
 
+    embed = discord.Embed(
+        title="⚡ Winter Arc — Lifetime Stats",
+        description=desc,
+        color=0x2ECC71 if streak > 0 else 0x34495E
+    )
     embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="history", description="View your point history over the past 7 days.")
+@bot.tree.command(name="history", description="View 7-day point history.")
 async def history(interaction: discord.Interaction):
     if not await require_enrolled(interaction):
         return
@@ -712,17 +676,17 @@ async def history(interaction: discord.Interaction):
     for d in reversed(hist):
         pct = int(d["completion_rate"] * 100)
         star = " ⭐" if d["perfect_day"] else ""
-        lines.append(f"`{d['date']}`: **{d['points']} / {d['max_points']} pts** ({pct}%){star}")
+        lines.append(f"• `{d['date']}` — **{d['points']} pts** ({pct}%){star}")
 
     embed = discord.Embed(
-        title=f"📜 7-Day History — {interaction.user.display_name}",
-        description="\n".join(lines) if lines else "_No history recorded yet._",
+        title="📜 Winter Arc — 7-Day History",
+        description=f"**{interaction.user.display_name}**\n\n" + ("\n\n".join(lines) if lines else "_No history recorded yet._"),
         color=0x34495E
     )
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="profile", description="View your warrior card, joined date, and current streak.")
+@bot.tree.command(name="profile", description="View member profile and streak.")
 async def profile(interaction: discord.Interaction):
     if not await require_enrolled(interaction):
         return
@@ -731,16 +695,21 @@ async def profile(interaction: discord.Interaction):
     streak = db.calculate_streak(interaction.user.id)
     stats_data = db.get_user_stats(interaction.user.id)
 
+    desc = (
+        f"**{interaction.user.display_name}**\n\n"
+        f"📅 **Enrolled**: `{user['joined_at'][:10]}`\n"
+        f"🔥 **Current Streak**: **{streak} days**\n"
+        f"💎 **Lifetime Points**: **{stats_data['lifetime_points']:,} pts**"
+    )
+
     embed = discord.Embed(
-        title=f"🛡️ Warrior Card — {interaction.user.display_name}",
+        title="🛡️ Winter Arc — Member Profile",
+        description=desc,
         color=0x1ABC9C
     )
     if interaction.user.avatar:
         embed.set_thumbnail(url=interaction.user.avatar.url)
 
-    embed.add_field(name="Enrolled Since", value=f"`{user['joined_at'][:10]}`", inline=True)
-    embed.add_field(name="Current Streak", value=f"🔥 `{streak} days`", inline=True)
-    embed.add_field(name="Lifetime Points", value=f"💎 `{stats_data['lifetime_points']:,}`", inline=True)
     embed.set_footer(text="Winter Arc • Discipline is Destiny")
     await interaction.response.send_message(embed=embed)
 
@@ -792,7 +761,7 @@ async def admin_set_role(interaction: discord.Interaction, role: discord.Role):
     await interaction.response.send_message(embed=embed)
 
 
-@admin_group.command(name="overview", description="Server admin dashboard: inspect channel, role, enrolled members, and tasks.")
+@admin_group.command(name="overview", description="View server configuration, enrolled members, and disciplines.")
 @app_commands.default_permissions(administrator=True)
 async def admin_overview(interaction: discord.Interaction):
     if not interaction.guild:
@@ -821,16 +790,22 @@ async def admin_overview(interaction: discord.Interaction):
     active_tasks = db.get_active_tasks()
     task_lines = [f"• **{t['name']}**: target `{t['target']} {t['unit']}`, max `{t['max_points']} pts`" for t in active_tasks]
 
+    desc = (
+        "**Server Configuration**\n"
+        f"• 📢 **Dedicated Channel**: {channel_display}\n"
+        f"• 🔔 **Ping Role**: {role_display}\n\n"
+        f"**Enrolled Members ({len(enrolled)})**\n"
+        + ("\n".join(warrior_lines) if warrior_lines else "_No members enrolled yet._")
+        + "\n\n**Active Disciplines**\n"
+        + ("\n".join(task_lines) if task_lines else "_No active tasks._")
+    )
+
     embed = discord.Embed(
-        title="🛡️ Winter Arc Server Overview Dashboard",
+        title="⚙️ Winter Arc — Server Overview",
+        description=desc,
         color=0x34495E
     )
-    embed.add_field(name="📢 Dedicated Channel", value=channel_display, inline=True)
-    embed.add_field(name="🔔 Ping Role", value=role_display, inline=True)
-    embed.add_field(name=f"👥 Enrolled Warriors ({len(enrolled)})", value="\n".join(warrior_lines) if warrior_lines else "_No users enrolled yet._", inline=False)
-    embed.add_field(name="📋 Active Disciplines", value="\n".join(task_lines) if task_lines else "_No active tasks._", inline=False)
-    embed.set_footer(text="Admin controls: /admin set_channel | /admin set_role | /admin task_add")
-
+    embed.set_footer(text="Admin: /admin set_channel • /admin set_role • /admin task_add")
     await interaction.response.send_message(embed=embed)
 
 
@@ -875,7 +850,7 @@ async def admin_task_toggle(interaction: discord.Interaction, name: str):
         await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
 
 
-@admin_group.command(name="tasks_list", description="List all challenge tasks in the database.")
+@admin_group.command(name="tasks_list", description="List all challenge disciplines.")
 @app_commands.default_permissions(administrator=True)
 async def admin_tasks_list(interaction: discord.Interaction):
     all_tasks = db.get_all_tasks()
@@ -885,7 +860,7 @@ async def admin_tasks_list(interaction: discord.Interaction):
         lines.append(f"{status_icon} **{t['name']}**: target `{t['target']} {t['unit']}`, max `{t['max_points']} pts`")
 
     embed = discord.Embed(
-        title="📋 Challenge Tasks Master List",
+        title="📋 Winter Arc — Disciplines",
         description="\n".join(lines) if lines else "_No tasks registered._",
         color=0x3498DB
     )
@@ -899,7 +874,7 @@ bot.tree.add_command(admin_group)
 # Testing & Diagnostics
 # ==========================================
 
-@bot.tree.command(name="test_reminder", description="Preview morning, afternoon, or midnight announcements in the dedicated channel.")
+@bot.tree.command(name="test_reminder", description="Admin: Preview scheduled announcements.")
 @app_commands.describe(reminder_type="Select announcement type to test")
 @app_commands.choices(reminder_type=[
     app_commands.Choice(name="Morning Kickoff (05:00)", value="morning"),

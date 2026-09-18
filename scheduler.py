@@ -106,24 +106,26 @@ class WinterArcScheduler:
         """Sends morning daily motivation and active challenge targets to dedicated channel."""
         active_tasks = db.get_active_tasks()
         now = get_now_ist()
-        date_display = now.strftime("%B %d, %Y").upper()
-
-        embed = discord.Embed(
-            title=f"🌅 WINTER ARC — MORNING KICKOFF — {date_display}",
-            description=(
-                "500 daily points on the board. Log your sets throughout the day.\n\n"
-                "**Daily Disciplines:**"
-            ),
-            color=0x3498DB
-        )
+        date_display = now.strftime("%A, %B %d, %Y")
 
         task_lines = []
         for t in active_tasks:
             target_display = int(t["target"]) if t["target"].is_integer() else t["target"]
-            task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(Max {t['max_points']} pts)*")
+            task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
 
-        embed.add_field(name="📋 Today's Targets", value="\n".join(task_lines) if task_lines else "_No active tasks._", inline=False)
-        embed.set_footer(text="Log with /log • Check status with /today • Finalizes at 00:00 IST")
+        disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
+
+        embed = discord.Embed(
+            title=f"🌅 Winter Arc — Daily Kickoff • {date_display}",
+            description=(
+                "A new day has begun. 500 points available across 5 disciplines.\n\n"
+                "**Daily Targets**\n"
+                f"{disciplines_block}\n\n"
+                "Log your sets with `/log` or check progress with `/today`."
+            ),
+            color=0x3498DB
+        )
+        embed.set_footer(text="Consistency beats motivation • Day resets at 00:00 IST")
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌅 **Morning Kickoff**", embed=embed)
@@ -144,26 +146,26 @@ class WinterArcScheduler:
         today_str = now.strftime("%Y-%m-%d")
         enrolled_users = db.get_enrolled_users()
 
-        embed = discord.Embed(
-            title="⏰ WINTER ARC — AFTERNOON CHECK-IN",
-            description="Afternoon progress update. Log your remaining targets before midnight finalization.\n",
-            color=0xE67E22
-        )
-
-        if not enrolled_users:
-            embed.description += "\n_No enrolled participants yet. Use `/enroll` to join!_"
-        else:
-            warrior_lines = []
+        warrior_lines = []
+        if enrolled_users:
             for u in enrolled_users:
                 prog = db.get_user_daily_progress(u["discord_id"], today_str)
                 pct = int(prog["overall_completion_rate"] * 100)
                 star = " ⭐" if prog["perfect_day"] else ""
                 warrior_lines.append(
-                    f"• **{u['username']}**: `{prog['total_points']} / {prog['max_possible_points']} pts` ({pct}%){star}"
+                    f"• **{u['username']}** — **{prog['total_points']} / {prog['max_possible_points']} pts** ({pct}%){star}"
                 )
-            embed.add_field(name="⚔️ Current Progress", value="\n".join(warrior_lines), inline=False)
 
-        embed.set_footer(text="Day finalizes automatically at 00:00 IST")
+        embed = discord.Embed(
+            title="⏰ Winter Arc — Afternoon Check-in",
+            description=(
+                "Midday check-in. Complete your remaining disciplines before midnight.\n\n"
+                "**Today's Progress**\n"
+                + ("\n\n".join(warrior_lines) if warrior_lines else "_No enrolled participants yet. Use `/enroll` to join!_")
+            ),
+            color=0xE67E22
+        )
+        embed.set_footer(text="Log sets with /log • Finalizes at 00:00 IST")
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}⏰ **Afternoon Check-in**", embed=embed)
@@ -202,39 +204,43 @@ class WinterArcScheduler:
     def format_daily_podium_embed(self, date_str: str, leaderboard: list) -> discord.Embed:
         try:
             d_obj = date.fromisoformat(date_str)
-            title_date = d_obj.strftime("%B %d, %Y").upper()
+            title_date = d_obj.strftime("%A, %B %d, %Y")
         except Exception:
             title_date = date_str
-
-        embed = discord.Embed(
-            title=f"🌙 WINTER ARC — DAILY FINALIZATION — {title_date}",
-            description="Scores are locked in. Here are the final daily standings:\n",
-            color=0x9B59B6
-        )
 
         podium_lines = []
         perfect_count = 0
 
         for idx, entry in enumerate(leaderboard):
             if idx == 0:
-                rank = "`#1` 👑"
+                rank = "👑"
             elif idx == 1:
-                rank = "`#2` ⚔️"
+                rank = "⚔️"
             elif idx == 2:
-                rank = "`#3` 🛡️"
+                rank = "🛡️"
             else:
-                rank = f"`#{idx+1:>2}` ▫️"
+                rank = f"▫️ #{idx+1}"
 
             perfect_star = " ⭐" if entry["perfect_day"] else ""
             if entry["perfect_day"]:
                 perfect_count += 1
             pct = int(entry["completion_rate"] * 100)
-            podium_lines.append(f"{rank} **{entry['username']}** — `{entry['points']} / 500 PTS` ({pct}%){perfect_star}")
+            pts = entry["points"]
+            podium_lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){perfect_star}")
 
         if not podium_lines:
-            podium_lines.append("_No enrolled members logged activity for this day._")
+            podium_lines.append("_No activity logged for this day._")
 
-        embed.add_field(name="🏆 Final Standings", value="\n".join(podium_lines), inline=False)
-        embed.add_field(name="🔥 100% Perfect Days", value=f"**{perfect_count}** completed all disciplines.", inline=False)
-        embed.set_footer(text="A new day has begun. Run /today to view your fresh slate.")
+        perfect_info = f"\n\n🔥 **Clean Sweeps**: **{perfect_count}** member(s) completed 100%." if perfect_count > 0 else ""
+
+        embed = discord.Embed(
+            title=f"🌙 Winter Arc — Daily Finalization • {title_date}",
+            description=(
+                "Scores are locked in for the day. Final standings:\n\n"
+                + "\n\n".join(podium_lines)
+                + perfect_info
+            ),
+            color=0x9B59B6
+        )
+        embed.set_footer(text="A new day has begun • Check your fresh slate with /today")
         return embed
