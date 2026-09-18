@@ -169,7 +169,7 @@ class WinterArcBot(discord.Client):
 
     async def on_ready(self):
         logger.info(f"Logged in successfully as {self.user} (ID: {self.user.id})")
-        activity = discord.Activity(type=discord.ActivityType.watching, name="the Winter Arc | /today")
+        activity = discord.Activity(type=discord.ActivityType.watching, name="The Winter is Coming... | /help")
         await self.change_presence(status=discord.Status.online, activity=activity)
 
         # Clear any guild-specific command copies to prevent duplicate commands in Discord UI
