@@ -225,13 +225,26 @@ async def ping(interaction: discord.Interaction):
 @bot.tree.command(name="help", description="View the Winter Arc command guide, schedule, and rules.")
 async def help_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="❄️ Winter Arc — Command Manual",
+        title="❄️ Winter Arc — Command Manual & Guidelines",
         description=(
             "**Discipline is Destiny.** Welcome to the Winter Arc accountability bot.\n"
             "Track daily workout disciplines, earn capped points, build streaks, and stay accountable.\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         ),
         color=0x3498DB
+    )
+
+    embed.add_field(
+        name="📋 The 5 Daily Disciplines (500 PTS MAX)",
+        value=(
+            "• 💪 **Push-ups**: 100 reps (1 pt / rep, 100 max)\n"
+            "• 🧗 **Pull-ups**: 100 reps (1 pt / rep, 100 max)\n"
+            "• 🦵 **Squats**: 100 reps (1 pt / rep, 100 max)\n"
+            "• 🧘 **Sit-ups**: 100 reps (1 pt / rep, 100 max)\n"
+            "• 🏃 **Running**: 10 km (1 pt / 100m = 10 pts / km, 100 max)\n"
+            "_Hit 100% on all 5 to earn a Clean Day and grow your Streak!_"
+        ),
+        inline=False
     )
 
     embed.add_field(
@@ -244,14 +257,14 @@ async def help_cmd(interaction: discord.Interaction):
     )
 
     embed.add_field(
-        name="⚔️ Daily Workout Tracking (Enrolled Warriors)",
+        name="⚔️ Workout Tracking",
         value=(
             "• **/today** — View your daily targets, progress bars (`🟩🟩⬜`), points, and streak.\n"
-            "• **/log** `task` `amount` — Add reps or km completed (e.g. `/log Push-ups 30`).\n"
-            "• **/set** `task` `amount` — Directly set or reset today's total (e.g. `/set Push-ups 50` or `0`).\n"
-            "• **/profile** — View your warrior profile card, streak, and joined date.\n"
+            "• **/log** `task` `amount` — **Add** reps or km completed (e.g. `/log Push-ups 30`).\n"
+            "• **/set** `task` `amount` — **Override/Set** today's total directly (e.g. `/set Push-ups 50` or `0` to reset).\n"
+            "• **/stats** `[member]` — View lifetime totals, all-time volume, and clean days.\n"
             "• **/history** — Inspect your daily point history over the past 7 days.\n"
-            "• **/stats** `[member]` — View lifetime totals, all-time volume, and perfect days."
+            "• **/profile** — View your warrior profile card, streak, and joined date."
         ),
         inline=False
     )
