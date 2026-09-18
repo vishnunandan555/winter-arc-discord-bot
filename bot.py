@@ -75,7 +75,7 @@ def build_daily_leaderboard_embed() -> discord.Embed:
         lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
 
     embed = discord.Embed(
-        title="🏆 WINTER ARC — AMAROK'S DAILY STANDINGS",
+        title="🏆 WINTER ARC — DAILY STANDINGS",
         description=(
             f"📅 **{date_display}**\n"
             f"_Daily progress resets and locks at 00:00 IST._\n\n"
@@ -83,7 +83,7 @@ def build_daily_leaderboard_embed() -> discord.Embed:
         ),
         color=0xF1C40F
     )
-    embed.set_footer(text="Updated live • Amarok's Discipline Standings")
+    embed.set_footer(text="Updated live • Switch view with buttons below")
     return embed
 
 
@@ -101,15 +101,15 @@ def build_overall_leaderboard_embed() -> discord.Embed:
         lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
 
     embed = discord.Embed(
-        title="🏆 WINTER ARC — AMAROK'S OVERALL STANDINGS",
+        title="🏆 WINTER ARC — OVERALL STANDINGS",
         description=(
-            "🌐 **All-Time Discipline Leaderboard**\n"
-            "_Ranked by total points accumulated across all completed challenges._\n\n"
+            "🌐 **All-Time Standings**\n"
+            "_Cumulative points across all active challenge days._\n\n"
             + "\n".join(lines)
         ),
         color=0x3498DB
     )
-    embed.set_footer(text="Updated live • Amarok's Discipline Standings")
+    embed.set_footer(text="Updated live • Switch view with buttons below")
     return embed
 
 
@@ -350,21 +350,20 @@ async def enroll(interaction: discord.Interaction):
     active_tasks = db.get_active_tasks()
     task_lines = [f"• **{t['name']}**: `{t['target']} {t['unit']}` ({t['max_points']} pts)" for t in active_tasks]
 
-    title = "⚔️ Enrolled in Winter Arc!" if not is_already else "⚔️ Enrollment Re-activated!"
+    title = "⚔️ Enrolled in Winter Arc" if not is_already else "⚔️ Enrollment Re-activated"
     embed = discord.Embed(
         title=title,
         description=(
-            f"Welcome to Amarok's pack, **{interaction.user.display_name}**.{role_msg}\n\n"
-            "**The Ground Rules:**\n"
-            "• Complete your daily targets every day.\n"
-            "• Points are capped to prevent cheating — focus on consistency.\n"
-            "• Check in at 05:00 and 16:30; day results lock in at 00:00 IST.\n"
-            "• Use **/log** to record activity and **/today** to check progress."
+            f"Welcome, **{interaction.user.display_name}**.{role_msg}\n\n"
+            "**Guidelines:**\n"
+            "• Complete your daily targets every day (500 pts max).\n"
+            "• Scheduled check-ins: 05:00, 16:30, 00:00 IST.\n"
+            "• Use **/log** to add activity, **/set** to override/reset, and **/today** for status."
         ),
         color=0x2ECC71
     )
     embed.add_field(name="📋 Daily Challenge Disciplines", value="\n".join(task_lines) if task_lines else "None configured.", inline=False)
-    embed.set_footer(text="Amarok demands discipline. Lock in.")
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
     await safe_react(interaction, "🐺", "⚔️")
 
@@ -388,10 +387,10 @@ async def leave_arc(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🏳️ Unenrolled from Winter Arc",
-        description=f"{interaction.user.mention} has stepped away from Amarok's pack.\nYour historical data is preserved. Run `/enroll` anytime to rejoin.",
+        description=f"{interaction.user.mention} has stepped away from the Winter Arc.\nYour historical data is preserved. Run `/enroll` anytime to rejoin.",
         color=0x7F8C8D
     )
-    embed.set_footer(text="Amarok will remember your records. Return when ready.")
+    embed.set_footer(text="Winter Arc")
     await interaction.response.send_message(embed=embed)
 
 
@@ -400,7 +399,7 @@ async def ping(interaction: discord.Interaction):
     latency_ms = round(bot.latency * 1000)
     embed = discord.Embed(
         title="🏓 Pong!",
-        description=f"Amarok is alert and operational.\n**Gateway Latency**: `{latency_ms} ms`\n**Timezone**: `{BOT_TZ}`",
+        description=f"Winter Arc is operational.\n**Gateway Latency**: `{latency_ms} ms`\n**Timezone**: `{BOT_TZ}`",
         color=0x2ECC71
     )
     await interaction.response.send_message(embed=embed)
@@ -409,10 +408,10 @@ async def ping(interaction: discord.Interaction):
 @bot.tree.command(name="help", description="View the Winter Arc manual, commands, and rules.")
 async def help_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="❄️ WINTER ARC // AMAROK COMMAND DIRECTORY",
+        title="❄️ WINTER ARC // COMMAND DIRECTORY",
         description=(
             "**500 Points Daily • Consistency Beats Motivation**\n"
-            "Track daily workout sets, build streaks, and stay accountable with Amarok's pack."
+            "Track daily workout sets, build streaks, and stay accountable with your crew."
         ),
         color=0x2B2D31
     )
@@ -453,7 +452,7 @@ async def help_cmd(interaction: discord.Interaction):
     )
     embed.add_field(name="Automated Schedule", value=schedule_text, inline=False)
 
-    embed.set_footer(text="Winter Arc • Guarded by Amarok • Discipline is Destiny")
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
 
 
@@ -509,7 +508,7 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
         ),
         inline=False
     )
-    embed.set_footer(text="Record reps with /log | Rankings with /leaderboard • Amarok's Pack")
+    embed.set_footer(text="Record reps with /log | View rankings with /leaderboard")
     await interaction.response.send_message(embed=embed)
     if progress["perfect_day"]:
         await safe_react(interaction, "⭐", "🔥")
@@ -699,7 +698,7 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
     if volume_lines:
         embed.add_field(name="Aggregate Volume", value="\n".join(volume_lines), inline=False)
 
-    embed.set_footer(text="Winter Arc • Tested by Amarok • Consistency Beats Motivation")
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
 
 
@@ -742,7 +741,7 @@ async def profile(interaction: discord.Interaction):
     embed.add_field(name="Enrolled Since", value=f"`{user['joined_at'][:10]}`", inline=True)
     embed.add_field(name="Current Streak", value=f"🔥 `{streak} days`", inline=True)
     embed.add_field(name="Lifetime Points", value=f"💎 `{stats_data['lifetime_points']:,}`", inline=True)
-    embed.set_footer(text="Warrior of Amarok's Pack • Discipline is Destiny")
+    embed.set_footer(text="Winter Arc • Discipline is Destiny")
     await interaction.response.send_message(embed=embed)
 
 

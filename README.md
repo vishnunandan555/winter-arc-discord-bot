@@ -1,9 +1,7 @@
-# ❄️ Winter Arc Discord Bot — Amarok
-
-> *"The tundra yields only to those who move first. 500 points on the board. No zero days."*  
-> — **Amarok**, Mascot & Guardian Frost Wolf of the Winter Arc
+# ❄️ Winter Arc Discord Bot
 
 A streamlined, robust fitness and accountability Discord bot built with **Python 3.14**, **discord.py 2.x**, and **SQLite**. Designed for friend groups to track daily workouts, earn capped points, maintain streaks, and celebrate daily and overall podium finishes.
+*(Mascot: Amarok the Arctic Wolf)*
 
 Pinned to **Asia/Kolkata (IST)** with scheduled morning motivation (05:00), afternoon check-ins (16:30), and midnight finalization (00:00).
 

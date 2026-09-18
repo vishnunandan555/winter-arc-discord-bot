@@ -109,13 +109,12 @@ class WinterArcScheduler:
         date_display = now.strftime("%B %d, %Y").upper()
 
         embed = discord.Embed(
-            title=f"🌅 WINTER ARC // AMAROK'S MORNING CALL — {date_display}",
+            title=f"🌅 WINTER ARC — MORNING KICKOFF — {date_display}",
             description=(
-                "**The tundra yields only to those who move first.**\n"
-                "500 points on the board today. Amarok demands zero excuses.\n\n"
+                "500 daily points on the board. Log your sets throughout the day.\n\n"
                 "**Daily Disciplines:**"
             ),
-            color=0x00D2FF
+            color=0x3498DB
         )
 
         task_lines = []
@@ -123,11 +122,11 @@ class WinterArcScheduler:
             target_display = int(t["target"]) if t["target"].is_integer() else t["target"]
             task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(Max {t['max_points']} pts)*")
 
-        embed.add_field(name="📋 Targets", value="\n".join(task_lines) if task_lines else "_No active tasks._", inline=False)
-        embed.set_footer(text="Amarok watches the pack • Log with /log • Check with /today")
+        embed.add_field(name="📋 Today's Targets", value="\n".join(task_lines) if task_lines else "_No active tasks._", inline=False)
+        embed.set_footer(text="Log with /log • Check status with /today • Finalizes at 00:00 IST")
 
         if target_channel:
-            await target_channel.send(content=f"{role_ping}🌅 **Amarok's Morning Kickoff**", embed=embed)
+            await target_channel.send(content=f"{role_ping}🌅 **Morning Kickoff**", embed=embed)
             return
 
         # Broadcast to all guilds with configured dedicated channel
@@ -135,7 +134,7 @@ class WinterArcScheduler:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    await channel.send(content=f"{ping}🌅 **Amarok's Morning Kickoff**", embed=embed)
+                    await channel.send(content=f"{ping}🌅 **Morning Kickoff**", embed=embed)
                 except Exception as e:
                     logger.warning(f"Could not send morning kickoff to {channel.name} in {guild.name}: {e}")
 
@@ -146,13 +145,13 @@ class WinterArcScheduler:
         enrolled_users = db.get_enrolled_users()
 
         embed = discord.Embed(
-            title="⏰ WINTER ARC // AMAROK'S AFTERNOON CHECK-IN",
-            description="The sun is sinking across the tundra. Have you earned your place in the pack today?\n",
+            title="⏰ WINTER ARC — AFTERNOON CHECK-IN",
+            description="Afternoon progress update. Log your remaining targets before midnight finalization.\n",
             color=0xE67E22
         )
 
         if not enrolled_users:
-            embed.description += "\n_No enrolled warriors yet. Use `/enroll` to join Amarok's pack!_"
+            embed.description += "\n_No enrolled participants yet. Use `/enroll` to join!_"
         else:
             warrior_lines = []
             for u in enrolled_users:
@@ -162,19 +161,19 @@ class WinterArcScheduler:
                 warrior_lines.append(
                     f"• **{u['username']}**: `{prog['total_points']} / {prog['max_possible_points']} pts` ({pct}%){star}"
                 )
-            embed.add_field(name="⚔️ Pack Standings", value="\n".join(warrior_lines), inline=False)
+            embed.add_field(name="⚔️ Current Progress", value="\n".join(warrior_lines), inline=False)
 
-        embed.set_footer(text="Lock in before 00:00 IST • Amarok tests your endurance")
+        embed.set_footer(text="Day finalizes automatically at 00:00 IST")
 
         if target_channel:
-            await target_channel.send(content=f"{role_ping}⏰ **Amarok's Afternoon Check-in**", embed=embed)
+            await target_channel.send(content=f"{role_ping}⏰ **Afternoon Check-in**", embed=embed)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    await channel.send(content=f"{ping}⏰ **Amarok's Afternoon Check-in**", embed=embed)
+                    await channel.send(content=f"{ping}⏰ **Afternoon Check-in**", embed=embed)
                 except Exception as e:
                     logger.warning(f"Could not send afternoon check-in to {channel.name} in {guild.name}: {e}")
 
@@ -187,14 +186,14 @@ class WinterArcScheduler:
         embed = self.format_daily_podium_embed(yesterday, leaderboard)
 
         if target_channel:
-            await target_channel.send(content=f"{role_ping}🌙 **Amarok's Midnight Finalization**", embed=embed)
+            await target_channel.send(content=f"{role_ping}🌙 **Day Finalized!**", embed=embed)
             return embed
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    await channel.send(content=f"{ping}🌙 **Amarok's Midnight Finalization**", embed=embed)
+                    await channel.send(content=f"{ping}🌙 **Day Finalized!**", embed=embed)
                 except Exception as e:
                     logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
 
@@ -208,8 +207,8 @@ class WinterArcScheduler:
             title_date = date_str
 
         embed = discord.Embed(
-            title=f"🌙 AMAROK'S MIDNIGHT PODIUM — {title_date}",
-            description="The cold settles and today's scores are locked in iron and ice. Here is the daily podium:\n",
+            title=f"🌙 WINTER ARC — DAILY FINALIZATION — {title_date}",
+            description="Scores are locked in. Here are the final daily standings:\n",
             color=0x9B59B6
         )
 
@@ -233,9 +232,9 @@ class WinterArcScheduler:
             podium_lines.append(f"{rank} **{entry['username']}** — `{entry['points']} / 500 PTS` ({pct}%){perfect_star}")
 
         if not podium_lines:
-            podium_lines.append("_No enrolled warriors logged activity for this day._")
+            podium_lines.append("_No enrolled members logged activity for this day._")
 
         embed.add_field(name="🏆 Final Standings", value="\n".join(podium_lines), inline=False)
-        embed.add_field(name="🔥 100% Perfect Days", value=f"**{perfect_count}** warriors completed all disciplines.", inline=False)
-        embed.set_footer(text="A new day begins. Amarok resets the slate — run /today to start fresh.")
+        embed.add_field(name="🔥 100% Perfect Days", value=f"**{perfect_count}** completed all disciplines.", inline=False)
+        embed.set_footer(text="A new day has begun. Run /today to view your fresh slate.")
         return embed
