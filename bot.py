@@ -93,6 +93,24 @@ bot = WinterArcBot()
 
 
 # ==========================================
+# Global Slash Command Error Handler
+# ==========================================
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    orig_error = getattr(error, "original", error)
+    logger.error(f"Error in command '{interaction.command.name if interaction.command else 'unknown'}': {orig_error}", exc_info=orig_error)
+    msg = f"⚠️ Error executing command: `{orig_error}`"
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except Exception as e:
+        logger.error(f"Failed to deliver error response to user: {e}")
+
+
+# ==========================================
 # Enrollment Gate Guard
 # ==========================================
 
