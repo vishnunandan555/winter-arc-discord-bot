@@ -358,6 +358,82 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
     }
 
 
+def set_activity(discord_id: int, username: str, task_name: str, target_amount: float, log_date: Optional[str] = None, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Directly sets/overrides the user's logged amount for a task on a specific date.
+    Allows target_amount >= 0 (e.g. 0 to reset mistakes).
+    """
+    if target_amount < 0:
+        raise ValueError("Amount cannot be negative.")
+    if target_amount > 5000:
+        raise ValueError("Amount exceeds realistic single entry limit (5,000).")
+
+    if not is_user_enrolled(discord_id, db_path):
+        raise ValueError("You are not enrolled in Winter Arc. Use /enroll first.")
+
+    user = get_user_by_discord_id(discord_id, db_path)
+    task = get_task_by_name(task_name, db_path)
+    if not task:
+        raise ValueError(f"Task '{task_name}' not found.")
+    if not task["active"]:
+        raise ValueError(f"Task '{task_name}' is currently inactive.")
+
+    if not log_date:
+        log_date = date.today().isoformat()
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COALESCE(SUM(amount), 0) AS total_before
+            FROM daily_logs
+            WHERE user_id = ? AND task_id = ? AND date = ?;
+        """, (user["id"], task["id"], log_date))
+        total_before = float(cursor.fetchone()["total_before"])
+
+        # Delete all existing logs for this task on this day
+        cursor.execute("""
+            DELETE FROM daily_logs
+            WHERE user_id = ? AND task_id = ? AND date = ?;
+        """, (user["id"], task["id"], log_date))
+
+        # If setting to > 0, insert single clean record
+        if target_amount > 0:
+            cursor.execute("""
+                INSERT INTO daily_logs (user_id, task_id, date, amount)
+                VALUES (?, ?, ?, ?);
+            """, (user["id"], task["id"], log_date, target_amount))
+        conn.commit()
+
+    total_after = float(target_amount)
+    target = float(task["target"])
+    max_pts = int(task["max_points"])
+
+    pts_before = math.floor(min(total_before / target, 1.0) * max_pts) if target > 0 else 0
+    pts_after = math.floor(min(total_after / target, 1.0) * max_pts) if target > 0 else 0
+    pts_delta = pts_after - pts_before
+
+    daily_progress = get_user_daily_progress(discord_id, log_date, db_path)
+
+    return {
+        "user_id": user["id"],
+        "username": user["username"],
+        "task_name": task["name"],
+        "target": target,
+        "unit": task["unit"],
+        "amount_set": target_amount,
+        "previous_total": total_before,
+        "new_total": total_after,
+        "points_earned_delta": pts_delta,
+        "task_points_total": pts_after,
+        "task_max_points": max_pts,
+        "is_target_reached": total_after >= target,
+        "daily_points_total": daily_progress["total_points"],
+        "daily_points_max": daily_progress["max_possible_points"],
+        "daily_completion_rate": daily_progress["overall_completion_rate"],
+        "date": log_date,
+    }
+
+
 def get_user_daily_progress(discord_id: int, target_date: Optional[str] = None, db_path: str = DB_PATH) -> Dict[str, Any]:
     if not target_date:
         target_date = date.today().isoformat()

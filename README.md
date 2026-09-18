@@ -72,7 +72,8 @@ Once you invite the bot into your server:
 | `/leave_arc` | Step away and unenroll from the challenge. |
 | `/ping` | Health check & gateway latency in milliseconds. |
 | `/today [member]` | View visual progress bars (`🟩🟩🟩⬜⬜`), earned points, completion %, and current streak. *(Enrolled only)* |
-| `/log [task] [amount]` | Log completed reps or km with instant autocomplete and capped points calculation. *(Enrolled only)* |
+| `/log [task] [amount]` | Add completed reps or km throughout the day with instant autocomplete. *(Enrolled only)* |
+| `/set [task] [amount]` | Directly set or override today's total (or set to `0` to fix typos/reset). *(Enrolled only)* |
 | `/leaderboard [day \| month]` | View podium rankings for today or the entire calendar month. |
 | `/stats [member]` | View lifetime points, perfect days, active days, and all-time volume per task. *(Enrolled only)* |
 | `/history` | View points and completion rates over the past 7 days. *(Enrolled only)* |

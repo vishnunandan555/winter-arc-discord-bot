@@ -134,6 +134,20 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("Vishnu", usernames)
         self.assertIn("Arjun", usernames)
 
+    def test_07_set_activity_override(self):
+        user_id = 1001
+        today = date.today().isoformat()
+
+        # Force set total to 45
+        res1 = db.set_activity(user_id, "Vishnu", "Push-ups", 45, today, TEST_DB)
+        self.assertEqual(res1["new_total"], 45.0)
+        self.assertEqual(res1["task_points_total"], 45)
+
+        # Reset to 0
+        res2 = db.set_activity(user_id, "Vishnu", "Push-ups", 0, today, TEST_DB)
+        self.assertEqual(res2["new_total"], 0.0)
+        self.assertEqual(res2["task_points_total"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

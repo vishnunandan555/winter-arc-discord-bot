@@ -247,7 +247,8 @@ async def help_cmd(interaction: discord.Interaction):
         name="⚔️ Daily Workout Tracking (Enrolled Warriors)",
         value=(
             "• **/today** — View your daily targets, progress bars (`🟩🟩⬜`), points, and streak.\n"
-            "• **/log** `task` `amount` — Record reps or km completed (e.g. `/log Push-ups 30`).\n"
+            "• **/log** `task` `amount` — Add reps or km completed (e.g. `/log Push-ups 30`).\n"
+            "• **/set** `task` `amount` — Directly set or reset today's total (e.g. `/set Push-ups 50` or `0`).\n"
             "• **/profile** — View your warrior profile card, streak, and joined date.\n"
             "• **/history** — Inspect your daily point history over the past 7 days.\n"
             "• **/stats** `[member]` — View lifetime totals, all-time volume, and perfect days."
@@ -413,6 +414,71 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
     await interaction.response.send_message(embed=embed)
 
 
+@bot.tree.command(name="set", description="Directly set or reset your today's total for a task (e.g. fix a typo or reset to 0).")
+@app_commands.describe(
+    task="Select the task to set/override",
+    amount="Exact total to set for today (e.g. 50, or 0 to reset)"
+)
+@app_commands.autocomplete(task=task_autocomplete)
+async def set_activity_cmd(interaction: discord.Interaction, task: str, amount: float):
+    if not await require_enrolled(interaction):
+        return
+
+    if amount < 0:
+        await interaction.response.send_message("❌ Amount cannot be negative.", ephemeral=True)
+        return
+    if amount > 5000:
+        await interaction.response.send_message("❌ Amount exceeds reasonable single entry limit (5,000).", ephemeral=True)
+        return
+
+    now = datetime.now(BOT_TZ)
+    today_str = now.strftime("%Y-%m-%d")
+
+    try:
+        result = db.set_activity(
+            discord_id=interaction.user.id,
+            username=interaction.user.name,
+            task_name=task,
+            target_amount=amount,
+            log_date=today_str
+        )
+    except ValueError as e:
+        await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+        return
+
+    cur = int(result["new_total"]) if result["new_total"].is_integer() else result["new_total"]
+    tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
+    prev = int(result["previous_total"]) if result["previous_total"].is_integer() else result["previous_total"]
+
+    bar = make_progress_bar(result["new_total"], result["target"], length=10)
+
+    embed = discord.Embed(
+        title=f"🔄 Set: {result['task_name']}",
+        description=f"Adjusted today's total from **{prev} {result['unit']}** ➔ **{cur} {result['unit']}**.",
+        color=0x3498DB
+    )
+    embed.add_field(
+        name="Total Progress",
+        value=f"Count: **{cur} / {tgt} {result['unit']}**\n`{bar}`",
+        inline=False
+    )
+    embed.add_field(
+        name="Scoring",
+        value=(
+            f"Task Points: **{result['task_points_total']} / {result['task_max_points']}**\n"
+            f"Daily Points: **{result['daily_points_total']} / {result['daily_points_max']}**"
+        ),
+        inline=False
+    )
+
+    if amount == 0:
+        embed.set_footer(text="Reset to 0. Log your actual sets with /log or /set.")
+    else:
+        embed.set_footer(text="Updated. Use /today to view full status.")
+
+    await interaction.response.send_message(embed=embed)
+
+
 @bot.tree.command(name="leaderboard", description="View daily or monthly Winter Arc leaderboards.")
 @app_commands.describe(period="Choose time period: day or month")
 @app_commands.choices(period=[
@@ -478,16 +544,16 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
 
     data = db.get_user_stats(target_user.id)
     embed = discord.Embed(
-        title=f"📈 WARRIOR STATS — {target_user.display_name}",
-        color=0x9B59B6
+        title=f"⚡ PERFORMANCE RECORD — {target_user.display_name.upper()}",
+        color=0x2ECC71 if data.get('current_streak', 0) > 0 else 0x34495E
     )
     embed.add_field(
-        name="Overview",
+        name="Consistency & Discipline",
         value=(
-            f"🔥 **Current Streak**: `{data.get('current_streak', 0)} days`\n"
-            f"⭐ **Perfect Days**: `{data.get('perfect_days', 0)} days`\n"
-            f"📅 **Active Days**: `{data.get('active_days', 0)} days`\n"
-            f"💎 **Lifetime Points**: `{data.get('lifetime_points', 0):,} pts`"
+            f"• **Current Streak**: `{data.get('current_streak', 0)} Days`\n"
+            f"• **100% Clean Days**: `{data.get('perfect_days', 0)} Days`\n"
+            f"• **Active Sessions**: `{data.get('active_days', 0)} Days`\n"
+            f"• **Total Points**: `{data.get('lifetime_points', 0):,} PTS`"
         ),
         inline=False
     )
@@ -495,11 +561,12 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
     volume_lines = []
     for t in data.get("task_totals", []):
         vol = int(t["total_volume"]) if t["total_volume"].is_integer() else t["total_volume"]
-        volume_lines.append(f"• **{t['name']}**: {vol:,} {t['unit']}")
+        volume_lines.append(f"• **{t['name']}**: `{vol:,} {t['unit']}`")
 
     if volume_lines:
-        embed.add_field(name="🏋️ Lifetime Volume", value="\n".join(volume_lines), inline=False)
+        embed.add_field(name="Aggregate Volume", value="\n".join(volume_lines), inline=False)
 
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
     await interaction.response.send_message(embed=embed)
 
 
