@@ -158,6 +158,54 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(overall[0]["username"], "Arjun")
         self.assertGreaterEqual(overall[0]["total_points"], 1000)
 
+    def test_09_leveling_hierarchy(self):
+        from levels import get_level_info, get_all_ranks, RANKS
+
+        self.assertEqual(len(RANKS), 12)
+        all_r = get_all_ranks()
+        self.assertEqual(len(all_r), 12)
+
+        # Level 1: Lone Stray
+        l1 = get_level_info(0)
+        self.assertEqual(l1["level"], 1)
+        self.assertEqual(l1["title"], "Lone Stray")
+
+        # Level 2: Stray
+        l2 = get_level_info(500)
+        self.assertEqual(l2["level"], 2)
+        self.assertEqual(l2["title"], "Stray")
+
+        # Level 7: Savage
+        l7 = get_level_info(5500)
+        self.assertEqual(l7["level"], 7)
+        self.assertEqual(l7["title"], "Savage")
+
+        # Level 12: Apex
+        l12 = get_level_info(12000)
+        self.assertEqual(l12["level"], 12)
+        self.assertEqual(l12["title"], "Apex")
+        self.assertTrue(l12["is_apex"])
+        self.assertEqual(l12["tier_pct"], 100)
+
+    def test_10_level_up_triggers(self):
+        from levels import check_level_up
+
+        # Crossing 499 -> 500 (Level 1 to Level 2)
+        lvl_up = check_level_up(499, 500)
+        self.assertIsNotNone(lvl_up)
+        self.assertEqual(lvl_up["level"], 2)
+        self.assertEqual(lvl_up["title"], "Stray")
+
+        # No level up within same tier (500 -> 600)
+        no_lvl = check_level_up(500, 600)
+        self.assertIsNone(no_lvl)
+
+        # Big leap crossing multiple levels (0 -> 2500, Level 1 to Level 4)
+        big_lvl = check_level_up(0, 2500)
+        self.assertIsNotNone(big_lvl)
+        self.assertEqual(big_lvl["level"], 4)
+        self.assertEqual(big_lvl["title"], "Prowler")
+
 
 if __name__ == "__main__":
     unittest.main()

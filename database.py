@@ -702,22 +702,52 @@ def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     return overall_stats
 
 
+def get_user_lifetime_points(discord_id: int, db_path: str = DB_PATH) -> int:
+    """Returns the user's live all-time total points (finalized days + today's points)."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return 0
+
+    today_str = date.today().isoformat()
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COALESCE(SUM(points), 0) AS past_points
+            FROM daily_summaries
+            WHERE user_id = ? AND date != ?;
+        """, (user["id"], today_str))
+        row = cursor.fetchone()
+        past_points = int(row["past_points"]) if row else 0
+
+    today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+    return past_points + today_prog["total_points"]
+
+
 def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Returns user's comprehensive statistics including streak, live lifetime points,
+    perfect days, active days, and total volume logged per discipline.
+    """
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return {}
+
+    today_str = date.today().isoformat()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
-                COALESCE(SUM(points), 0) AS lifetime_points,
+                COALESCE(SUM(points), 0) AS past_points,
                 COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                COUNT(DISTINCT date) AS active_days
+                COUNT(DISTINCT date) AS past_active_days
             FROM daily_summaries
-            WHERE user_id = ?;
-        """, (user["id"],))
+            WHERE user_id = ? AND date != ?;
+        """, (user["id"], today_str))
         summary = cursor.fetchone()
+        past_points = int(summary["past_points"]) if summary else 0
+        perfect_days = int(summary["perfect_days"]) if summary else 0
+        active_days = int(summary["past_active_days"]) if summary else 0
 
         cursor.execute("""
             SELECT t.name, t.unit, COALESCE(SUM(l.amount), 0) as total_volume
@@ -728,6 +758,13 @@ def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
         """, (user["id"],))
         task_totals = [dict(r) for r in cursor.fetchall()]
 
+    today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+    total_lifetime_points = past_points + today_prog["total_points"]
+    if today_prog["perfect_day"]:
+        perfect_days += 1
+    if today_prog["total_points"] > 0:
+        active_days += 1
+
     streak = calculate_streak(discord_id, db_path=db_path)
 
     return {
@@ -737,9 +774,9 @@ def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
         "enrolled": bool(user["enrolled"]),
         "joined_at": user["joined_at"],
         "current_streak": streak,
-        "lifetime_points": int(summary["lifetime_points"]) if summary else 0,
-        "perfect_days": int(summary["perfect_days"]) if summary else 0,
-        "active_days": int(summary["active_days"]) if summary else 0,
+        "lifetime_points": total_lifetime_points,
+        "perfect_days": perfect_days,
+        "active_days": active_days,
         "task_totals": task_totals,
     }
 

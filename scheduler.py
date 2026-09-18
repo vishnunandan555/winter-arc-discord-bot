@@ -7,22 +7,20 @@ Runs background checks every 30 seconds for:
 - 00:00 IST: Midnight day finalization & podium broadcast in dedicated channel
 """
 
-import os
-import asyncio
 import logging
 from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
 import discord
 from discord.ext import tasks
 
 import database as db
+from config import BOT_TZ, DEFAULT_ROLE_ID
+from ui.embeds import (
+    build_morning_kickoff_embed,
+    build_afternoon_checkin_embed,
+    build_podium_embed,
+)
 
 logger = logging.getLogger("winter_arc.scheduler")
-TIMEZONE_NAME = os.getenv("BOT_TIMEZONE", "Asia/Kolkata")
-BOT_TZ = ZoneInfo(TIMEZONE_NAME)
-
-
-DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "1550511682344845352"))
 
 
 def get_now_ist() -> datetime:
@@ -30,6 +28,8 @@ def get_now_ist() -> datetime:
 
 
 class WinterArcScheduler:
+    """Automated daily broadcast scheduler for dedicated server channels."""
+
     def __init__(self, bot: discord.Client):
         self.bot = bot
         self._last_morning_date = None
@@ -59,42 +59,48 @@ class WinterArcScheduler:
         # 1. 05:00 IST - Morning Kickoff
         if current_time_str == "05:00" and self._last_morning_date != today_str:
             self._last_morning_date = today_str
-            logger.info(f"Executing 05:00 Morning Kickoff for {today_str}")
+            logger.info(f"Triggering Morning Kickoff for {today_str}...")
             await self.broadcast_morning_kickoff()
 
         # 2. 16:30 IST - Afternoon Check-in
-        elif current_time_str == "16:30" and self._last_afternoon_date != today_str:
+        if current_time_str == "16:30" and self._last_afternoon_date != today_str:
             self._last_afternoon_date = today_str
-            logger.info(f"Executing 16:30 Afternoon Check-in for {today_str}")
+            logger.info(f"Triggering Afternoon Check-in for {today_str}...")
             await self.broadcast_afternoon_checkin()
 
-        # 3. 00:00 IST - Midnight Finalization
-        elif current_time_str == "00:00" and self._last_midnight_date != today_str:
+        # 3. 00:00 IST - Midnight Finalization & Podium
+        if current_time_str == "00:00" and self._last_midnight_date != today_str:
             self._last_midnight_date = today_str
-            logger.info(f"Executing 00:00 Midnight Finalization for {today_str}")
+            logger.info(f"Triggering Midnight Finalization at {today_str}...")
             await self.broadcast_midnight_finalization()
 
     @ticker_loop.before_loop
     async def before_ticker(self):
         await self.bot.wait_until_ready()
+        logger.info("Scheduler ticker loop synchronized with Discord Gateway.")
 
     # ==========================================
-    # Broadcast Routines (Dedicated Channel Only)
+    # Channel & Ping Resolution
     # ==========================================
 
     def _get_target_channel_and_ping(self, guild: discord.Guild):
+        """Returns the configured dedicated TextChannel and role ping string for a guild."""
         settings = db.get_server_settings(guild.id)
-        channel_id = settings.get("channel_id", 0)
-        role_id = settings.get("role_id", 0) or DEFAULT_ROLE_ID
+        channel_id = settings.get("channel_id")
+        if not channel_id:
+            return None, ""
 
-        channel = guild.get_channel(channel_id) if channel_id else None
+        channel = guild.get_channel(channel_id)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return None, ""
+
         role_ping = ""
+        role_id = settings.get("role_id", 0) or DEFAULT_ROLE_ID
         if role_id:
             role = guild.get_role(role_id)
             if role:
                 role_ping = f"{role.mention} "
-            else:
-                role_ping = f"<@&{role_id}> "
+
         if not role_ping:
             for r in guild.roles:
                 if r.name.lower() in ["winter arc", "winterarc", "the winter arc"]:
@@ -102,36 +108,22 @@ class WinterArcScheduler:
                     break
         return channel, role_ping
 
+    # ==========================================
+    # Broadcast Methods
+    # ==========================================
+
     async def broadcast_morning_kickoff(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
         """Sends morning daily motivation and active challenge targets to dedicated channel."""
         active_tasks = db.get_active_tasks()
         now = get_now_ist()
         date_display = now.strftime("%A, %B %d, %Y")
 
-        task_lines = []
-        for t in active_tasks:
-            target_display = int(t["target"]) if t["target"].is_integer() else t["target"]
-            task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
-
-        disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
-
-        embed = discord.Embed(
-            title=f"🌅 Winter Arc — Daily Kickoff • {date_display}",
-            description=(
-                "A new day has begun. 500 points available across 5 disciplines.\n\n"
-                "**Daily Targets**\n"
-                f"{disciplines_block}\n\n"
-                "Log your sets with `/log` or check progress with `/today`."
-            ),
-            color=0x3498DB
-        )
-        embed.set_footer(text="Consistency beats motivation • Day resets at 00:00 IST")
+        embed = build_morning_kickoff_embed(active_tasks, date_display)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌅 **Morning Kickoff**", embed=embed)
             return
 
-        # Broadcast to all guilds with configured dedicated channel
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
@@ -141,31 +133,12 @@ class WinterArcScheduler:
                     logger.warning(f"Could not send morning kickoff to {channel.name} in {guild.name}: {e}")
 
     async def broadcast_afternoon_checkin(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
-        """Sends customized afternoon check-in showing enrolled group progress to dedicated channel."""
+        """Sends afternoon check-in showing enrolled group progress to dedicated channel."""
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
         enrolled_users = db.get_enrolled_users()
 
-        warrior_lines = []
-        if enrolled_users:
-            for u in enrolled_users:
-                prog = db.get_user_daily_progress(u["discord_id"], today_str)
-                pct = int(prog["overall_completion_rate"] * 100)
-                star = " ⭐" if prog["perfect_day"] else ""
-                warrior_lines.append(
-                    f"• **{u['username']}** — **{prog['total_points']} / {prog['max_possible_points']} pts** ({pct}%){star}"
-                )
-
-        embed = discord.Embed(
-            title="⏰ Winter Arc — Afternoon Check-in",
-            description=(
-                "Midday check-in. Complete your remaining disciplines before midnight.\n\n"
-                "**Today's Progress**\n"
-                + ("\n\n".join(warrior_lines) if warrior_lines else "_No enrolled participants yet. Use `/enroll` to join!_")
-            ),
-            color=0xE67E22
-        )
-        embed.set_footer(text="Log sets with /log • Finalizes at 00:00 IST")
+        embed = build_afternoon_checkin_embed(enrolled_users, today_str)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}⏰ **Afternoon Check-in**", embed=embed)
@@ -185,7 +158,7 @@ class WinterArcScheduler:
         yesterday = (now - timedelta(days=1)).date().isoformat()
 
         leaderboard = db.finalize_daily_summaries(yesterday)
-        embed = self.format_daily_podium_embed(yesterday, leaderboard)
+        embed = build_podium_embed(yesterday, leaderboard)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌙 **Day Finalized!**", embed=embed)
@@ -199,48 +172,4 @@ class WinterArcScheduler:
                 except Exception as e:
                     logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
 
-        return embed
-
-    def format_daily_podium_embed(self, date_str: str, leaderboard: list) -> discord.Embed:
-        try:
-            d_obj = date.fromisoformat(date_str)
-            title_date = d_obj.strftime("%A, %B %d, %Y")
-        except Exception:
-            title_date = date_str
-
-        podium_lines = []
-        perfect_count = 0
-
-        for idx, entry in enumerate(leaderboard):
-            if idx == 0:
-                rank = "👑"
-            elif idx == 1:
-                rank = "⚔️"
-            elif idx == 2:
-                rank = "🛡️"
-            else:
-                rank = f"▫️ #{idx+1}"
-
-            perfect_star = " ⭐" if entry["perfect_day"] else ""
-            if entry["perfect_day"]:
-                perfect_count += 1
-            pct = int(entry["completion_rate"] * 100)
-            pts = entry["points"]
-            podium_lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){perfect_star}")
-
-        if not podium_lines:
-            podium_lines.append("_No activity logged for this day._")
-
-        perfect_info = f"\n\n🔥 **Clean Sweeps**: **{perfect_count}** member(s) completed 100%." if perfect_count > 0 else ""
-
-        embed = discord.Embed(
-            title=f"🌙 Winter Arc — Daily Finalization • {title_date}",
-            description=(
-                "Scores are locked in for the day. Final standings:\n\n"
-                + "\n\n".join(podium_lines)
-                + perfect_info
-            ),
-            color=0x9B59B6
-        )
-        embed.set_footer(text="A new day has begun • Check your fresh slate with /today")
         return embed

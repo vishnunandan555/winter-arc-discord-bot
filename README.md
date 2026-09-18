@@ -78,7 +78,31 @@ Once you invite the bot into your server:
 | `/leaderboard` | Interactive leaderboard with **Daily** and **Overall** sub-buttons to toggle views in-place. |
 | `/stats [member]` | View lifetime points, perfect days, active days, and all-time volume per task. *(Enrolled only)* |
 | `/history` | View points and completion rates over the past 7 days. *(Enrolled only)* |
-| `/profile` | View your warrior card, streak, and enrolled date. *(Enrolled only)* |
+| `/profile` | View member card, rank tier progress, streak, and enrolled date. *(Enrolled only)* |
+| `/ranks` | View the 12-level Winter Pack hierarchy and point thresholds. |
+
+---
+
+## 🐺 12-Level Winter Pack Progression
+
+Calibrated around a 90-day Winter Arc with **Apex** achieved at **12,000 Lifetime Points** (~133 pts/day average):
+
+| Level | Title | Badge | Point Range | Tier Target |
+| :---: | :--- | :---: | :--- | :--- |
+| **1** | **Lone Stray** | 🐾 | `0 – 499 pts` | Getting started |
+| **2** | **Stray** | 🐺 | `500 – 1,199 pts` | Habit forming |
+| **3** | **Scout** | 🧭 | `1,200 – 1,999 pts` | Building momentum |
+| **4** | **Prowler** | 🐾 | `2,000 – 2,999 pts` | Routine locked |
+| **5** | **Tracker** | 🏹 | `3,000 – 4,199 pts` | Reliable volume |
+| **6** | **Hunter** | 🗡️ | `4,200 – 5,499 pts` | Halfway milestone |
+| **7** | **Savage** | ⚔️ | `5,500 – 6,999 pts` | High endurance |
+| **8** | **Vanguard** | 🛡️ | `7,000 – 8,499 pts` | Elite discipline |
+| **9** | **Frostborn** | ❄️ | `8,500 – 9,799 pts` | Winter-hardened |
+| **10** | **Predator** | ⚡ | `9,800 – 10,799 pts` | Relentless output |
+| **11** | **Alpha** | 🔥 | `10,800 – 11,999 pts` | Final ascent |
+| **12** | **Apex** | 👑 | `12,000+ pts` | **Peak Mastery (Max Rank)** |
+
+---
 
 ### Admin Commands (`/admin`, requires Administrator)
 | Command | Description |
