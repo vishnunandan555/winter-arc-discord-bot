@@ -155,6 +155,15 @@ class WinterArcBot(discord.Client):
         activity = discord.Activity(type=discord.ActivityType.watching, name="the Winter Arc | /today")
         await self.change_presence(status=discord.Status.online, activity=activity)
 
+        # Instant guild sync to all joined servers so commands show up in Discord immediately
+        for guild in self.guilds:
+            try:
+                self.tree.copy_global_to(guild=guild)
+                synced = await self.tree.sync(guild=guild)
+                logger.info(f"⚡ Instant-synced {len(synced)} slash commands to server: '{guild.name}' (ID: {guild.id})")
+            except Exception as e:
+                logger.warning(f"Could not sync to guild '{guild.name}' ({guild.id}): {e}")
+
 
 bot = WinterArcBot()
 
