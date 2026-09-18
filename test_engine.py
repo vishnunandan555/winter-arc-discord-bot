@@ -27,9 +27,13 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         tasks = db.get_active_tasks(TEST_DB)
         names = [t["name"] for t in tasks]
         self.assertIn("Push-ups", names)
-        self.assertIn("Sit-ups", names)
+        self.assertIn("Pull-ups", names)
         self.assertIn("Squats", names)
+        self.assertIn("Sit-ups", names)
         self.assertIn("Running", names)
+        self.assertEqual(len(tasks), 5)
+        total_max_pts = sum(t["max_points"] for t in tasks)
+        self.assertEqual(total_max_pts, 500)
 
     def test_02_server_settings_persistence(self):
         guild_id = 999111
@@ -103,14 +107,16 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         d1 = (today - timedelta(days=2)).isoformat()
         d2 = (today - timedelta(days=1)).isoformat()
 
-        # Day 1 100% completion
+        # Day 1 100% completion (500 pts total)
         db.log_activity(user_id, "Arjun", "Push-ups", 100, d1, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Pull-ups", 100, d1, TEST_DB)
         db.log_activity(user_id, "Arjun", "Sit-ups", 100, d1, TEST_DB)
         db.log_activity(user_id, "Arjun", "Squats", 100, d1, TEST_DB)
         db.log_activity(user_id, "Arjun", "Running", 10, d1, TEST_DB)
 
-        # Day 2 100% completion
+        # Day 2 100% completion (500 pts total)
         db.log_activity(user_id, "Arjun", "Push-ups", 100, d2, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Pull-ups", 100, d2, TEST_DB)
         db.log_activity(user_id, "Arjun", "Sit-ups", 100, d2, TEST_DB)
         db.log_activity(user_id, "Arjun", "Squats", 100, d2, TEST_DB)
         db.log_activity(user_id, "Arjun", "Running", 10, d2, TEST_DB)

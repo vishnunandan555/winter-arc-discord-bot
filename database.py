@@ -19,10 +19,11 @@ from typing import List, Dict, Any, Optional
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
 DEFAULT_TASKS = [
-    {"name": "Push-ups", "description": "Works chest, shoulders, and triceps", "target": 100.0, "unit": "reps", "max_points": 100},
-    {"name": "Sit-ups", "description": "Targets core and hip flexors", "target": 100.0, "unit": "reps", "max_points": 100},
-    {"name": "Squats", "description": "Strengthens quads, glutes, and lower body", "target": 100.0, "unit": "reps", "max_points": 100},
-    {"name": "Running", "description": "Builds cardiovascular endurance", "target": 10.0, "unit": "km", "max_points": 100},
+    {"name": "Push-ups", "description": "Works chest, shoulders, and triceps (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Pull-ups", "description": "Works lats, upper back, and biceps (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Squats", "description": "Strengthens quads, glutes, and legs (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Sit-ups", "description": "Targets core and hip flexors (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Running", "description": "Cardiovascular endurance (1 pt / 100m = 10 pts / km)", "target": 10.0, "unit": "km", "max_points": 100},
 ]
 
 
@@ -110,11 +111,17 @@ def init_db(db_path: str = DB_PATH):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_date ON daily_summaries(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_date ON daily_summaries(date);")
 
-        # Seed default tasks
+        # Seed default tasks (ensures all 5 tasks and targets are present)
         for task in DEFAULT_TASKS:
             cursor.execute("""
-                INSERT OR IGNORE INTO tasks (name, description, target, unit, max_points, active)
-                VALUES (:name, :description, :target, :unit, :max_points, 1);
+                INSERT INTO tasks (name, description, target, unit, max_points, active)
+                VALUES (:name, :description, :target, :unit, :max_points, 1)
+                ON CONFLICT(name) DO UPDATE SET
+                    description = excluded.description,
+                    target = excluded.target,
+                    unit = excluded.unit,
+                    max_points = excluded.max_points,
+                    active = 1;
             """, task)
 
         conn.commit()

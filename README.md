@@ -24,12 +24,13 @@ The following assets are formatted and ready to upload to the [Discord Developer
 
 ## 🛡️ Core Rules & Architecture
 
-1. **The Saitama One-Punch Man Routine**:
-   - 💪 **100 Push-ups** — Chest, shoulders, triceps (100 pts)
-   - 🧘 **100 Sit-ups** — Core & hip flexors (100 pts)
-   - 🦵 **100 Squats** — Quads, glutes, lower body (100 pts)
-   - 🏃 **10 km Running** — Cardiovascular endurance (100 pts)
-   - **Daily Total**: 400 pts. 100% completion = ⭐ **Perfect Day** + 🔥 **Streak Counter +1**.
+1. **The 5 Winter Arc Disciplines (500 Points Daily Max)**:
+   - 💪 **100 Push-ups** — 1 point per rep (100 pts max)
+   - 🧗 **100 Pull-ups** — 1 point per rep (100 pts max)
+   - 🦵 **100 Squats** — 1 point per rep (100 pts max)
+   - 🧘 **100 Sit-ups** — 1 point per rep (100 pts max)
+   - 🏃 **10 km Running** — 1 point per 100m = 10 pts / km (100 pts max)
+   - **Daily Total**: **500 points**. 100% completion = ⭐ **Perfect Day** + 🔥 **Streak Counter +1**.
 
 2. **Enrollment Gate**: Commands (`/today`, `/log`, `/stats`, etc.) only respond to enrolled warriors. Anyone else is prompted to run `/enroll`.
 3. **Dedicated Channel Only**: The bot only auto-broadcasts (05:00, 16:30, 00:00 IST) in the server's dedicated channel configured by `/admin set_channel`. Everywhere else, the bot stays completely quiet unless directly prompted.
