@@ -122,9 +122,8 @@ def build_reminders_embed(discord_id: int, username: str) -> discord.Embed:
 
 class WinterArcBot(discord.Client):
     def __init__(self):
+        # Default intents are sufficient for slash commands and DMs
         intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.scheduler: Optional[WinterArcScheduler] = None
