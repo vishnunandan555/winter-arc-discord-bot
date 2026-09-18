@@ -52,9 +52,8 @@ def make_progress_bar(current: float, target: float, length: int = 10) -> str:
 
 class WinterArcBot(discord.Client):
     def __init__(self):
-        # Default intents are sufficient for slash commands and roles
+        # Default intents are sufficient for slash commands and role assignment
         intents = discord.Intents.default()
-        intents.members = True  # Allows role management during enrollment
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.scheduler: Optional[WinterArcScheduler] = None
