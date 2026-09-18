@@ -46,6 +46,101 @@ def make_progress_bar(current: float, target: float, length: int = 10) -> str:
     return "🟩" * filled + "⬜" * empty
 
 
+def format_rank_badge(idx: int) -> str:
+    if idx == 0:
+        return "`#1` 👑"
+    elif idx == 1:
+        return "`#2` ⚔️"
+    elif idx == 2:
+        return "`#3` 🛡️"
+    else:
+        return f"`#{idx+1:>2}` ▫️"
+
+
+def build_daily_leaderboard_embed() -> discord.Embed:
+    now = datetime.now(BOT_TZ)
+    today_str = now.strftime("%Y-%m-%d")
+    date_display = now.strftime("%A, %B %d, %Y")
+    data = db.get_daily_leaderboard(today_str)
+
+    lines = []
+    for idx, entry in enumerate(data):
+        rank = format_rank_badge(idx)
+        pct = int(entry["completion_rate"] * 100)
+        star = " ⭐" if entry["perfect_day"] else ""
+        lines.append(f"{rank} **{entry['username']}** — `{entry['points']} / 500 PTS` ({pct}%){star}")
+
+    if not lines:
+        lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
+
+    embed = discord.Embed(
+        title="🏆 WINTER ARC — DAILY STANDINGS",
+        description=(
+            f"📅 **{date_display}**\n"
+            f"_Daily progress resets and locks at 00:00 IST._\n\n"
+            + "\n".join(lines)
+        ),
+        color=0xF1C40F
+    )
+    embed.set_footer(text="Updated live • Click buttons below to switch view")
+    return embed
+
+
+def build_overall_leaderboard_embed() -> discord.Embed:
+    data = db.get_overall_leaderboard()
+
+    lines = []
+    for idx, entry in enumerate(data):
+        rank = format_rank_badge(idx)
+        streak_part = f" • 🔥 `{entry['streak']}d`" if entry.get("streak", 0) > 0 else ""
+        perfect_part = f" • ⭐ `{entry['perfect_days']} clean`" if entry.get("perfect_days", 0) > 0 else ""
+        lines.append(f"{rank} **{entry['username']}** — `{entry['total_points']:,} PTS`{streak_part}{perfect_part}")
+
+    if not lines:
+        lines.append("_No participants enrolled yet. Use `/enroll` to join!_")
+
+    embed = discord.Embed(
+        title="🏆 WINTER ARC — OVERALL STANDINGS",
+        description=(
+            "🌐 **All-Time Discipline Leaderboard**\n"
+            "_Ranked by total points accumulated across all completed challenges._\n\n"
+            + "\n".join(lines)
+        ),
+        color=0x3498DB
+    )
+    embed.set_footer(text="Updated live • Click buttons below to switch view")
+    return embed
+
+
+class LeaderboardView(discord.ui.View):
+    def __init__(self, current_tab: str = "daily"):
+        super().__init__(timeout=None)
+        self.current_tab = current_tab
+        self._update_buttons()
+
+    def _update_buttons(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "lb_btn_daily":
+                    child.style = discord.ButtonStyle.primary if self.current_tab == "daily" else discord.ButtonStyle.secondary
+                elif child.custom_id == "lb_btn_overall":
+                    child.style = discord.ButtonStyle.primary if self.current_tab == "overall" else discord.ButtonStyle.secondary
+
+    @discord.ui.button(label="Daily", emoji="📅", style=discord.ButtonStyle.primary, custom_id="lb_btn_daily")
+    async def daily_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_tab = "daily"
+        self._update_buttons()
+        embed = build_daily_leaderboard_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Overall", emoji="🌐", style=discord.ButtonStyle.secondary, custom_id="lb_btn_overall")
+    async def overall_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_tab = "overall"
+        self._update_buttons()
+        embed = build_overall_leaderboard_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
 # ==========================================
 # Discord Client & Command Tree
 # ==========================================
@@ -61,6 +156,9 @@ class WinterArcBot(discord.Client):
     async def setup_hook(self):
         db.init_db()
         logger.info("SQLite database initialized and seed tasks confirmed.")
+
+        self.add_view(LeaderboardView())
+        logger.info("Registered persistent LeaderboardView.")
 
         self.scheduler = WinterArcScheduler(self)
         self.scheduler.start()
@@ -255,7 +353,7 @@ async def help_cmd(interaction: discord.Interaction):
     embed.add_field(name="Workout Tracking", value=tracking_text, inline=False)
 
     stats_text = (
-        "• `/leaderboard` — Daily or monthly podium standings\n"
+        "• `/leaderboard` — Interactive Daily & Overall all-time podium\n"
         "• `/stats` — Lifetime volume, 100% clean days, and total points\n"
         "• `/history` — 7-day score completion timeline\n"
         "• `/profile` — Member card, streak, and joined date\n"
@@ -459,55 +557,11 @@ async def set_activity_cmd(interaction: discord.Interaction, task: str, amount: 
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="leaderboard", description="View daily or monthly Winter Arc leaderboards.")
-@app_commands.describe(period="Choose time period: day or month")
-@app_commands.choices(period=[
-    app_commands.Choice(name="Daily (Today)", value="day"),
-    app_commands.Choice(name="Monthly (Current Month)", value="month"),
-])
-async def leaderboard(interaction: discord.Interaction, period: str = "day"):
-    now = datetime.now(BOT_TZ)
-
-    if period == "day":
-        today_str = now.strftime("%Y-%m-%d")
-        display_title = f"🏆 DAILY LEADERBOARD — {now.strftime('%B %d, %Y').upper()}"
-        data = db.get_daily_leaderboard(today_str)
-        medals = ["🥇", "🥈", "🥉"]
-
-        lines = []
-        for idx, entry in enumerate(data):
-            medal = medals[idx] if idx < 3 else f"`#{idx+1}`"
-            pct = int(entry["completion_rate"] * 100)
-            star = " ⭐" if entry["perfect_day"] else ""
-            lines.append(f"{medal} **{entry['username']}** — **{entry['points']} pts** ({pct}%){star}")
-
-        if not lines:
-            lines.append("_No activity logged today yet. Use `/enroll` and `/log` to be first!_")
-
-        embed = discord.Embed(title=display_title, description="\n".join(lines), color=0xF1C40F)
-        embed.set_footer(text="Finalizes automatically at 00:00 IST.")
-        await interaction.response.send_message(embed=embed)
-
-    else:
-        month_name = now.strftime("%B %Y").upper()
-        display_title = f"🏆 MONTHLY LEADERBOARD — {month_name}"
-        data = db.get_monthly_leaderboard(now.year, now.month)
-        medals = ["🥇", "🥈", "🥉"]
-
-        lines = []
-        for idx, entry in enumerate(data):
-            medal = medals[idx] if idx < 3 else f"`#{idx+1}`"
-            lines.append(
-                f"{medal} **{entry['username']}** — **{entry['total_points']:,} pts** "
-                f"({entry['perfect_days']} perfect days, {entry['recorded_days']} active days)"
-            )
-
-        if not lines:
-            lines.append("_No monthly records found yet._")
-
-        embed = discord.Embed(title=display_title, description="\n".join(lines), color=0xE67E22)
-        embed.set_footer(text="Accumulated points for the calendar month.")
-        await interaction.response.send_message(embed=embed)
+@bot.tree.command(name="leaderboard", description="View daily or all-time Winter Arc podium standings.")
+async def leaderboard(interaction: discord.Interaction):
+    embed = build_daily_leaderboard_embed()
+    view = LeaderboardView(current_tab="daily")
+    await interaction.response.send_message(embed=embed, view=view)
 
 
 @bot.tree.command(name="stats", description="View all-time statistics, lifetime volume, and records.")

@@ -655,6 +655,53 @@ def get_monthly_leaderboard(year: int, month: int, db_path: str = DB_PATH) -> Li
     return monthly_stats
 
 
+def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """
+    Computes all-time overall standings for all enrolled users:
+    Sums all past finalized days from daily_summaries + today's live activity from daily_logs.
+    """
+    today_str = date.today().isoformat()
+    users = get_enrolled_users(db_path)
+
+    overall_stats = []
+    for u in users:
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(points), 0) AS total_points,
+                    COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                    COUNT(DISTINCT date) AS recorded_days
+                FROM daily_summaries
+                WHERE user_id = ? AND date != ?;
+            """, (u["id"], today_str))
+            row = cursor.fetchone()
+            past_points = int(row["total_points"]) if row else 0
+            perfect_days = int(row["perfect_days"]) if row else 0
+            recorded_days = int(row["recorded_days"]) if row else 0
+
+        today_prog = get_user_daily_progress(u["discord_id"], today_str, db_path)
+        total_points = past_points + today_prog["total_points"]
+        if today_prog["perfect_day"]:
+            perfect_days += 1
+        if today_prog["total_points"] > 0:
+            recorded_days += 1
+
+        streak = calculate_streak(u["discord_id"], today_str, db_path)
+
+        overall_stats.append({
+            "discord_id": u["discord_id"],
+            "username": u["username"],
+            "total_points": total_points,
+            "perfect_days": perfect_days,
+            "recorded_days": recorded_days,
+            "streak": streak,
+        })
+
+    overall_stats.sort(key=lambda x: (x["total_points"], x["perfect_days"], x["streak"]), reverse=True)
+    return overall_stats
+
+
 def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:

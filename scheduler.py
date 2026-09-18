@@ -194,17 +194,24 @@ class WinterArcScheduler:
             color=0x9B59B6
         )
 
-        medals = ["🥇", "🥈", "🥉"]
         podium_lines = []
         perfect_count = 0
 
         for idx, entry in enumerate(leaderboard):
-            medal = medals[idx] if idx < 3 else f"`#{idx+1}`"
+            if idx == 0:
+                rank = "`#1` 👑"
+            elif idx == 1:
+                rank = "`#2` ⚔️"
+            elif idx == 2:
+                rank = "`#3` 🛡️"
+            else:
+                rank = f"`#{idx+1:>2}` ▫️"
+
             perfect_star = " ⭐" if entry["perfect_day"] else ""
             if entry["perfect_day"]:
                 perfect_count += 1
             pct = int(entry["completion_rate"] * 100)
-            podium_lines.append(f"{medal} **{entry['username']}** — **{entry['points']} pts** ({pct}%){perfect_star}")
+            podium_lines.append(f"{rank} **{entry['username']}** — `{entry['points']} / 500 PTS` ({pct}%){perfect_star}")
 
         if not podium_lines:
             podium_lines.append("_No enrolled warriors logged activity for this day._")

@@ -17,8 +17,8 @@ The following assets are formatted and ready to upload to the [Discord Developer
 | **Vector Banner (Alternative)** | [`winter_arc_banner_vector_680x240.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_banner_vector_680x240.png) | **680x240** (17:6) | Sharp geometric ice crystal & wolf banner |
 | **Retina 2x Banners** | `winter_arc_banner_*_1360x480.png` | **1360x480** (17:6) | Ultra high-res retina versions |
 | **Avatar — Pitch Black (Clean)** | [`winter_arc_wolf_black_bg.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_black_bg.png) | **1024x1024** (1:1) | Pure black background, neon cyan glow vector wolf |
-| **Avatar — Snow & Ice Crystals** | [`winter_arc_wolf_snow_bg.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_snow_bg.png) | **1024x1024** (1:1) | Blizzard, frosted crystals & weights background |
-| **Avatar — Obsidian Shield Badge** | [`winter_arc_wolf_crest_badge.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_crest_badge.png) | **1024x1024** (1:1) | Circular ring emblem optimized for Discord avatar |
+| **Avatar — Minimal Snow Dust** | [`winter_arc_wolf_snow_bg.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_snow_bg.png) | **1024x1024** (1:1) | Black background, subtle frost dust aura, no weights |
+| **Avatar — Obsidian Shield Badge** | [`winter_arc_wolf_crest_badge.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_crest_badge.png) | **1024x1024** (1:1) | Pitch black background with glowing circular neon crest |
 
 ---
 
@@ -74,7 +74,7 @@ Once you invite the bot into your server:
 | `/today [member]` | View visual progress bars (`🟩🟩🟩⬜⬜`), earned points, completion %, and current streak. *(Enrolled only)* |
 | `/log [task] [amount]` | Add completed reps or km throughout the day with instant autocomplete. *(Enrolled only)* |
 | `/set [task] [amount]` | Directly set or override today's total (or set to `0` to fix typos/reset). *(Enrolled only)* |
-| `/leaderboard [day \| month]` | View podium rankings for today or the entire calendar month. |
+| `/leaderboard` | Interactive leaderboard with **Daily** and **Overall** sub-buttons to toggle views in-place. |
 | `/stats [member]` | View lifetime points, perfect days, active days, and all-time volume per task. *(Enrolled only)* |
 | `/history` | View points and completion rates over the past 7 days. *(Enrolled only)* |
 | `/profile` | View your warrior card, streak, and enrolled date. *(Enrolled only)* |

@@ -148,6 +148,16 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(res2["new_total"], 0.0)
         self.assertEqual(res2["task_points_total"], 0)
 
+    def test_08_overall_leaderboard(self):
+        overall = db.get_overall_leaderboard(TEST_DB)
+        self.assertGreater(len(overall), 0)
+        usernames = [u["username"] for u in overall]
+        self.assertIn("Arjun", usernames)
+        self.assertIn("Vishnu", usernames)
+        # Top user should be Arjun who logged 500 on past days
+        self.assertEqual(overall[0]["username"], "Arjun")
+        self.assertGreaterEqual(overall[0]["total_points"], 1000)
+
 
 if __name__ == "__main__":
     unittest.main()
