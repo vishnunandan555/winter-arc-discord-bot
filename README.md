@@ -16,7 +16,9 @@ The following assets are formatted and ready to upload to the [Discord Developer
 | **Profile Banner (Recommended)** | [`winter_arc_banner.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_banner.png) | **680x240** (17:6) | Cinematic dark gym & mountain wolf banner |
 | **Vector Banner (Alternative)** | [`winter_arc_banner_vector_680x240.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_banner_vector_680x240.png) | **680x240** (17:6) | Sharp geometric ice crystal & wolf banner |
 | **Retina 2x Banners** | `winter_arc_banner_*_1360x480.png` | **1360x480** (17:6) | Ultra high-res retina versions |
-| **App Icon / Avatar** | [`winter_arc_avatar.jpg`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_avatar.jpg) | **1024x1024** (1:1) | Bot profile picture |
+| **Avatar — Pitch Black (Clean)** | [`winter_arc_wolf_black_bg.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_black_bg.png) | **1024x1024** (1:1) | Pure black background, neon cyan glow vector wolf |
+| **Avatar — Snow & Ice Crystals** | [`winter_arc_wolf_snow_bg.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_snow_bg.png) | **1024x1024** (1:1) | Blizzard, frosted crystals & weights background |
+| **Avatar — Obsidian Shield Badge** | [`winter_arc_wolf_crest_badge.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_wolf_crest_badge.png) | **1024x1024** (1:1) | Circular ring emblem optimized for Discord avatar |
 
 ---
 

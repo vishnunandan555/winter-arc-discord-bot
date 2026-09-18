@@ -65,12 +65,7 @@ class WinterArcBot(discord.Client):
         self.scheduler = WinterArcScheduler(self)
         self.scheduler.start()
 
-        if TEST_GUILD_ID and TEST_GUILD_ID.strip().isdigit():
-            guild = discord.Object(id=int(TEST_GUILD_ID.strip()))
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-            logger.info(f"Slash commands synchronized instantaneously to Test Guild: {TEST_GUILD_ID}")
-
+        # Synchronize clean global commands
         await self.tree.sync()
         logger.info("Slash commands synchronized globally.")
 
@@ -79,14 +74,14 @@ class WinterArcBot(discord.Client):
         activity = discord.Activity(type=discord.ActivityType.watching, name="the Winter Arc | /today")
         await self.change_presence(status=discord.Status.online, activity=activity)
 
-        # Instant guild sync so commands appear immediately across all servers
+        # Clear any guild-specific command copies to prevent duplicate commands in Discord UI
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
-                synced = await self.tree.sync(guild=guild)
-                logger.info(f"⚡ Instant-synced {len(synced)} slash commands to server: '{guild.name}' (ID: {guild.id})")
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
+                logger.info(f"🧹 Cleared guild-level duplicate commands for '{guild.name}' ({guild.id})")
             except Exception as e:
-                logger.warning(f"Could not sync to guild '{guild.name}' ({guild.id}): {e}")
+                logger.warning(f"Could not clear guild commands for '{guild.name}': {e}")
 
 
 bot = WinterArcBot()
