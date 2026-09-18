@@ -222,87 +222,54 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="help", description="View the Winter Arc command guide, schedule, and rules.")
+@bot.tree.command(name="help", description="View the Winter Arc manual, commands, and rules.")
 async def help_cmd(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="❄️ Winter Arc — Command Manual & Guidelines",
+        title="❄️ WINTER ARC // COMMAND DIRECTORY",
         description=(
-            "**Discipline is Destiny.** Welcome to the Winter Arc accountability bot.\n"
-            "Track daily workout disciplines, earn capped points, build streaks, and stay accountable.\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            "**500 Points Daily • Consistency Beats Motivation**\n"
+            "Track daily workout sets, build streaks, and stay accountable with your crew."
         ),
-        color=0x3498DB
+        color=0x2B2D31
     )
 
-    embed.add_field(
-        name="📋 The 5 Daily Disciplines (500 PTS MAX)",
-        value=(
-            "• 💪 **Push-ups**: 100 reps (1 pt / rep, 100 max)\n"
-            "• 🧗 **Pull-ups**: 100 reps (1 pt / rep, 100 max)\n"
-            "• 🦵 **Squats**: 100 reps (1 pt / rep, 100 max)\n"
-            "• 🧘 **Sit-ups**: 100 reps (1 pt / rep, 100 max)\n"
-            "• 🏃 **Running**: 10 km (1 pt / 100m = 10 pts / km, 100 max)\n"
-            "_Hit 100% on all 5 to earn a Clean Day and grow your Streak!_"
-        ),
-        inline=False
+    disciplines_text = (
+        "```yaml\n"
+        "Push-ups  : 100 reps   (1 pt / rep  -> 100 max)\n"
+        "Pull-ups  : 100 reps   (1 pt / rep  -> 100 max)\n"
+        "Squats    : 100 reps   (1 pt / rep  -> 100 max)\n"
+        "Sit-ups   : 100 reps   (1 pt / rep  -> 100 max)\n"
+        "Running   : 10 km      (1 pt / 100m -> 100 max)\n"
+        "Daily Max : 500 PTS    (Hit all 5 for Clean Day)\n"
+        "```"
     )
+    embed.add_field(name="Daily Disciplines", value=disciplines_text, inline=False)
 
-    embed.add_field(
-        name="🛡️ Enrollment",
-        value=(
-            "• **/enroll** — Join the Winter Arc challenge and receive the warrior role.\n"
-            "• **/leave_arc** — Step away and unenroll from the challenge."
-        ),
-        inline=False
+    tracking_text = (
+        "• `/enroll` — Join the Winter Arc and get the role\n"
+        "• `/today` — View your current progress bars, points, and streak\n"
+        "• `/log [task] [amount]` — Add reps or km to today's count\n"
+        "• `/set [task] [amount]` — Override count directly *(or `0` to reset typos)*\n"
+        "• `/leave_arc` — Unenroll from the challenge"
     )
+    embed.add_field(name="Workout Tracking", value=tracking_text, inline=False)
 
-    embed.add_field(
-        name="⚔️ Workout Tracking",
-        value=(
-            "• **/today** — View your daily targets, progress bars (`🟩🟩⬜`), points, and streak.\n"
-            "• **/log** `task` `amount` — **Add** reps or km completed (e.g. `/log Push-ups 30`).\n"
-            "• **/set** `task` `amount` — **Override/Set** today's total directly (e.g. `/set Push-ups 50` or `0` to reset).\n"
-            "• **/stats** `[member]` — View lifetime totals, all-time volume, and clean days.\n"
-            "• **/history** — Inspect your daily point history over the past 7 days.\n"
-            "• **/profile** — View your warrior profile card, streak, and joined date."
-        ),
-        inline=False
+    stats_text = (
+        "• `/leaderboard` — Daily or monthly podium standings\n"
+        "• `/stats` — Lifetime volume, 100% clean days, and total points\n"
+        "• `/history` — 7-day score completion timeline\n"
+        "• `/profile` — Member card, streak, and joined date\n"
+        "• `/ping` — Check bot response latency"
     )
+    embed.add_field(name="Performance & Standings", value=stats_text, inline=False)
 
-    embed.add_field(
-        name="🏆 Standings & Health",
-        value=(
-            "• **/leaderboard** `[day | month]` — View daily or monthly podium rankings.\n"
-            "• **/ping** — Check bot status and gateway latency."
-        ),
-        inline=False
+    schedule_text = (
+        "`05:00 IST` Kickoff • `16:30 IST` Check-in • `00:00 IST` Day Finalized\n"
+        "*Broadcasts exclusively in the dedicated channel set by admins.*"
     )
+    embed.add_field(name="Automated Schedule", value=schedule_text, inline=False)
 
-    embed.add_field(
-        name="⚙️ Server Admin Controls (Requires Administrator)",
-        value=(
-            "• **/admin overview** — Complete dashboard of channel, role, enrolled warriors & disciplines.\n"
-            "• **/admin set_channel** `channel` — Set dedicated channel for scheduled broadcasts.\n"
-            "• **/admin set_role** `role` — Set role to ping for announcements & auto-role on `/enroll`.\n"
-            "• **/admin task_add** — Dynamically register a new discipline.\n"
-            "• **/admin task_toggle** — Enable or disable an existing discipline.\n"
-            "• **/admin tasks_list** — List all registered tasks.\n"
-            "• **/test_reminder** `type` — Preview morning, afternoon, or midnight posts."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="⏰ Daily Schedule (Asia/Kolkata IST)",
-        value=(
-            "• **05:00 IST** — 🌅 Morning Kickoff (Daily targets & motivation)\n"
-            "• **16:30 IST** — ⏰ Afternoon Group Check-in (Standings check)\n"
-            "• **00:00 IST** — 🌙 Midnight Finalization (Day locks & podium announced)"
-        ),
-        inline=False
-    )
-
-    embed.set_footer(text="Tip: Automated messages only post in the dedicated channel set by /admin set_channel.")
+    embed.set_footer(text="Admins: Use /admin overview to configure channel, role, and tasks.")
     await interaction.response.send_message(embed=embed)
 
 
