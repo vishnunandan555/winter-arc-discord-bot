@@ -182,8 +182,55 @@ class WinterArcBot(discord.Client):
             except Exception as e:
                 logger.warning(f"Could not clear guild commands for '{guild.name}': {e}")
 
+    async def on_message(self, message: discord.Message):
+        if message.author.bot:
+            return
+
+        # Detect if this message is a reply to one of the bot's messages or mentions the bot
+        is_reply_to_bot = False
+        if message.reference and message.reference.message_id:
+            ref = message.reference.resolved
+            if not isinstance(ref, discord.Message):
+                try:
+                    ref = await message.channel.fetch_message(message.reference.message_id)
+                except Exception:
+                    ref = None
+            if ref and ref.author.id == self.user.id:
+                is_reply_to_bot = True
+
+        is_bot_mentioned = self.user in message.mentions if self.user else False
+
+        if is_reply_to_bot or is_bot_mentioned:
+            content_lower = message.content.lower() if message.content else ""
+            reactions = ["🐺"]  # Mascot wolf
+
+            if any(w in content_lower for w in ["done", "completed", "finish", "crushed", "locked in", "lets go", "let's go", "win"]):
+                reactions.extend(["🔥", "⚔️"])
+            elif any(w in content_lower for w in ["run", "pushup", "pullup", "squat", "situp", "workout", "reps", "km", "lift"]):
+                reactions.extend(["💪", "⚔️"])
+            elif any(w in content_lower for w in ["cold", "winter", "ice", "freeze", "snow"]):
+                reactions.extend(["❄️", "⚡"])
+            else:
+                reactions.append("❄️")
+
+            for r in reactions[:2]:
+                try:
+                    await message.add_reaction(r)
+                except Exception as e:
+                    logger.debug(f"Could not react {r} to message {message.id}: {e}")
+
 
 bot = WinterArcBot()
+
+
+async def safe_react(interaction: discord.Interaction, *emojis: str):
+    """Safely adds reactions to the bot's own slash command response."""
+    try:
+        msg = await interaction.original_response()
+        for e in emojis:
+            await msg.add_reaction(e)
+    except Exception:
+        pass
 
 
 # ==========================================
@@ -318,6 +365,7 @@ async def enroll(interaction: discord.Interaction):
     embed.add_field(name="📋 Daily Challenge Disciplines", value="\n".join(task_lines) if task_lines else "None configured.", inline=False)
     embed.set_footer(text="Your journey begins now. Lock in.")
     await interaction.response.send_message(embed=embed)
+    await safe_react(interaction, "🐺", "⚔️")
 
 
 @bot.tree.command(name="leave_arc", description="Unenroll from the Winter Arc challenge.")
@@ -461,6 +509,10 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
     )
     embed.set_footer(text="Record reps with /log | View rankings with /leaderboard")
     await interaction.response.send_message(embed=embed)
+    if progress["perfect_day"]:
+        await safe_react(interaction, "⭐", "🔥")
+    else:
+        await safe_react(interaction, "🐺", "❄️")
 
 
 @bot.tree.command(name="log", description="Log activity towards a task (e.g. 30 push-ups, 5 km running).")
@@ -526,6 +578,10 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
         embed.set_footer(text="Keep it up! Use /today to view full status.")
 
     await interaction.response.send_message(embed=embed)
+    if result["is_target_reached"]:
+        await safe_react(interaction, "⭐", "🔥")
+    else:
+        await safe_react(interaction, "🐺", "💪")
 
 
 @bot.tree.command(name="set", description="Directly set or reset your today's total for a task (e.g. fix a typo or reset to 0).")
@@ -591,6 +647,10 @@ async def set_activity_cmd(interaction: discord.Interaction, task: str, amount: 
         embed.set_footer(text="Updated. Use /today to view full status.")
 
     await interaction.response.send_message(embed=embed)
+    if result["is_target_reached"]:
+        await safe_react(interaction, "⭐", "🔥")
+    else:
+        await safe_react(interaction, "🐺", "🔄")
 
 
 @bot.tree.command(name="leaderboard", description="View daily or all-time Winter Arc podium standings.")
@@ -598,6 +658,7 @@ async def leaderboard(interaction: discord.Interaction):
     embed = build_daily_leaderboard_embed()
     view = LeaderboardView(current_tab="daily")
     await interaction.response.send_message(embed=embed, view=view)
+    await safe_react(interaction, "🏆")
 
 
 @bot.tree.command(name="stats", description="View all-time statistics, lifetime volume, and records.")
