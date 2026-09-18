@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Winter Arc — Live Challenge Dashboard & Standings</title>
+  <meta name="description" content="Official live web dashboard for Winter Arc: track daily workouts, overall podium standings, 12-level pack progression, and discipline targets.">
+  
+  <!-- Open Graph / Discord Embed Meta -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Winter Arc — Live Standings & Statistics">
+  <meta property="og:description" content="Track daily workout points, streaks, 12-level pack progression, and leaderboards.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/vishnunandan555/winter-arc-discord-bot/main/assets/winter_arc_wolf_black_bg.png">
+
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Ambient Glow Elements -->
+  <div class="glow-sphere glow-top-left"></div>
+  <div class="glow-sphere glow-bottom-right"></div>
+
+  <!-- Main Container -->
+  <div class="app-container">
+
+    <!-- Header Navigation -->
+    <header class="site-header" id="site-header">
+      <div class="brand-group">
+        <span class="mascot-badge" id="mascot-badge">🐺</span>
+        <div>
+          <h1 class="brand-title">WINTER ARC</h1>
+          <p class="brand-subtitle">Fitness Accountability & Standings</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="pulse-indicator"></span>
+        <span class="status-label" id="status-label">Live • Asia/Kolkata (IST)</span>
+      </div>
+    </header>
+
+    <!-- Hero Stat Banner -->
+    <section class="hero-section" id="hero-section">
+      <div class="hero-grid">
+        <div class="hero-card" id="hero-card-warriors">
+          <span class="hero-icon">👥</span>
+          <div class="hero-data">
+            <span class="hero-val" id="val-total-warriors">--</span>
+            <span class="hero-label">Enrolled Warriors</span>
+          </div>
+        </div>
+
+        <div class="hero-card" id="hero-card-points">
+          <span class="hero-icon">💎</span>
+          <div class="hero-data">
+            <span class="hero-val" id="val-total-points">--</span>
+            <span class="hero-label">Collective Lifetime Points</span>
+          </div>
+        </div>
+
+        <div class="hero-card" id="hero-card-cap">
+          <span class="hero-icon">🎯</span>
+          <div class="hero-data">
+            <span class="hero-val" id="val-daily-cap">500 PTS</span>
+            <span class="hero-label">Daily Point Ceiling</span>
+          </div>
+        </div>
+
+        <div class="hero-card countdown-card" id="hero-card-countdown">
+          <span class="hero-icon">⏰</span>
+          <div class="hero-data">
+            <span class="hero-val countdown-text" id="countdown-clock">--:--:--</span>
+            <span class="hero-label" id="countdown-label">Next Scheduled Check-in</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" id="nav-tabs" aria-label="Dashboard views">
+      <button class="tab-btn active" id="tab-btn-standings" onclick="switchTab('standings')">
+        🏆 Standings
+      </button>
+      <button class="tab-btn" id="tab-btn-levels" onclick="switchTab('levels')">
+        🐺 12-Level Hierarchy
+      </button>
+      <button class="tab-btn" id="tab-btn-disciplines" onclick="switchTab('disciplines')">
+        📋 Disciplines
+      </button>
+      <button class="tab-btn" id="tab-btn-warriors" onclick="switchTab('warriors')">
+        🔍 Warrior Search
+      </button>
+      <button class="tab-btn" id="tab-btn-schedule" onclick="switchTab('schedule')">
+        ⏰ Schedule & Rules
+      </button>
+    </nav>
+
+    <!-- TAB 1: STANDINGS -->
+    <section class="tab-content active" id="tab-pane-standings">
+      <div class="subtab-container">
+        <div class="segmented-control" id="standings-segment">
+          <button class="subtab-btn active" id="subtab-overall" onclick="toggleStandingsView('overall')">🌐 All-Time Overall</button>
+          <button class="subtab-btn" id="subtab-daily" onclick="toggleStandingsView('daily')">📅 Today's Live Standings</button>
+        </div>
+        <span class="last-sync-tag" id="last-sync-time">Synced: Just now</span>
+      </div>
+
+      <!-- Overall Standings Board -->
+      <div class="card-container" id="board-overall">
+        <div class="table-responsive">
+          <table class="data-table" id="table-overall">
+            <thead>
+              <tr>
+                <th class="th-rank">Rank</th>
+                <th class="th-user">Warrior</th>
+                <th class="th-level">Pack Rank</th>
+                <th class="th-points">Points</th>
+                <th class="th-progress">Tier Progress</th>
+                <th class="th-stats">Consistency</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-overall">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Daily Standings Board -->
+      <div class="card-container hidden" id="board-daily">
+        <div class="table-responsive">
+          <table class="data-table" id="table-daily">
+            <thead>
+              <tr>
+                <th class="th-rank">Rank</th>
+                <th class="th-user">Warrior</th>
+                <th class="th-points">Today's Points</th>
+                <th class="th-progress">Daily Target</th>
+                <th class="th-status">Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-daily">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: 12-LEVEL PROGRESSION -->
+    <section class="tab-content hidden" id="tab-pane-levels">
+      <div class="section-intro">
+        <h2>The 12-Level Winter Pack Hierarchy</h2>
+        <p>A linear 90-day progression ladder calibrated for consistency. Reach <strong>Apex</strong> at 12,000 lifetime points (~133 pts/day).</p>
+      </div>
+
+      <div class="ladder-grid" id="ladder-grid">
+        <!-- Dynamically Populated -->
+      </div>
+    </section>
+
+    <!-- TAB 3: THE 5 DISCIPLINES -->
+    <section class="tab-content hidden" id="tab-pane-disciplines">
+      <div class="section-intro">
+        <h2>The 5 Daily Disciplines</h2>
+        <p>Maximum 500 points available each day. 100% completion in all 5 triggers a <strong>Clean Day ⭐</strong> and advances your streak.</p>
+      </div>
+
+      <div class="disciplines-grid" id="disciplines-grid">
+        <!-- Dynamically Populated -->
+      </div>
+    </section>
+
+    <!-- TAB 4: WARRIOR SEARCH & PROFILE INSPECTOR -->
+    <section class="tab-content hidden" id="tab-pane-warriors">
+      <div class="section-intro">
+        <h2>Warrior Directory & Card Inspector</h2>
+        <p>Search any enrolled participant to inspect their live streak, current rank, and progress to Apex.</p>
+      </div>
+
+      <div class="search-bar-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="warrior-search-input" class="search-input" placeholder="Search warrior name..." oninput="filterWarriors(this.value)">
+      </div>
+
+      <div class="warrior-cards-grid" id="warrior-cards-grid">
+        <!-- Dynamically Populated -->
+      </div>
+    </section>
+
+    <!-- TAB 5: SCHEDULE & RULES -->
+    <section class="tab-content hidden" id="tab-pane-schedule">
+      <div class="section-intro">
+        <h2>Automated Schedule & Bot Rules</h2>
+        <p>Winter Arc runs on <strong>Asia/Kolkata (IST)</strong> timezone with automated broadcasts in the server's dedicated channel.</p>
+      </div>
+
+      <div class="rules-layout">
+        <div class="schedule-column">
+          <h3 class="column-title">⏰ Daily Broadcast Schedule</h3>
+          <div class="timeline" id="timeline-list">
+            <div class="timeline-item">
+              <span class="time-badge">05:00 IST</span>
+              <div class="timeline-body">
+                <h4>🌅 Morning Kickoff</h4>
+                <p>New day begins. 500 fresh points available across the 5 daily disciplines with prompt role ping.</p>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <span class="time-badge">16:30 IST</span>
+              <div class="timeline-body">
+                <h4>⏰ Afternoon Check-in</h4>
+                <p>Midday pack standings broadcast showing individual progress bars before the evening workout block.</p>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <span class="time-badge">00:00 IST</span>
+              <div class="timeline-body">
+                <h4>🌙 Midnight Finalization & Podium</h4>
+                <p>Scores locked. Streaks calculated, clean sweeps tallied, and daily podium crowned.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="rules-column">
+          <h3 class="column-title">📜 Core Bot Commands</h3>
+          <div class="commands-table-card">
+            <table class="commands-table">
+              <tbody>
+                <tr>
+                  <td><code>/today</code></td>
+                  <td>View today's progress bar, targets, earned points, and active streak.</td>
+                </tr>
+                <tr>
+                  <td><code>/log [task] [amount]</code></td>
+                  <td>Add completed reps or km to today's count with instant autocomplete.</td>
+                </tr>
+                <tr>
+                  <td><code>/set [task] [amount]</code></td>
+                  <td>Directly set or override today's total (or set 0 to reset typos).</td>
+                </tr>
+                <tr>
+                  <td><code>/profile</code></td>
+                  <td>View your rank card, tier progress bar, streak, and joined date.</td>
+                </tr>
+                <tr>
+                  <td><code>/ranks</code></td>
+                  <td>View full 12-level pack hierarchy and point milestones.</td>
+                </tr>
+                <tr>
+                  <td><code>/leaderboard</code></td>
+                  <td>View daily podium and all-time overall standings.</td>
+                </tr>
+                <tr>
+                  <td><code>/stats</code></td>
+                  <td>View lifetime volume and total reps completed per discipline.</td>
+                </tr>
+                <tr>
+                  <td><code>/history</code></td>
+                  <td>View 7-day point history and completion rates.</td>
+                </tr>
+                <tr>
+                  <td><code>/enroll</code></td>
+                  <td>Join the Winter Arc challenge and receive the server role.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+      <div class="footer-content">
+        <p class="footer-brand">❄️ <strong>Winter Arc Discord Bot</strong> • Mascot: Amarok the Arctic Wolf</p>
+        <p class="footer-note">Built with Python 3.14, discord.py 2.x & SQLite • Powered by Vanilla HTML, CSS & JS</p>
+        <p class="footer-quote">"Consistency Beats Motivation"</p>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+{
+  "meta": {
+    "generated_at": "2026-09-18T20:30:25.466993+05:30",
+    "date_display": "Friday, September 18, 2026",
+    "today_str": "2026-09-18",
+    "timezone": "Asia/Kolkata (IST)",
+    "total_warriors": 4,
+    "total_collective_points": 140,
+    "apex_threshold": 12000,
+    "daily_point_cap": 500
+  },
+  "schedule": [
+    {
+      "time": "05:00 IST",
+      "name": "Morning Kickoff",
+      "description": "Daily motivation & discipline targets announced."
+    },
+    {
+      "time": "16:30 IST",
+      "name": "Afternoon Check-in",
+      "description": "Midday pack progress update."
+    },
+    {
+      "time": "00:00 IST",
+      "name": "Midnight Finalization",
+      "description": "Scores locked in & podium broadcast."
+    }
+  ],
+  "disciplines": [
+    {
+      "name": "Push-ups",
+      "description": "Works chest, shoulders, and triceps (1 pt / rep)",
+      "target": 100,
+      "unit": "reps",
+      "max_points": 100
+    },
+    {
+      "name": "Sit-ups",
+      "description": "Targets core and hip flexors (1 pt / rep)",
+      "target": 100,
+      "unit": "reps",
+      "max_points": 100
+    },
+    {
+      "name": "Squats",
+      "description": "Strengthens quads, glutes, and legs (1 pt / rep)",
+      "target": 100,
+      "unit": "reps",
+      "max_points": 100
+    },
+    {
+      "name": "Running",
+      "description": "Cardiovascular endurance (1 pt / 100m = 10 pts / km)",
+      "target": 10,
+      "unit": "km",
+      "max_points": 100
+    },
+    {
+      "name": "Pull-ups",
+      "description": "Works lats, upper back, and biceps (1 pt / rep)",
+      "target": 100,
+      "unit": "reps",
+      "max_points": 100
+    }
+  ],
+  "daily_standings": [
+    {
+      "rank": 1,
+      "username": "ssstrang3rrr",
+      "points": 72,
+      "max_points": 500,
+      "completion_rate": 14.4,
+      "perfect_day": false
+    },
+    {
+      "rank": 2,
+      "username": "flugel198",
+      "points": 68,
+      "max_points": 500,
+      "completion_rate": 13.6,
+      "perfect_day": false
+    },
+    {
+      "rank": 3,
+      "username": "Test",
+      "points": 0,
+      "max_points": 500,
+      "completion_rate": 0.0,
+      "perfect_day": false
+    },
+    {
+      "rank": 4,
+      "username": "SKL",
+      "points": 0,
+      "max_points": 500,
+      "completion_rate": 0.0,
+      "perfect_day": false
+    }
+  ],
+  "overall_standings": [
+    {
+      "rank": 1,
+      "discord_id": "691485824805503056",
+      "username": "ssstrang3rrr",
+      "total_points": 72,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 1,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 14,
+      "pts_to_next": 428,
+      "arc_pct": 0.6
+    },
+    {
+      "rank": 2,
+      "discord_id": "716168018836848690",
+      "username": "flugel198",
+      "total_points": 68,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 1,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 13,
+      "pts_to_next": 432,
+      "arc_pct": 0.6
+    },
+    {
+      "rank": 3,
+      "discord_id": "12345",
+      "username": "Test",
+      "total_points": 0,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 0,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 0,
+      "pts_to_next": 500,
+      "arc_pct": 0.0
+    },
+    {
+      "rank": 4,
+      "discord_id": "99999",
+      "username": "SKL",
+      "total_points": 0,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 0,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 0,
+      "pts_to_next": 500,
+      "arc_pct": 0.0
+    }
+  ],
+  "ranks": [
+    {
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "min_pts": 0,
+      "max_pts": 499,
+      "color": "0x7f8c8d"
+    },
+    {
+      "level": 2,
+      "title": "Stray",
+      "badge": "\ud83d\udc3a",
+      "min_pts": 500,
+      "max_pts": 1199,
+      "color": "0x95a5a6"
+    },
+    {
+      "level": 3,
+      "title": "Scout",
+      "badge": "\ud83e\udded",
+      "min_pts": 1200,
+      "max_pts": 1999,
+      "color": "0x3498db"
+    },
+    {
+      "level": 4,
+      "title": "Prowler",
+      "badge": "\ud83d\udc3e",
+      "min_pts": 2000,
+      "max_pts": 2999,
+      "color": "0x2980b9"
+    },
+    {
+      "level": 5,
+      "title": "Tracker",
+      "badge": "\ud83c\udff9",
+      "min_pts": 3000,
+      "max_pts": 4199,
+      "color": "0x1abc9c"
+    },
+    {
+      "level": 6,
+      "title": "Hunter",
+      "badge": "\ud83d\udde1\ufe0f",
+      "min_pts": 4200,
+      "max_pts": 5499,
+      "color": "0x16a085"
+    },
+    {
+      "level": 7,
+      "title": "Savage",
+      "badge": "\u2694\ufe0f",
+      "min_pts": 5500,
+      "max_pts": 6999,
+      "color": "0xe67e22"
+    },
+    {
+      "level": 8,
+      "title": "Vanguard",
+      "badge": "\ud83d\udee1\ufe0f",
+      "min_pts": 7000,
+      "max_pts": 8499,
+      "color": "0xd35400"
+    },
+    {
+      "level": 9,
+      "title": "Frostborn",
+      "badge": "\u2744\ufe0f",
+      "min_pts": 8500,
+      "max_pts": 9799,
+      "color": "0xd2ff"
+    },
+    {
+      "level": 10,
+      "title": "Predator",
+      "badge": "\u26a1",
+      "min_pts": 9800,
+      "max_pts": 10799,
+      "color": "0x9b59b6"
+    },
+    {
+      "level": 11,
+      "title": "Alpha",
+      "badge": "\ud83d\udd25",
+      "min_pts": 10800,
+      "max_pts": 11999,
+      "color": "0xe74c3c"
+    },
+    {
+      "level": 12,
+      "title": "Apex",
+      "badge": "\ud83d\udc51",
+      "min_pts": 12000,
+      "max_pts": null,
+      "color": "0xf1c40f"
+    }
+  ]
+}

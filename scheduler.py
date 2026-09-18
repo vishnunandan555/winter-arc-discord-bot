@@ -160,6 +160,13 @@ class WinterArcScheduler:
         leaderboard = db.finalize_daily_summaries(yesterday)
         embed = build_podium_embed(yesterday, leaderboard)
 
+        # Update web dashboard statistics JSON
+        try:
+            from export_web_stats import export_stats_to_json
+            export_stats_to_json()
+        except Exception as e:
+            logger.warning(f"Could not auto-export web stats: {e}")
+
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌙 **Day Finalized!**", embed=embed)
             return embed
