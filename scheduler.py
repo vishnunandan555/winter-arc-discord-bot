@@ -81,7 +81,16 @@ class WinterArcScheduler:
         role_id = settings.get("role_id", 0)
 
         channel = guild.get_channel(channel_id) if channel_id else None
-        role_ping = f"<@&{role_id}> " if role_id else ""
+        role_ping = ""
+        if role_id:
+            role = guild.get_role(role_id)
+            if role:
+                role_ping = f"{role.mention} "
+        if not role_ping:
+            for r in guild.roles:
+                if r.name.lower() in ["winter arc", "winterarc", "the winter arc"]:
+                    role_ping = f"{r.mention} "
+                    break
         return channel, role_ping
 
     async def broadcast_morning_kickoff(self, target_channel: discord.TextChannel = None, role_ping: str = ""):

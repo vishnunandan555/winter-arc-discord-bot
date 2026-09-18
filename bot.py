@@ -237,6 +237,40 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
     return choices[:25]
 
 
+async def get_or_create_arc_role(guild: discord.Guild) -> Optional[discord.Role]:
+    """Finds configured role, or finds an existing 'Winter Arc' role, or auto-creates one."""
+    settings = db.get_server_settings(guild.id)
+    role_id = settings.get("role_id", 0)
+    if role_id:
+        role = guild.get_role(role_id)
+        if role:
+            return role
+
+    # Fallback 1: Look for existing role named "Winter Arc"
+    for r in guild.roles:
+        if r.name.lower() in ["winter arc", "winterarc", "the winter arc"]:
+            db.set_server_role(guild.id, r.id)
+            return r
+
+    # Fallback 2: Auto-create "Winter Arc" role if bot has Manage Roles permission
+    if guild.me.guild_permissions.manage_roles:
+        try:
+            new_role = await guild.create_role(
+                name="Winter Arc",
+                color=discord.Color.from_rgb(0, 210, 255),  # Frost Cyan
+                hoist=True,
+                mentionable=True,
+                reason="Auto-created by Winter Arc Bot for challenge participants."
+            )
+            db.set_server_role(guild.id, new_role.id)
+            logger.info(f"Auto-created 'Winter Arc' role (ID {new_role.id}) in '{guild.name}'")
+            return new_role
+        except Exception as e:
+            logger.warning(f"Could not auto-create Winter Arc role in {guild.name}: {e}")
+
+    return None
+
+
 # ==========================================
 # Enrollment & Core User Commands
 # ==========================================
@@ -246,19 +280,23 @@ async def enroll(interaction: discord.Interaction):
     is_already = db.is_user_enrolled(interaction.user.id)
     user_record = db.enroll_user(interaction.user.id, interaction.user.name)
 
-    # Attempt to assign the configured Winter Arc role
+    # Attempt to assign the Winter Arc role
     role_msg = ""
-    if interaction.guild:
-        settings = db.get_server_settings(interaction.guild.id)
-        role_id = settings.get("role_id", 0)
-        if role_id:
-            role = interaction.guild.get_role(role_id)
-            if role and isinstance(interaction.user, discord.Member):
-                try:
-                    await interaction.user.add_roles(role)
-                    role_msg = f"\n🛡️ Added role: **{role.name}**"
-                except discord.Forbidden:
-                    role_msg = f"\n⚠️ *(Could not assign {role.name} role — check bot role hierarchy)*"
+    if interaction.guild and isinstance(interaction.user, discord.Member):
+        role = await get_or_create_arc_role(interaction.guild)
+        if role:
+            try:
+                await interaction.user.add_roles(role)
+                role_msg = f"\n🛡️ Granted role: **{role.name}**"
+            except discord.Forbidden:
+                role_msg = (
+                    f"\n⚠️ *(Could not assign {role.name} role — make sure the bot's own role "
+                    f"is dragged ABOVE {role.name} in Server Settings -> Roles)*"
+                )
+            except Exception as e:
+                role_msg = f"\n⚠️ *(Could not assign role: {e})*"
+        else:
+            role_msg = "\nℹ️ *(Admin: run `/admin set_role` or grant the bot 'Manage Roles' to auto-assign)*"
 
     active_tasks = db.get_active_tasks()
     task_lines = [f"• **{t['name']}**: `{t['target']} {t['unit']}` ({t['max_points']} pts)" for t in active_tasks]
@@ -289,17 +327,14 @@ async def leave_arc(interaction: discord.Interaction):
 
     db.unenroll_user(interaction.user.id)
 
-    # Remove role if possible
-    if interaction.guild:
-        settings = db.get_server_settings(interaction.guild.id)
-        role_id = settings.get("role_id", 0)
-        if role_id:
-            role = interaction.guild.get_role(role_id)
-            if role and isinstance(interaction.user, discord.Member):
-                try:
-                    await interaction.user.remove_roles(role)
-                except Exception:
-                    pass
+    # Remove role if present
+    if interaction.guild and isinstance(interaction.user, discord.Member):
+        role = await get_or_create_arc_role(interaction.guild)
+        if role and role in interaction.user.roles:
+            try:
+                await interaction.user.remove_roles(role)
+            except Exception:
+                pass
 
     embed = discord.Embed(
         title="🏳️ Unenrolled from Winter Arc",
