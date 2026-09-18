@@ -2,15 +2,15 @@
 bot.py - Winter Arc Discord Bot Main Entrypoint
 
 Features:
-- Slash commands: /ping, /today, /log, /leaderboard, /stats, /history, /profile, /reminders, /test_reminder
-- Admin commands: /admin (task management, channel configuration)
-- Interactive buttons for reminder management
-- Immediate guild slash-command synchronization for local testing
+- Enrollment Gate: Commands only respond to enrolled users; unenrolled users are prompted to /enroll
+- Dedicated Channel Automation: Scheduled messages (05:00, 16:30, 00:00 IST) post only to the designated channel
+- Role Pings: Automated notifications ping the configured Winter Arc role (no private DMs)
+- Slash commands: /enroll, /leave_arc, /ping, /today, /log, /leaderboard, /stats, /history, /profile, /test_reminder
+- Admin commands: /admin set_channel, /admin set_role, /admin overview, /admin task_add, /admin task_toggle, /admin tasks_list
 """
 
 import os
 import sys
-import math
 import logging
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
@@ -35,11 +35,9 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 TEST_GUILD_ID = os.getenv("TEST_GUILD_ID")
-DAILY_RESULTS_CHANNEL_ID = os.getenv("DAILY_RESULTS_CHANNEL_ID", "0")
 
 
 def make_progress_bar(current: float, target: float, length: int = 10) -> str:
-    """Generates a visual progress bar e.g. [🟩🟩🟩⬜⬜⬜⬜⬜⬜⬜]"""
     if target <= 0:
         return "🟩" * length
     ratio = min(max(current / target, 0.0), 1.0)
@@ -49,104 +47,31 @@ def make_progress_bar(current: float, target: float, length: int = 10) -> str:
 
 
 # ==========================================
-# Interactive Views
-# ==========================================
-
-class RemindersView(discord.ui.View):
-    """Interactive Discord buttons allowing users to toggle reminder settings without typing commands."""
-
-    def __init__(self, discord_id: int):
-        super().__init__(timeout=180)
-        self.discord_id = discord_id
-        self._sync_buttons()
-
-    def _sync_buttons(self):
-        user = db.get_user_by_discord_id(self.discord_id)
-        morning_on = bool(user["morning_reminder"]) if user else True
-        afternoon_on = bool(user["afternoon_reminder"]) if user else True
-
-        self.morning_button.label = f"🌅 05:00 Morning: {'ON' if morning_on else 'OFF'}"
-        self.morning_button.style = discord.ButtonStyle.success if morning_on else discord.ButtonStyle.secondary
-
-        self.afternoon_button.label = f"⏰ 16:30 Afternoon: {'ON' if afternoon_on else 'OFF'}"
-        self.afternoon_button.style = discord.ButtonStyle.success if afternoon_on else discord.ButtonStyle.secondary
-
-    @discord.ui.button(label="🌅 05:00 Morning: ON", style=discord.ButtonStyle.success, custom_id="btn_toggle_morning")
-    async def morning_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.discord_id:
-            await interaction.response.send_message("This menu is for another user.", ephemeral=True)
-            return
-
-        user = db.get_user_by_discord_id(self.discord_id)
-        current = bool(user["morning_reminder"]) if user else True
-        db.update_reminder_preferences(self.discord_id, morning=not current)
-        self._sync_buttons()
-
-        embed = build_reminders_embed(self.discord_id, interaction.user.name)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="⏰ 16:30 Afternoon: ON", style=discord.ButtonStyle.success, custom_id="btn_toggle_afternoon")
-    async def afternoon_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.discord_id:
-            await interaction.response.send_message("This menu is for another user.", ephemeral=True)
-            return
-
-        user = db.get_user_by_discord_id(self.discord_id)
-        current = bool(user["afternoon_reminder"]) if user else True
-        db.update_reminder_preferences(self.discord_id, afternoon=not current)
-        self._sync_buttons()
-
-        embed = build_reminders_embed(self.discord_id, interaction.user.name)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-
-def build_reminders_embed(discord_id: int, username: str) -> discord.Embed:
-    user = db.get_or_create_user(discord_id, username)
-    m_status = "🟢 Enabled" if user["morning_reminder"] else "🔴 Disabled"
-    a_status = "🟢 Enabled" if user["afternoon_reminder"] else "🔴 Disabled"
-
-    embed = discord.Embed(
-        title="⚙️ Winter Arc Reminder Settings",
-        description="Configure your daily accountability notifications below.\nAll times in **Asia/Kolkata (IST)**.",
-        color=0x2ECC71
-    )
-    embed.add_field(name="🌅 Morning Kickoff (05:00 IST)", value=f"Status: **{m_status}**\nDaily motivation and task targets.", inline=False)
-    embed.add_field(name="⏰ Afternoon Check-in (16:30 IST)", value=f"Status: **{a_status}**\nPersonalized progress check and remaining goals.", inline=False)
-    embed.set_footer(text="Click the buttons below to toggle your preferences.")
-    return embed
-
-
-# ==========================================
 # Discord Client & Command Tree
 # ==========================================
 
 class WinterArcBot(discord.Client):
     def __init__(self):
-        # Default intents are sufficient for slash commands and DMs
+        # Default intents are sufficient for slash commands and roles
         intents = discord.Intents.default()
+        intents.members = True  # Allows role management during enrollment
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.scheduler: Optional[WinterArcScheduler] = None
 
     async def setup_hook(self):
-        # 1. Initialize SQLite Database
         db.init_db()
         logger.info("SQLite database initialized and seed tasks confirmed.")
 
-        # 2. Setup Background Scheduler
-        res_channel_id = int(DAILY_RESULTS_CHANNEL_ID) if DAILY_RESULTS_CHANNEL_ID and DAILY_RESULTS_CHANNEL_ID.isdigit() else 0
-        self.scheduler = WinterArcScheduler(self, results_channel_id=res_channel_id)
+        self.scheduler = WinterArcScheduler(self)
         self.scheduler.start()
 
-        # 3. Synchronize Slash Commands
-        # If TEST_GUILD_ID is provided, sync immediately to that guild for fast local testing
         if TEST_GUILD_ID and TEST_GUILD_ID.strip().isdigit():
             guild = discord.Object(id=int(TEST_GUILD_ID.strip()))
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
             logger.info(f"Slash commands synchronized instantaneously to Test Guild: {TEST_GUILD_ID}")
 
-        # Also sync globally
         await self.tree.sync()
         logger.info("Slash commands synchronized globally.")
 
@@ -155,7 +80,7 @@ class WinterArcBot(discord.Client):
         activity = discord.Activity(type=discord.ActivityType.watching, name="the Winter Arc | /today")
         await self.change_presence(status=discord.Status.online, activity=activity)
 
-        # Instant guild sync to all joined servers so commands show up in Discord immediately
+        # Instant guild sync so commands appear immediately across all servers
         for guild in self.guilds:
             try:
                 self.tree.copy_global_to(guild=guild)
@@ -166,6 +91,27 @@ class WinterArcBot(discord.Client):
 
 
 bot = WinterArcBot()
+
+
+# ==========================================
+# Enrollment Gate Guard
+# ==========================================
+
+async def require_enrolled(interaction: discord.Interaction) -> bool:
+    """Verifies that the user is enrolled in Winter Arc before allowing command execution."""
+    if not db.is_user_enrolled(interaction.user.id):
+        embed = discord.Embed(
+            title="🚫 Not Enrolled in Winter Arc",
+            description=(
+                f"Hey {interaction.user.mention}, you haven't joined the Winter Arc yet!\n\n"
+                "**How to join:**\n"
+                "Type **/enroll** to enter the challenge, receive the role, and start logging workouts."
+            ),
+            color=0xE74C3C
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return False
+    return True
 
 
 # ==========================================
@@ -182,10 +128,78 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
 
 
 # ==========================================
-# Core Slash Commands
+# Enrollment & Core User Commands
 # ==========================================
 
-@bot.tree.command(name="ping", description="Check whether Winter Arc bot is online and measure latency.")
+@bot.tree.command(name="enroll", description="Enroll in the Winter Arc challenge and receive the warrior role.")
+async def enroll(interaction: discord.Interaction):
+    is_already = db.is_user_enrolled(interaction.user.id)
+    user_record = db.enroll_user(interaction.user.id, interaction.user.name)
+
+    # Attempt to assign the configured Winter Arc role
+    role_msg = ""
+    if interaction.guild:
+        settings = db.get_server_settings(interaction.guild.id)
+        role_id = settings.get("role_id", 0)
+        if role_id:
+            role = interaction.guild.get_role(role_id)
+            if role and isinstance(interaction.user, discord.Member):
+                try:
+                    await interaction.user.add_roles(role)
+                    role_msg = f"\n🛡️ Added role: **{role.name}**"
+                except discord.Forbidden:
+                    role_msg = f"\n⚠️ *(Could not assign {role.name} role — check bot role hierarchy)*"
+
+    active_tasks = db.get_active_tasks()
+    task_lines = [f"• **{t['name']}**: `{t['target']} {t['unit']}` ({t['max_points']} pts)" for t in active_tasks]
+
+    title = "⚔️ Enrolled in Winter Arc!" if not is_already else "⚔️ Enrollment Re-activated!"
+    embed = discord.Embed(
+        title=title,
+        description=(
+            f"Welcome to the brotherhood of discipline, **{interaction.user.display_name}**.{role_msg}\n\n"
+            "**The Ground Rules:**\n"
+            "• Complete your daily targets every day.\n"
+            "• Points are capped to prevent cheating — focus on consistency.\n"
+            "• Check in at 05:00 and 16:30; day results lock in at 00:00 IST.\n"
+            "• Use **/log** to record activity and **/today** to check progress."
+        ),
+        color=0x2ECC71
+    )
+    embed.add_field(name="📋 Daily Challenge Disciplines", value="\n".join(task_lines) if task_lines else "None configured.", inline=False)
+    embed.set_footer(text="Your journey begins now. Lock in.")
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="leave_arc", description="Unenroll from the Winter Arc challenge.")
+async def leave_arc(interaction: discord.Interaction):
+    if not db.is_user_enrolled(interaction.user.id):
+        await interaction.response.send_message("You are not currently enrolled in Winter Arc.", ephemeral=True)
+        return
+
+    db.unenroll_user(interaction.user.id)
+
+    # Remove role if possible
+    if interaction.guild:
+        settings = db.get_server_settings(interaction.guild.id)
+        role_id = settings.get("role_id", 0)
+        if role_id:
+            role = interaction.guild.get_role(role_id)
+            if role and isinstance(interaction.user, discord.Member):
+                try:
+                    await interaction.user.remove_roles(role)
+                except Exception:
+                    pass
+
+    embed = discord.Embed(
+        title="🏳️ Unenrolled from Winter Arc",
+        description=f"{interaction.user.mention} has stepped away from the Winter Arc.\nYour historical data is preserved. Run `/enroll` anytime to rejoin.",
+        color=0x7F8C8D
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.tree.command(name="ping", description="Check whether Winter Arc bot is online and measure gateway latency.")
 async def ping(interaction: discord.Interaction):
     latency_ms = round(bot.latency * 1000)
     embed = discord.Embed(
@@ -197,10 +211,19 @@ async def ping(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="today", description="View your progress, targets, points, and streak for today.")
-@app_commands.describe(member="Optional: View another member's progress")
+@app_commands.describe(member="Optional: View another enrolled member's progress")
 async def today(interaction: discord.Interaction, member: Optional[discord.Member] = None):
     target_user = member or interaction.user
-    user_db = db.get_or_create_user(target_user.id, target_user.name)
+
+    # If checking self, enforce enrollment
+    if target_user.id == interaction.user.id:
+        if not await require_enrolled(interaction):
+            return
+    else:
+        # Checking another user
+        if not db.is_user_enrolled(target_user.id):
+            await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+            return
 
     now = datetime.now(BOT_TZ)
     today_str = now.strftime("%Y-%m-%d")
@@ -222,7 +245,6 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
         cur = int(t["current_amount"]) if t["current_amount"].is_integer() else t["current_amount"]
         tgt = int(t["target"]) if t["target"].is_integer() else t["target"]
         bar = make_progress_bar(t["current_amount"], t["target"], length=8)
-        
         status_check = "✅" if t["completed"] else ""
         embed.add_field(
             name=f"{icon} {t['name']} {status_check}",
@@ -240,8 +262,7 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
         ),
         inline=False
     )
-
-    embed.set_footer(text="Log your activity with /log | Check standings with /leaderboard")
+    embed.set_footer(text="Record reps with /log | View rankings with /leaderboard")
     await interaction.response.send_message(embed=embed)
 
 
@@ -252,6 +273,9 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
 )
 @app_commands.autocomplete(task=task_autocomplete)
 async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: float):
+    if not await require_enrolled(interaction):
+        return
+
     if amount <= 0:
         await interaction.response.send_message("❌ Amount must be greater than 0.", ephemeral=True)
         return
@@ -274,13 +298,12 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
         await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
         return
 
-    # Format response
     cur = int(result["new_total"]) if result["new_total"].is_integer() else result["new_total"]
     tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
     amt = int(amount) if amount.is_integer() else amount
 
     bar = make_progress_bar(result["new_total"], result["target"], length=10)
-    delta_str = f"+{result['points_earned_delta']} pts" if result['points_earned_delta'] > 0 else "Max points already capped"
+    delta_str = f"+{result['points_earned_delta']} pts" if result['points_earned_delta'] > 0 else "Max points capped"
 
     embed = discord.Embed(
         title=f"✅ Logged: {result['task_name']}",
@@ -301,9 +324,9 @@ async def log_activity_cmd(interaction: discord.Interaction, task: str, amount: 
     )
 
     if result["is_target_reached"] and result["previous_total"] < result["target"]:
-        embed.set_footer(text="🎉 Goal accomplished for this task today! Keep going!")
+        embed.set_footer(text="🎉 Target completed for this task today! Keep going!")
     else:
-        embed.set_footer(text="Keep it up! Use /today to view full progress.")
+        embed.set_footer(text="Keep it up! Use /today to view full status.")
 
     await interaction.response.send_message(embed=embed)
 
@@ -331,7 +354,7 @@ async def leaderboard(interaction: discord.Interaction, period: str = "day"):
             lines.append(f"{medal} **{entry['username']}** — **{entry['points']} pts** ({pct}%){star}")
 
         if not lines:
-            lines.append("_No activity logged today yet. Be the first with `/log`!_")
+            lines.append("_No activity logged today yet. Use `/enroll` and `/log` to be first!_")
 
         embed = discord.Embed(title=display_title, description="\n".join(lines), color=0xF1C40F)
         embed.set_footer(text="Finalizes automatically at 00:00 IST.")
@@ -355,7 +378,7 @@ async def leaderboard(interaction: discord.Interaction, period: str = "day"):
             lines.append("_No monthly records found yet._")
 
         embed = discord.Embed(title=display_title, description="\n".join(lines), color=0xE67E22)
-        embed.set_footer(text="Accumulated points for the entire calendar month.")
+        embed.set_footer(text="Accumulated points for the calendar month.")
         await interaction.response.send_message(embed=embed)
 
 
@@ -363,13 +386,15 @@ async def leaderboard(interaction: discord.Interaction, period: str = "day"):
 @app_commands.describe(member="Optional: View another member's statistics")
 async def stats(interaction: discord.Interaction, member: Optional[discord.Member] = None):
     target_user = member or interaction.user
-    db.get_or_create_user(target_user.id, target_user.name)
+    if target_user.id == interaction.user.id:
+        if not await require_enrolled(interaction):
+            return
+    else:
+        if not db.is_user_enrolled(target_user.id):
+            await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+            return
 
     data = db.get_user_stats(target_user.id)
-    if not data:
-        await interaction.response.send_message("No profile found for user.", ephemeral=True)
-        return
-
     embed = discord.Embed(
         title=f"📈 WARRIOR STATS — {target_user.display_name}",
         color=0x9B59B6
@@ -377,16 +402,16 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
     embed.add_field(
         name="Overview",
         value=(
-            f"🔥 **Current Streak**: `{data['current_streak']} days`\n"
-            f"⭐ **Perfect Days**: `{data['perfect_days']} days`\n"
-            f"📅 **Active Days**: `{data['active_days']} days`\n"
-            f"💎 **Lifetime Points**: `{data['lifetime_points']:,} pts`"
+            f"🔥 **Current Streak**: `{data.get('current_streak', 0)} days`\n"
+            f"⭐ **Perfect Days**: `{data.get('perfect_days', 0)} days`\n"
+            f"📅 **Active Days**: `{data.get('active_days', 0)} days`\n"
+            f"💎 **Lifetime Points**: `{data.get('lifetime_points', 0):,} pts`"
         ),
         inline=False
     )
 
     volume_lines = []
-    for t in data["task_totals"]:
+    for t in data.get("task_totals", []):
         vol = int(t["total_volume"]) if t["total_volume"].is_integer() else t["total_volume"]
         volume_lines.append(f"• **{t['name']}**: {vol:,} {t['unit']}")
 
@@ -398,9 +423,10 @@ async def stats(interaction: discord.Interaction, member: Optional[discord.Membe
 
 @bot.tree.command(name="history", description="View your point history over the past 7 days.")
 async def history(interaction: discord.Interaction):
-    db.get_or_create_user(interaction.user.id, interaction.user.name)
-    hist = db.get_user_history(interaction.user.id, days=7)
+    if not await require_enrolled(interaction):
+        return
 
+    hist = db.get_user_history(interaction.user.id, days=7)
     lines = []
     for d in reversed(hist):
         pct = int(d["completion_rate"] * 100)
@@ -415,61 +441,27 @@ async def history(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
-@bot.tree.command(name="reminders", description="Interactive settings to toggle 05:00 Morning and 16:30 Afternoon reminders.")
-async def reminders_cmd(interaction: discord.Interaction):
-    db.get_or_create_user(interaction.user.id, interaction.user.name)
-    embed = build_reminders_embed(interaction.user.id, interaction.user.name)
-    view = RemindersView(interaction.user.id)
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-
-@bot.tree.command(name="profile", description="View your user profile card and settings.")
+@bot.tree.command(name="profile", description="View your warrior card, joined date, and current streak.")
 async def profile(interaction: discord.Interaction):
-    user = db.get_or_create_user(interaction.user.id, interaction.user.name)
+    if not await require_enrolled(interaction):
+        return
+
+    user = db.get_user_by_discord_id(interaction.user.id)
     streak = db.calculate_streak(interaction.user.id)
     stats_data = db.get_user_stats(interaction.user.id)
 
-    m_status = "ON" if user["morning_reminder"] else "OFF"
-    a_status = "ON" if user["afternoon_reminder"] else "OFF"
-
     embed = discord.Embed(
-        title=f"🛡️ Profile — {interaction.user.display_name}",
+        title=f"🛡️ Warrior Card — {interaction.user.display_name}",
         color=0x1ABC9C
     )
     if interaction.user.avatar:
         embed.set_thumbnail(url=interaction.user.avatar.url)
 
-    embed.add_field(name="Joined Arc", value=f"`{user['joined_at'][:10]}`", inline=True)
+    embed.add_field(name="Enrolled Since", value=f"`{user['joined_at'][:10]}`", inline=True)
     embed.add_field(name="Current Streak", value=f"🔥 `{streak} days`", inline=True)
     embed.add_field(name="Lifetime Points", value=f"💎 `{stats_data['lifetime_points']:,}`", inline=True)
-    embed.add_field(name="Reminders", value=f"05:00: `{m_status}` | 16:30: `{a_status}`", inline=False)
-    embed.set_footer(text="Toggle reminders anytime with /reminders")
-
+    embed.set_footer(text="Winter Arc • Discipline is Destiny")
     await interaction.response.send_message(embed=embed)
-
-
-@bot.tree.command(name="test_reminder", description="Preview and test morning, afternoon, or midnight announcements immediately.")
-@app_commands.describe(reminder_type="Select reminder type to test")
-@app_commands.choices(reminder_type=[
-    app_commands.Choice(name="Morning Kickoff (05:00 preview)", value="morning"),
-    app_commands.Choice(name="Afternoon Check-in (16:30 preview)", value="afternoon"),
-    app_commands.Choice(name="Midnight Finalization (00:00 preview)", value="midnight"),
-])
-async def test_reminder(interaction: discord.Interaction, reminder_type: str):
-    await interaction.response.defer(ephemeral=True)
-    if not bot.scheduler:
-        await interaction.followup.send("Scheduler is not running.", ephemeral=True)
-        return
-
-    if reminder_type == "morning":
-        await bot.scheduler.send_morning_reminder(target_user=interaction.user)
-        await interaction.followup.send("✅ Sent you a direct message preview of the **05:00 Morning Kickoff**.", ephemeral=True)
-    elif reminder_type == "afternoon":
-        await bot.scheduler.send_afternoon_reminder(target_user=interaction.user)
-        await interaction.followup.send("✅ Sent you a direct message preview of the **16:30 Afternoon Check-in**.", ephemeral=True)
-    elif reminder_type == "midnight":
-        embed = await bot.scheduler.run_midnight_job()
-        await interaction.followup.send(content="✅ Executed midnight finalization routine. Result embed:", embed=embed, ephemeral=True)
 
 
 # ==========================================
@@ -479,7 +471,89 @@ async def test_reminder(interaction: discord.Interaction, reminder_type: str):
 admin_group = app_commands.Group(name="admin", description="Winter Arc administration commands (Requires Administrator).")
 
 
-@admin_group.command(name="task_add", description="Add a new challenge task to the database.")
+@admin_group.command(name="set_channel", description="Set the dedicated channel where daily scheduled messages are broadcast.")
+@app_commands.describe(channel="Select the dedicated Winter Arc text channel")
+@app_commands.default_permissions(administrator=True)
+async def admin_set_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    if not interaction.guild:
+        await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+        return
+
+    db.set_server_channel(interaction.guild.id, channel.id)
+    embed = discord.Embed(
+        title="✅ Dedicated Channel Configured",
+        description=(
+            f"Winter Arc will now post automated daily messages exclusively in {channel.mention}.\n\n"
+            "• **05:00 IST**: Morning Kickoff\n"
+            "• **16:30 IST**: Afternoon Group Check-in\n"
+            "• **00:00 IST**: Midnight Podium Results\n\n"
+            "_The bot will stay silent in all other channels unless directly prompted with a command._"
+        ),
+        color=0x2ECC71
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@admin_group.command(name="set_role", description="Set the Winter Arc role to ping during daily scheduled announcements.")
+@app_commands.describe(role="Select the role to ping (e.g. @Winter Arc)")
+@app_commands.default_permissions(administrator=True)
+async def admin_set_role(interaction: discord.Interaction, role: discord.Role):
+    if not interaction.guild:
+        await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+        return
+
+    db.set_server_role(interaction.guild.id, role.id)
+    embed = discord.Embed(
+        title="✅ Ping Role Configured",
+        description=f"Scheduled announcements in the dedicated channel will now mention {role.mention}.\nUsers who run `/enroll` will also automatically receive this role.",
+        color=0x2ECC71
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+@admin_group.command(name="overview", description="Server admin dashboard: inspect channel, role, enrolled members, and tasks.")
+@app_commands.default_permissions(administrator=True)
+async def admin_overview(interaction: discord.Interaction):
+    if not interaction.guild:
+        await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+        return
+
+    settings = db.get_server_settings(interaction.guild.id)
+    channel_id = settings.get("channel_id", 0)
+    role_id = settings.get("role_id", 0)
+
+    channel = interaction.guild.get_channel(channel_id) if channel_id else None
+    role = interaction.guild.get_role(role_id) if role_id else None
+
+    channel_display = channel.mention if channel else "`Not Configured ⚠️` (use `/admin set_channel`)"
+    role_display = role.mention if role else "`Not Configured ⚠️` (use `/admin set_role`)"
+
+    enrolled = db.get_enrolled_users()
+    today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+
+    warrior_lines = []
+    for u in enrolled:
+        prog = db.get_user_daily_progress(u["discord_id"], today_str)
+        streak = db.calculate_streak(u["discord_id"], today_str)
+        warrior_lines.append(f"• **{u['username']}** — `{prog['total_points']} pts` today | Streak: 🔥 `{streak}d`")
+
+    active_tasks = db.get_active_tasks()
+    task_lines = [f"• **{t['name']}**: target `{t['target']} {t['unit']}`, max `{t['max_points']} pts`" for t in active_tasks]
+
+    embed = discord.Embed(
+        title="🛡️ Winter Arc Server Overview Dashboard",
+        color=0x34495E
+    )
+    embed.add_field(name="📢 Dedicated Channel", value=channel_display, inline=True)
+    embed.add_field(name="🔔 Ping Role", value=role_display, inline=True)
+    embed.add_field(name=f"👥 Enrolled Warriors ({len(enrolled)})", value="\n".join(warrior_lines) if warrior_lines else "_No users enrolled yet._", inline=False)
+    embed.add_field(name="📋 Active Disciplines", value="\n".join(task_lines) if task_lines else "_No active tasks._", inline=False)
+    embed.set_footer(text="Admin controls: /admin set_channel | /admin set_role | /admin task_add")
+
+    await interaction.response.send_message(embed=embed)
+
+
+@admin_group.command(name="task_add", description="Add a new challenge discipline to the database.")
 @app_commands.describe(
     name="Task name (e.g. Plank, Water)",
     target="Daily target amount (e.g. 5)",
@@ -523,29 +597,59 @@ async def admin_task_toggle(interaction: discord.Interaction, name: str):
 @admin_group.command(name="tasks_list", description="List all challenge tasks in the database.")
 @app_commands.default_permissions(administrator=True)
 async def admin_tasks_list(interaction: discord.Interaction):
-    active_tasks = db.get_active_tasks()
+    all_tasks = db.get_all_tasks()
     lines = []
-    for t in active_tasks:
-        lines.append(f"• **{t['name']}**: target `{t['target']} {t['unit']}`, max `{t['max_points']} pts` (Active: {bool(t['active'])})")
+    for t in all_tasks:
+        status_icon = "🟢" if t["active"] else "🔴"
+        lines.append(f"{status_icon} **{t['name']}**: target `{t['target']} {t['unit']}`, max `{t['max_points']} pts`")
 
     embed = discord.Embed(
-        title="📋 Challenge Tasks List",
+        title="📋 Challenge Tasks Master List",
         description="\n".join(lines) if lines else "_No tasks registered._",
         color=0x3498DB
     )
     await interaction.response.send_message(embed=embed)
 
 
-@admin_group.command(name="set_results_channel", description="Set the channel where 00:00 midnight daily results are posted.")
-@app_commands.describe(channel="Select channel for daily results broadcast")
-@app_commands.default_permissions(administrator=True)
-async def admin_set_channel(interaction: discord.Interaction, channel: discord.TextChannel):
-    if bot.scheduler:
-        bot.scheduler.results_channel_id = channel.id
-    await interaction.response.send_message(f"✅ Daily results will now be broadcast in {channel.mention}.")
-
-
 bot.tree.add_command(admin_group)
+
+
+# ==========================================
+# Testing & Diagnostics
+# ==========================================
+
+@bot.tree.command(name="test_reminder", description="Preview morning, afternoon, or midnight announcements in the dedicated channel.")
+@app_commands.describe(reminder_type="Select announcement type to test")
+@app_commands.choices(reminder_type=[
+    app_commands.Choice(name="Morning Kickoff (05:00)", value="morning"),
+    app_commands.Choice(name="Afternoon Group Check-in (16:30)", value="afternoon"),
+    app_commands.Choice(name="Midnight Finalization (00:00)", value="midnight"),
+])
+@app_commands.default_permissions(administrator=True)
+async def test_reminder(interaction: discord.Interaction, reminder_type: str):
+    await interaction.response.defer(ephemeral=True)
+    if not bot.scheduler:
+        await interaction.followup.send("Scheduler is not active.", ephemeral=True)
+        return
+
+    # Determine destination: dedicated channel if set, otherwise current channel
+    channel = interaction.channel
+    role_ping = ""
+    if interaction.guild:
+        ch, ping = bot.scheduler._get_target_channel_and_ping(interaction.guild)
+        if ch:
+            channel = ch
+            role_ping = ping
+
+    if reminder_type == "morning":
+        await bot.scheduler.broadcast_morning_kickoff(target_channel=channel, role_ping=role_ping)
+        await interaction.followup.send(f"✅ Dispatched Morning Kickoff preview to {channel.mention}.", ephemeral=True)
+    elif reminder_type == "afternoon":
+        await bot.scheduler.broadcast_afternoon_checkin(target_channel=channel, role_ping=role_ping)
+        await interaction.followup.send(f"✅ Dispatched Afternoon Check-in preview to {channel.mention}.", ephemeral=True)
+    elif reminder_type == "midnight":
+        embed = await bot.scheduler.broadcast_midnight_finalization(target_channel=channel, role_ping=role_ping)
+        await interaction.followup.send(f"✅ Dispatched Midnight Podium preview to {channel.mention}.", ephemeral=True)
 
 
 # ==========================================
@@ -554,17 +658,7 @@ bot.tree.add_command(admin_group)
 
 if __name__ == "__main__":
     if not TOKEN:
-        logger.error(
-            "\n"
-            "==========================================================\n"
-            "❌ ERROR: DISCORD_TOKEN is not set in your .env file!\n\n"
-            "1. Open .env in your project folder:\n"
-            "   /home/vishnunandan555/Projects/winter-arc-bot/.env\n"
-            "2. Paste your bot token from the Discord Developer Portal:\n"
-            "   DISCORD_TOKEN=your_real_token_here\n"
-            "3. Run: python bot.py\n"
-            "==========================================================\n"
-        )
+        logger.error("❌ ERROR: DISCORD_TOKEN is not set in your .env file!")
         sys.exit(1)
 
     bot.run(TOKEN)
