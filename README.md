@@ -43,6 +43,7 @@ Once you invite the bot into your server:
 ### Warrior Commands
 | Command | Description |
 | :--- | :--- |
+| `/help` | View the complete command manual, daily schedule, and rules. |
 | `/enroll` | Enroll in the Winter Arc challenge and receive the warrior role. |
 | `/leave_arc` | Step away and unenroll from the challenge. |
 | `/ping` | Health check & gateway latency in milliseconds. |
