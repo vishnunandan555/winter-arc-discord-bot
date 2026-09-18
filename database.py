@@ -19,10 +19,10 @@ from typing import List, Dict, Any, Optional
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
 DEFAULT_TASKS = [
-    {"name": "Push-ups", "description": "Complete push-ups", "target": 100.0, "unit": "reps", "max_points": 100},
-    {"name": "Pull-ups", "description": "Complete pull-ups", "target": 20.0, "unit": "reps", "max_points": 100},
-    {"name": "Squats", "description": "Complete squats", "target": 100.0, "unit": "reps", "max_points": 100},
-    {"name": "Running", "description": "Running or cardio distance", "target": 5.0, "unit": "km", "max_points": 100},
+    {"name": "Push-ups", "description": "Works chest, shoulders, and triceps", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Sit-ups", "description": "Targets core and hip flexors", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Squats", "description": "Strengthens quads, glutes, and lower body", "target": 100.0, "unit": "reps", "max_points": 100},
+    {"name": "Running", "description": "Builds cardiovascular endurance", "target": 10.0, "unit": "km", "max_points": 100},
 ]
 
 

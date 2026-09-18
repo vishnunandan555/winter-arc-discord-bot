@@ -27,7 +27,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         tasks = db.get_active_tasks(TEST_DB)
         names = [t["name"] for t in tasks]
         self.assertIn("Push-ups", names)
-        self.assertIn("Pull-ups", names)
+        self.assertIn("Sit-ups", names)
         self.assertIn("Squats", names)
         self.assertIn("Running", names)
 
@@ -105,15 +105,15 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         # Day 1 100% completion
         db.log_activity(user_id, "Arjun", "Push-ups", 100, d1, TEST_DB)
-        db.log_activity(user_id, "Arjun", "Pull-ups", 20, d1, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Sit-ups", 100, d1, TEST_DB)
         db.log_activity(user_id, "Arjun", "Squats", 100, d1, TEST_DB)
-        db.log_activity(user_id, "Arjun", "Running", 5, d1, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Running", 10, d1, TEST_DB)
 
         # Day 2 100% completion
         db.log_activity(user_id, "Arjun", "Push-ups", 100, d2, TEST_DB)
-        db.log_activity(user_id, "Arjun", "Pull-ups", 20, d2, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Sit-ups", 100, d2, TEST_DB)
         db.log_activity(user_id, "Arjun", "Squats", 100, d2, TEST_DB)
-        db.log_activity(user_id, "Arjun", "Running", 5, d2, TEST_DB)
+        db.log_activity(user_id, "Arjun", "Running", 10, d2, TEST_DB)
 
         db.finalize_daily_summaries(d1, TEST_DB)
         db.finalize_daily_summaries(d2, TEST_DB)

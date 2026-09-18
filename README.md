@@ -4,14 +4,35 @@ A streamlined, robust fitness and accountability Discord bot built with **Python
 
 Pinned to **Asia/Kolkata (IST)** with scheduled morning motivation (05:00), afternoon check-ins (16:30), and midnight finalization (00:00).
 
+
+---
+
+## 🎨 Bot Assets & Discord Branding
+
+The following assets are formatted and ready to upload to the [Discord Developer Portal](https://discord.com/developers/applications):
+
+| Asset | File | Dimensions | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Profile Banner (Recommended)** | [`winter_arc_banner.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_banner.png) | **680x240** (17:6) | Cinematic dark gym & mountain wolf banner |
+| **Vector Banner (Alternative)** | [`winter_arc_banner_vector_680x240.png`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_banner_vector_680x240.png) | **680x240** (17:6) | Sharp geometric ice crystal & wolf banner |
+| **Retina 2x Banners** | `winter_arc_banner_*_1360x480.png` | **1360x480** (17:6) | Ultra high-res retina versions |
+| **App Icon / Avatar** | [`winter_arc_avatar.jpg`](file:///home/vishnunandan555/Projects/winter-arc-bot/winter_arc_avatar.jpg) | **1024x1024** (1:1) | Bot profile picture |
+
 ---
 
 ## 🛡️ Core Rules & Architecture
 
-1. **Enrollment Gate**: Commands (`/today`, `/log`, `/stats`, etc.) only respond to enrolled warriors. Anyone else is prompted to run `/enroll`.
-2. **Dedicated Channel Only**: The bot only auto-broadcasts (05:00, 16:30, 00:00 IST) in the server's dedicated channel configured by `/admin set_channel`. Everywhere else, the bot stays completely quiet unless directly prompted.
-3. **Role Pings (No Private DMs)**: Daily automated announcements mention the server's Winter Arc role (`/admin set_role`). Users can mute the role/channel in Discord if they want quiet, while remaining enrolled.
-4. **Admin Dashboard**: `/admin overview` gives server admins a single-command overview of all enrolled members, today's scores, streaks, and settings.
+1. **The Saitama One-Punch Man Routine**:
+   - 💪 **100 Push-ups** — Chest, shoulders, triceps (100 pts)
+   - 🧘 **100 Sit-ups** — Core & hip flexors (100 pts)
+   - 🦵 **100 Squats** — Quads, glutes, lower body (100 pts)
+   - 🏃 **10 km Running** — Cardiovascular endurance (100 pts)
+   - **Daily Total**: 400 pts. 100% completion = ⭐ **Perfect Day** + 🔥 **Streak Counter +1**.
+
+2. **Enrollment Gate**: Commands (`/today`, `/log`, `/stats`, etc.) only respond to enrolled warriors. Anyone else is prompted to run `/enroll`.
+3. **Dedicated Channel Only**: The bot only auto-broadcasts (05:00, 16:30, 00:00 IST) in the server's dedicated channel configured by `/admin set_channel`. Everywhere else, the bot stays completely quiet unless directly prompted.
+4. **Role Pings (No Private DMs)**: Daily automated announcements mention the server's Winter Arc role (`/admin set_role`). Users can mute the role/channel in Discord if they want quiet, while remaining enrolled.
+5. **Admin Dashboard**: `/admin overview` gives server admins a single-command overview of all enrolled members, today's scores, streaks, and settings.
 
 ---
 

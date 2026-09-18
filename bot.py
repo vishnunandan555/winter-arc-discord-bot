@@ -307,7 +307,7 @@ async def today(interaction: discord.Interaction, member: Optional[discord.Membe
         color=0x1ABC9C if progress["perfect_day"] else 0x3498DB
     )
 
-    task_icons = {"push-ups": "💪", "pull-ups": "🧗", "squats": "🦵", "running": "🏃"}
+    task_icons = {"push-ups": "💪", "sit-ups": "🧘", "squats": "🦵", "running": "🏃", "pull-ups": "🧗"}
 
     for t in progress["tasks"]:
         icon = task_icons.get(t["name"].lower(), "🎯")
