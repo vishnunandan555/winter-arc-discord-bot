@@ -206,6 +206,55 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(big_lvl["level"], 4)
         self.assertEqual(big_lvl["title"], "Prowler")
 
+    def test_11_autocomplete_providers(self):
+        import asyncio
+        from unittest.mock import MagicMock
+        from helpers import (
+            task_autocomplete,
+            all_tasks_autocomplete,
+            unit_autocomplete,
+            history_days_autocomplete,
+            log_amount_autocomplete,
+            set_amount_autocomplete,
+            target_autocomplete,
+            max_points_autocomplete,
+        )
+
+        mock_interaction = MagicMock()
+        mock_interaction.namespace.task = "Running"
+
+        # Task autocomplete
+        res = asyncio.run(task_autocomplete(mock_interaction, "push"))
+        self.assertTrue(any("Push-ups" in c.value for c in res))
+
+        # Contextual running amounts (km)
+        res_run = asyncio.run(log_amount_autocomplete(mock_interaction, "5"))
+        self.assertTrue(any("km" in c.name for c in res_run))
+
+        # Contextual calisthenics amounts (reps)
+        mock_interaction.namespace.task = "Push-ups"
+        res_push = asyncio.run(log_amount_autocomplete(mock_interaction, "25"))
+        self.assertTrue(any("reps" in c.name for c in res_push))
+
+        # Set reset option (0)
+        res_set = asyncio.run(set_amount_autocomplete(mock_interaction, "0"))
+        self.assertTrue(any(c.value == 0.0 for c in res_set))
+
+        # Unit autocomplete
+        res_units = asyncio.run(unit_autocomplete(mock_interaction, "min"))
+        self.assertTrue(any(c.value == "minutes" for c in res_units))
+
+        # History days autocomplete
+        res_hist = asyncio.run(history_days_autocomplete(mock_interaction, "14"))
+        self.assertTrue(any(c.value == 14 for c in res_hist))
+
+        # Target & Max points autocomplete
+        res_target = asyncio.run(target_autocomplete(mock_interaction, "50"))
+        self.assertTrue(any(c.value == 50.0 for c in res_target))
+        res_pts = asyncio.run(max_points_autocomplete(mock_interaction, "100"))
+        self.assertTrue(any(c.value == 100 for c in res_pts))
+
 
 if __name__ == "__main__":
     unittest.main()
+

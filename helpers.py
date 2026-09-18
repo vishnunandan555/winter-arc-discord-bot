@@ -36,13 +36,148 @@ async def require_enrolled(interaction: discord.Interaction) -> bool:
 
 
 async def task_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    """Provides autocomplete choices for active challenge tasks."""
+    """Provides autocomplete choices for active challenge tasks with discipline icons and targets."""
+    icons = {"push-ups": "💪", "pull-ups": "🧗", "squats": "🦵", "sit-ups": "🧘", "running": "🏃"}
     tasks = db.get_active_tasks()
     choices = []
     for t in tasks:
         if current.lower() in t["name"].lower():
             target_disp = int(t["target"]) if t["target"].is_integer() else t["target"]
-            choices.append(app_commands.Choice(name=f"{t['name']} (target: {target_disp} {t['unit']})", value=t["name"]))
+            icon = icons.get(t["name"].lower(), "🎯")
+            choices.append(app_commands.Choice(
+                name=f"{icon} {t['name']} ({target_disp} {t['unit']})",
+                value=t["name"]
+            ))
+    return choices[:25]
+
+
+async def all_tasks_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """Provides autocomplete for all tasks (active & disabled) so admins can toggle them on/off."""
+    tasks = db.get_all_tasks()
+    choices = []
+    for t in tasks:
+        if current.lower() in t["name"].lower():
+            status_icon = "🟢" if t["active"] else "🔴"
+            status_label = "Active" if t["active"] else "Disabled"
+            choices.append(app_commands.Choice(
+                name=f"{status_icon} {t['name']} ({status_label})",
+                value=t["name"]
+            ))
+    return choices[:25]
+
+
+async def unit_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """Provides autocomplete for common exercise units in task creation."""
+    common_units = ["reps", "km", "minutes", "seconds", "sets", "meters", "miles", "laps"]
+    choices = []
+    for u in common_units:
+        if current.lower() in u.lower():
+            choices.append(app_commands.Choice(name=u, value=u))
+    return choices[:25]
+
+
+async def target_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[float]]:
+    """Provides autocomplete for standard daily targets."""
+    presets = [5.0, 10.0, 20.0, 25.0, 30.0, 50.0, 100.0]
+    choices = []
+    if current:
+        try:
+            val = float(current)
+            if val > 0 and val not in presets:
+                choices.append(app_commands.Choice(name=f"Target: {val:g}", value=val))
+        except ValueError:
+            pass
+    for p in presets:
+        if not current or current in str(p) or current in f"{p:g}":
+            choices.append(app_commands.Choice(name=f"Target: {p:g}", value=p))
+    return choices[:25]
+
+
+async def max_points_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[int]]:
+    """Provides autocomplete for standard discipline point allocations."""
+    presets = [50, 100, 150, 200]
+    choices = []
+    if current:
+        try:
+            val = int(current)
+            if val > 0 and val not in presets:
+                choices.append(app_commands.Choice(name=f"{val} points", value=val))
+        except ValueError:
+            pass
+    for p in presets:
+        if not current or current in str(p):
+            choices.append(app_commands.Choice(name=f"{p} points (Standard)" if p == 100 else f"{p} points", value=p))
+    return choices[:25]
+
+
+async def history_days_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[int]]:
+    """Provides autocomplete for history timeframe options."""
+    options = [
+        ("7 days (Past Week)", 7),
+        ("14 days (Past 2 Weeks)", 14),
+        ("21 days (Past 3 Weeks)", 21),
+        ("30 days (Past Month)", 30),
+    ]
+    choices = []
+    for label, val in options:
+        if current.lower() in label.lower() or current in str(val):
+            choices.append(app_commands.Choice(name=label, value=val))
+    return choices[:25]
+
+
+async def log_amount_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[float]]:
+    """Provides contextual autocomplete for amount to log based on selected task."""
+    selected_task = getattr(interaction.namespace, "task", "") or ""
+    is_running = "run" in selected_task.lower()
+
+    if is_running:
+        presets = [1.0, 2.0, 2.5, 3.0, 5.0, 7.5, 10.0]
+    else:
+        presets = [10.0, 20.0, 25.0, 30.0, 50.0, 75.0, 100.0]
+
+    choices = []
+    if current:
+        try:
+            val = float(current)
+            if val > 0 and val not in presets:
+                unit_str = "km" if is_running else "reps"
+                choices.append(app_commands.Choice(name=f"+{val:g} {unit_str}", value=val))
+        except ValueError:
+            pass
+
+    for p in presets:
+        unit_str = "km" if is_running else "reps"
+        if not current or current in str(p) or current in f"{p:g}":
+            choices.append(app_commands.Choice(name=f"+{p:g} {unit_str}", value=p))
+
+    return choices[:25]
+
+
+async def set_amount_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[float]]:
+    """Provides contextual autocomplete for set/override amounts."""
+    selected_task = getattr(interaction.namespace, "task", "") or ""
+    is_running = "run" in selected_task.lower()
+
+    if is_running:
+        presets = [0.0, 2.5, 5.0, 7.5, 10.0]
+    else:
+        presets = [0.0, 25.0, 50.0, 75.0, 100.0]
+
+    choices = []
+    if current:
+        try:
+            val = float(current)
+            if val >= 0 and val not in presets:
+                choices.append(app_commands.Choice(name=f"Set to {val:g}", value=val))
+        except ValueError:
+            pass
+
+    for p in presets:
+        unit_str = "km" if is_running else "reps"
+        label = "0 (Reset discipline)" if p == 0.0 else f"Set to {p:g} {unit_str}"
+        if not current or current in str(p) or current in f"{p:g}":
+            choices.append(app_commands.Choice(name=label, value=p))
+
     return choices[:25]
 
 

@@ -16,7 +16,13 @@ from discord.ext import commands
 
 import database as db
 from config import BOT_TZ
-from helpers import task_autocomplete
+from helpers import (
+    task_autocomplete,
+    all_tasks_autocomplete,
+    unit_autocomplete,
+    target_autocomplete,
+    max_points_autocomplete,
+)
 
 logger = logging.getLogger("winter_arc.cogs.admin")
 
@@ -126,6 +132,11 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         max_points="Maximum points achievable for 100% completion (e.g. 100)",
         description="Optional description of the task"
     )
+    @app_commands.autocomplete(
+        unit=unit_autocomplete,
+        target=target_autocomplete,
+        max_points=max_points_autocomplete
+    )
     async def admin_task_add(self, interaction: discord.Interaction, name: str, target: float, unit: str, max_points: int, description: str = ""):
         if target <= 0 or max_points <= 0:
             await interaction.response.send_message("❌ Target and max_points must be greater than 0.", ephemeral=True)
@@ -146,7 +157,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
 
     @admin_group.command(name="task_toggle", description="Enable or disable an existing challenge task.")
     @app_commands.describe(name="Task name to enable/disable")
-    @app_commands.autocomplete(name=task_autocomplete)
+    @app_commands.autocomplete(name=all_tasks_autocomplete)
     async def admin_task_toggle(self, interaction: discord.Interaction, name: str):
         try:
             task = db.toggle_task(name)

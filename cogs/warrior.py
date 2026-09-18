@@ -18,7 +18,15 @@ from discord.ext import commands
 
 import database as db
 from config import BOT_TZ
-from helpers import require_enrolled, task_autocomplete, get_or_create_arc_role, safe_react
+from helpers import (
+    require_enrolled,
+    task_autocomplete,
+    log_amount_autocomplete,
+    set_amount_autocomplete,
+    history_days_autocomplete,
+    get_or_create_arc_role,
+    safe_react,
+)
 from levels import check_level_up
 from ui.embeds import (
     build_today_embed,
@@ -176,7 +184,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         task="Select the task to log",
         amount="Amount completed (e.g. 30 reps or 5 km)"
     )
-    @app_commands.autocomplete(task=task_autocomplete)
+    @app_commands.autocomplete(task=task_autocomplete, amount=log_amount_autocomplete)
     async def log_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
         if not await require_enrolled(interaction):
             return
@@ -221,7 +229,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         task="Select the task to set/override",
         amount="Exact total to set for today (e.g. 50, or 0 to reset)"
     )
-    @app_commands.autocomplete(task=task_autocomplete)
+    @app_commands.autocomplete(task=task_autocomplete, amount=set_amount_autocomplete)
     async def set_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
         if not await require_enrolled(interaction):
             return
@@ -266,15 +274,22 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # ==========================================
 
     @app_commands.command(name="profile", description="View member profile, rank, and 12-level progression.")
-    async def profile(self, interaction: discord.Interaction):
-        if not await require_enrolled(interaction):
-            return
+    @app_commands.describe(member="Optional: View another member's profile and rank card")
+    async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target_user = member or interaction.user
+        if target_user.id == interaction.user.id:
+            if not await require_enrolled(interaction):
+                return
+        else:
+            if not db.is_user_enrolled(target_user.id):
+                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
+                return
 
-        user = db.get_user_by_discord_id(interaction.user.id)
-        streak = db.calculate_streak(interaction.user.id)
-        stats_data = db.get_user_stats(interaction.user.id)
+        user = db.get_user_by_discord_id(target_user.id)
+        streak = db.calculate_streak(target_user.id)
+        stats_data = db.get_user_stats(target_user.id)
 
-        embed = build_profile_embed(interaction.user, user, streak, stats_data)
+        embed = build_profile_embed(target_user, user, streak, stats_data)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="ranks", description="View the 12-level Winter Pack hierarchy and requirements.")
@@ -310,12 +325,15 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_stats_embed(target_user, data)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="history", description="View 7-day point history.")
-    async def history(self, interaction: discord.Interaction):
+    @app_commands.command(name="history", description="View point and completion history.")
+    @app_commands.describe(days="Timeframe to inspect (e.g. 7, 14, 30 days)")
+    @app_commands.autocomplete(days=history_days_autocomplete)
+    async def history(self, interaction: discord.Interaction, days: Optional[int] = 7):
         if not await require_enrolled(interaction):
             return
 
-        hist = db.get_user_history(interaction.user.id, days=7)
+        days_count = max(1, min(days or 7, 90))
+        hist = db.get_user_history(interaction.user.id, days=days_count)
         embed = build_history_embed(interaction.user, hist)
         await interaction.response.send_message(embed=embed)
 
