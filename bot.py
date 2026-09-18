@@ -209,6 +209,76 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 
+@bot.tree.command(name="help", description="View the Winter Arc command guide, schedule, and rules.")
+async def help_cmd(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="❄️ Winter Arc — Command Manual",
+        description=(
+            "**Discipline is Destiny.** Welcome to the Winter Arc accountability bot.\n"
+            "Track daily workout disciplines, earn capped points, build streaks, and stay accountable.\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ),
+        color=0x3498DB
+    )
+
+    embed.add_field(
+        name="🛡️ Enrollment",
+        value=(
+            "• **/enroll** — Join the Winter Arc challenge and receive the warrior role.\n"
+            "• **/leave_arc** — Step away and unenroll from the challenge."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚔️ Daily Workout Tracking (Enrolled Warriors)",
+        value=(
+            "• **/today** — View your daily targets, progress bars (`🟩🟩⬜`), points, and streak.\n"
+            "• **/log** `task` `amount` — Record reps or km completed (e.g. `/log Push-ups 30`).\n"
+            "• **/profile** — View your warrior profile card, streak, and joined date.\n"
+            "• **/history** — Inspect your daily point history over the past 7 days.\n"
+            "• **/stats** `[member]` — View lifetime totals, all-time volume, and perfect days."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🏆 Standings & Health",
+        value=(
+            "• **/leaderboard** `[day | month]` — View daily or monthly podium rankings.\n"
+            "• **/ping** — Check bot status and gateway latency."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚙️ Server Admin Controls (Requires Administrator)",
+        value=(
+            "• **/admin overview** — Complete dashboard of channel, role, enrolled warriors & disciplines.\n"
+            "• **/admin set_channel** `channel` — Set dedicated channel for scheduled broadcasts.\n"
+            "• **/admin set_role** `role` — Set role to ping for announcements & auto-role on `/enroll`.\n"
+            "• **/admin task_add** — Dynamically register a new discipline.\n"
+            "• **/admin task_toggle** — Enable or disable an existing discipline.\n"
+            "• **/admin tasks_list** — List all registered tasks.\n"
+            "• **/test_reminder** `type` — Preview morning, afternoon, or midnight posts."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⏰ Daily Schedule (Asia/Kolkata IST)",
+        value=(
+            "• **05:00 IST** — 🌅 Morning Kickoff (Daily targets & motivation)\n"
+            "• **16:30 IST** — ⏰ Afternoon Group Check-in (Standings check)\n"
+            "• **00:00 IST** — 🌙 Midnight Finalization (Day locks & podium announced)"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Tip: Automated messages only post in the dedicated channel set by /admin set_channel.")
+    await interaction.response.send_message(embed=embed)
+
+
 @bot.tree.command(name="today", description="View your progress, targets, points, and streak for today.")
 @app_commands.describe(member="Optional: View another enrolled member's progress")
 async def today(interaction: discord.Interaction, member: Optional[discord.Member] = None):
