@@ -9,7 +9,7 @@ Provides reusable functions across cogs and scheduler:
 """
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Any
 import discord
 from discord import app_commands
 
@@ -125,7 +125,7 @@ async def history_days_autocomplete(interaction: discord.Interaction, current: s
     return choices[:25]
 
 
-async def log_amount_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[float]]:
+async def log_amount_autocomplete(interaction: discord.Interaction, current: Any) -> List[app_commands.Choice[float]]:
     """Provides contextual autocomplete for amount to log based on selected task."""
     selected_task = getattr(interaction.namespace, "task", "") or ""
     is_running = "run" in selected_task.lower()
@@ -136,7 +136,7 @@ async def log_amount_autocomplete(interaction: discord.Interaction, current: str
         presets = [10.0, 20.0, 25.0, 30.0, 50.0, 75.0, 100.0]
 
     choices = []
-    if current:
+    if current is not None and str(current).strip():
         try:
             val = float(current)
             if val > 0 and val not in presets:
@@ -145,15 +145,16 @@ async def log_amount_autocomplete(interaction: discord.Interaction, current: str
         except ValueError:
             pass
 
+    curr_str = str(current).strip() if current is not None else ""
     for p in presets:
         unit_str = "km" if is_running else "reps"
-        if not current or current in str(p) or current in f"{p:g}":
+        if not curr_str or curr_str in str(p) or curr_str in f"{p:g}":
             choices.append(app_commands.Choice(name=f"+{p:g} {unit_str}", value=p))
 
     return choices[:25]
 
 
-async def set_amount_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[float]]:
+async def set_amount_autocomplete(interaction: discord.Interaction, current: Any) -> List[app_commands.Choice[float]]:
     """Provides contextual autocomplete for set/override amounts."""
     selected_task = getattr(interaction.namespace, "task", "") or ""
     is_running = "run" in selected_task.lower()
@@ -164,7 +165,7 @@ async def set_amount_autocomplete(interaction: discord.Interaction, current: str
         presets = [0.0, 25.0, 50.0, 75.0, 100.0]
 
     choices = []
-    if current:
+    if current is not None and str(current).strip():
         try:
             val = float(current)
             if val >= 0 and val not in presets:
@@ -172,10 +173,11 @@ async def set_amount_autocomplete(interaction: discord.Interaction, current: str
         except ValueError:
             pass
 
+    curr_str = str(current).strip() if current is not None else ""
     for p in presets:
         unit_str = "km" if is_running else "reps"
         label = "0 (Reset discipline)" if p == 0.0 else f"Set to {p:g} {unit_str}"
-        if not current or current in str(p) or current in f"{p:g}":
+        if not curr_str or curr_str in str(p) or curr_str in f"{p:g}":
             choices.append(app_commands.Choice(name=label, value=p))
 
     return choices[:25]

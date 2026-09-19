@@ -925,14 +925,21 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
             "pending_tasks": ["Running", "Squats", "Pull-ups"],
             "extra_info": "Logged 50 pushups",
         }
-        nudge = asyncio.run(groq_service.generate_reactive_nudge(
-            user_name="Fenrir",
-            command_name="today",
-            progression=progression
-        ))
-        self.assertIsInstance(nudge, str)
-        self.assertTrue(len(nudge) > 0)
-        self.assertLessEqual(len(nudge.split()), 25)
+        from unittest.mock import AsyncMock, MagicMock, patch
+        mock_client = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Halfway there. 250 points remain."
+        mock_res = MagicMock()
+        mock_res.choices = [mock_choice]
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_res)
+
+        with patch.object(groq_service, "get_groq_client", return_value=mock_client):
+            nudge = asyncio.run(groq_service.generate_reactive_nudge(
+                user_name="Fenrir",
+                command_name="today",
+                progression=progression
+            ))
+            self.assertEqual(nudge, "Halfway there. 250 points remain.")
 
         # 2. Test Cooldown and force logic
         test_uid = 999333

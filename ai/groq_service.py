@@ -319,15 +319,28 @@ async def dispatch_interaction_nudge(
         )
         if nudge:
             content = f"<@{user_id}> 🐺 **Amarok observes**:\n> *\"{nudge}\"*"
-            if getattr(interaction, "channel", None) and hasattr(interaction.channel, "send"):
+            channel = getattr(interaction, "channel", None)
+            if not channel and hasattr(interaction, "client") and hasattr(interaction, "channel_id"):
+                channel = interaction.client.get_channel(interaction.channel_id)
+
+            sent = False
+            if channel and hasattr(channel, "send"):
                 try:
-                    await interaction.channel.send(content)
-                    return
-                except Exception:
-                    pass
-            await interaction.followup.send(content)
+                    await channel.send(content)
+                    sent = True
+                    logger.info(f"Dispatched Amarok reactive observation to #{getattr(channel, 'name', 'chat')} for {user_name}: '{nudge}'")
+                except Exception as send_err:
+                    logger.warning(f"Could not send nudge via channel.send: {send_err}")
+
+            if not sent:
+                try:
+                    await interaction.followup.send(content)
+                    sent = True
+                    logger.info(f"Dispatched Amarok reactive observation via followup for {user_name}: '{nudge}'")
+                except Exception as followup_err:
+                    logger.warning(f"Could not send nudge via interaction.followup: {followup_err}")
     except Exception as e:
-        logger.debug(f"Could not dispatch interaction nudge for {user_name}: {e}")
+        logger.warning(f"Could not dispatch interaction nudge for {user_name}: {e}")
 
 
 async def dispatch_channel_nudge(
