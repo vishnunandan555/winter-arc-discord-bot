@@ -202,13 +202,31 @@ class WinterArcScheduler:
     # Broadcast Methods
     # ==========================================
 
-    async def broadcast_morning_kickoff(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
+    async def broadcast_morning_kickoff(
+        self,
+        target_channel: discord.TextChannel = None,
+        role_ping: str = "",
+        user_context: Optional[Dict[str, Any]] = None,
+        recent_history: Optional[List[Dict[str, Any]]] = None,
+        override_quote: Optional[str] = None,
+    ):
         """Sends morning daily motivation and active challenge targets to dedicated channel."""
         active_tasks = db.get_active_tasks()
         now = get_now_ist()
         date_display = now.strftime("%A, %B %d, %Y")
 
-        embed = build_morning_kickoff_embed(active_tasks, date_display)
+        quote = override_quote or ""
+        if not quote:
+            try:
+                quote = await gemini_service.generate_reminder_motivation(
+                    reminder_type="morning",
+                    user_context=user_context,
+                    recent_history=recent_history,
+                )
+            except Exception as e:
+                logger.debug(f"Could not generate AI morning quote: {e}")
+
+        embed = build_morning_kickoff_embed(active_tasks, date_display, quote=quote)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌅 **Morning Kickoff**", embed=embed)
@@ -222,13 +240,31 @@ class WinterArcScheduler:
                 except Exception as e:
                     logger.warning(f"Could not send morning kickoff to {channel.name} in {guild.name}: {e}")
 
-    async def broadcast_afternoon_checkin(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
+    async def broadcast_afternoon_checkin(
+        self,
+        target_channel: discord.TextChannel = None,
+        role_ping: str = "",
+        user_context: Optional[Dict[str, Any]] = None,
+        recent_history: Optional[List[Dict[str, Any]]] = None,
+        override_quote: Optional[str] = None,
+    ):
         """Sends afternoon check-in showing enrolled group progress to dedicated channel."""
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
         enrolled_users = db.get_enrolled_users()
 
-        embed = build_afternoon_checkin_embed(enrolled_users, today_str)
+        quote = override_quote or ""
+        if not quote:
+            try:
+                quote = await gemini_service.generate_reminder_motivation(
+                    reminder_type="afternoon",
+                    user_context=user_context,
+                    recent_history=recent_history,
+                )
+            except Exception as e:
+                logger.debug(f"Could not generate AI afternoon quote: {e}")
+
+        embed = build_afternoon_checkin_embed(enrolled_users, today_str, quote=quote)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}⏰ **Afternoon Check-in**", embed=embed)
@@ -242,13 +278,31 @@ class WinterArcScheduler:
                 except Exception as e:
                     logger.warning(f"Could not send afternoon check-in to {channel.name} in {guild.name}: {e}")
 
-    async def broadcast_evening_checkin(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
+    async def broadcast_evening_checkin(
+        self,
+        target_channel: discord.TextChannel = None,
+        role_ping: str = "",
+        user_context: Optional[Dict[str, Any]] = None,
+        recent_history: Optional[List[Dict[str, Any]]] = None,
+        override_quote: Optional[str] = None,
+    ):
         """Sends evening streak alert showing completed & pending warriors to dedicated channel."""
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
         enrolled_users = db.get_enrolled_users(db_path=self.db_path)
 
-        embed = build_evening_checkin_embed(enrolled_users, today_str)
+        quote = override_quote or ""
+        if not quote:
+            try:
+                quote = await gemini_service.generate_reminder_motivation(
+                    reminder_type="evening",
+                    user_context=user_context,
+                    recent_history=recent_history,
+                )
+            except Exception as e:
+                logger.debug(f"Could not generate AI evening quote: {e}")
+
+        embed = build_evening_checkin_embed(enrolled_users, today_str, quote=quote)
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌙 **Evening Streak Alert — Final Call (3h Left)**", embed=embed)
@@ -393,7 +447,25 @@ class WinterArcScheduler:
                 discord_user = await self.bot.fetch_user(discord_id)
             if discord_user:
                 streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
-                embed = build_dm_morning_embed(active_tasks, streak, date_display)
+                history = db.get_user_history(discord_id, days=3, db_path=self.db_path)
+                recent_logs = db.get_user_recent_logs(discord_id, limit=3, db_path=self.db_path)
+                recent_grinds = db.get_user_recent_grinds(discord_id, limit=2, db_path=self.db_path)
+                quote = ""
+                try:
+                    quote = await gemini_service.generate_reminder_motivation(
+                        reminder_type="morning",
+                        user_context={
+                            "username": discord_user.display_name,
+                            "streak": streak,
+                            "recent_logs": recent_logs,
+                            "recent_grinds": recent_grinds,
+                        },
+                        recent_history=history
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not generate AI DM quote: {e}")
+
+                embed = build_dm_morning_embed(active_tasks, streak, date_display, quote=quote)
                 await discord_user.send(embed=embed)
                 return True
         except discord.Forbidden:
@@ -428,7 +500,26 @@ class WinterArcScheduler:
                 progress = db.get_user_daily_progress(discord_id, today_str, db_path=self.db_path)
                 streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
                 shield_status = db.get_user_shield_status(discord_id, db_path=self.db_path)
-                embed = build_dm_evening_embed(discord_user, progress, streak, shield_status)
+                history = db.get_user_history(discord_id, days=3, db_path=self.db_path)
+                recent_logs = db.get_user_recent_logs(discord_id, limit=3, db_path=self.db_path)
+                recent_grinds = db.get_user_recent_grinds(discord_id, limit=2, db_path=self.db_path)
+                quote = ""
+                try:
+                    quote = await gemini_service.generate_reminder_motivation(
+                        reminder_type="evening",
+                        user_context={
+                            "username": discord_user.display_name,
+                            "streak": streak,
+                            "today_points": progress.get("total_points", 0),
+                            "recent_logs": recent_logs,
+                            "recent_grinds": recent_grinds,
+                        },
+                        recent_history=history
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not generate AI DM quote: {e}")
+
+                embed = build_dm_evening_embed(discord_user, progress, streak, shield_status, quote=quote)
                 await discord_user.send(embed=embed)
                 return True
         except discord.Forbidden:

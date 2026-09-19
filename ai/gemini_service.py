@@ -202,3 +202,91 @@ async def generate_weekly_state_of_the_pack(
     except Exception as e:
         logger.warning(f"Could not generate weekly state of the pack: {e}")
         return ""
+
+
+CURATED_STOIC_FALLBACKS = [
+    "The iron does not negotiate with your mood. Move.",
+    "Comfort is a slow poison. Step into the cold.",
+    "A wolf does not seek warmth from the fire it has not yet built.",
+    "Discipline is choosing between what you want now and what you want most.",
+    "The snow buries the weak and hardens the disciplined.",
+    "Words build nothing. Numbers on the board are the only truth.",
+    "The winter does not care about your excuses. Only completed reps speak.",
+    "Control your mind, or the cold will control it for you.",
+]
+
+
+async def generate_reminder_motivation(
+    reminder_type: str = "morning",
+    user_context: Optional[Dict[str, Any]] = None,
+    recent_history: Optional[List[Dict[str, Any]]] = None,
+    force_judgment: bool = False,
+) -> str:
+    """
+    Generates a dynamic, razor-sharp stoic motivational quote or personal progress judgment using Gemini.
+    Strictly 1 to 2 short sentences (under 25-30 words total). Zero AI slop.
+    """
+    import random
+    client = get_gemini_client()
+    if not client:
+        return random.choice(CURATED_STOIC_FALLBACKS)
+
+    include_history_judgment = False
+    context_notes = []
+    if user_context:
+        u_name = user_context.get("username", "Warrior")
+        u_streak = user_context.get("streak", 0)
+        context_notes.append(f"Warrior: {u_name}")
+        context_notes.append(f"Active streak: {u_streak} days")
+        if recent_history:
+            past_pts = [f"{d['date'][-5:]}: {d.get('points', 0)} pts" for d in recent_history[:3]]
+            context_notes.append(f"Recent daily scores: {', '.join(past_pts)}")
+        recent_logs = user_context.get("recent_logs")
+        if recent_logs:
+            phys_summary = [f"{l['amount']} {l['unit']} {l['task_name']}" for l in recent_logs[:3]]
+            context_notes.append(f"Recent physical logs: {', '.join(phys_summary)}")
+        recent_grinds = user_context.get("recent_grinds")
+        if recent_grinds:
+            grind_summary = [f"{g.get('key_learning') or 'deep work'}" for g in recent_grinds[:2]]
+            context_notes.append(f"Recent study/grind: {', '.join(grind_summary)}")
+
+        # Rarely/contextually judge their recent momentum (~35% of the time, or if slacking/testing)
+        has_slacked = recent_history and recent_history[0].get("points", 0) == 0
+        include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
+
+    prompt = (
+        f"You are Amarok, the dark, stoic wolf sentinel of the Winter Arc.\n"
+        f"Generate a single razor-sharp stoic reminder or discipline quote for a {reminder_type.upper()} announcement.\n\n"
+        "STRICT CONSTRAINTS:\n"
+        "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 25 WORDS TOTAL).\n"
+        "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, zero generic motivational quotes.\n"
+    )
+
+    if include_history_judgment and context_notes:
+        prompt += (
+            f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
+            f"  {'; '.join(context_notes)}\n"
+            f"- INSTRUCTION: Bluntly or subtly weave their past work or momentum into a cold stoic edict. "
+            f"If they are slacking/idle, call it out bluntly. If consistent, remind them yesterday's sweat buys nothing today.\n"
+        )
+    else:
+        prompt += "- Deliver an original, unpredictable stoic discipline edict tailored for the Winter Arc.\n"
+
+    prompt += "\nOutput ONLY the plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+        )
+        txt = (response.text or "").strip().strip('"').strip("'")
+        if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
+            txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+
+        if txt and len(txt.split()) <= 35:
+            return txt
+        return random.choice(CURATED_STOIC_FALLBACKS)
+    except Exception as e:
+        logger.debug(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.")
+        return random.choice(CURATED_STOIC_FALLBACKS)
+

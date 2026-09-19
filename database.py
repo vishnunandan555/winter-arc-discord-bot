@@ -1316,6 +1316,10 @@ def record_grind_entry(
         return dict(cursor.fetchone())
 
 
+# Alias for backward compatibility / tests
+log_grind = record_grind_entry
+
+
 def get_user_daily_grind(discord_id: int, date_str: Optional[str] = None, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
     """Retrieves user's grind log entry for a specific date."""
     user = get_user_by_discord_id(discord_id, db_path)
@@ -1358,6 +1362,41 @@ def get_weekly_grind_highlights(start_date_str: str, end_date_str: str, db_path:
             ORDER BY g.points_awarded DESC
             LIMIT 10;
         """, (start_date_str, end_date_str))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def get_user_recent_logs(discord_id: int, limit: int = 5, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Fetches user's most recent physical activity logs."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return []
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT l.date, l.amount, t.name as task_name, t.unit
+            FROM daily_logs l
+            JOIN tasks t ON l.task_id = t.id
+            WHERE l.user_id = ?
+            ORDER BY l.date DESC, l.id DESC
+            LIMIT ?;
+        """, (user["id"], limit))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def get_user_recent_grinds(discord_id: int, limit: int = 3, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Fetches user's most recent technical grind logs."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return []
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT g.date, g.verdict, g.points_awarded, g.key_learning
+            FROM grind_logs g
+            WHERE g.user_id = ?
+            ORDER BY g.date DESC, g.id DESC
+            LIMIT ?;
+        """, (user["id"], limit))
         return [dict(r) for r in cursor.fetchall()]
 
 

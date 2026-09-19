@@ -732,7 +732,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         return embed
 
 
-def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display: str) -> discord.Embed:
+def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 05:00 morning kickoff broadcast embed."""
     task_lines = []
     for t in active_tasks:
@@ -740,13 +740,15 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
         task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
 
     disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
+    quote_section = f"\n\n🐺 **Amarok's Edict**:\n> *\"{quote}\"*" if quote else ""
 
     embed = discord.Embed(
         title=f"🌅 Winter Arc — Daily Kickoff • {date_display}",
         description=(
             "A new day has begun. 500 points available across 5 disciplines.\n\n"
             "**Daily Targets**\n"
-            f"{disciplines_block}\n\n"
+            f"{disciplines_block}"
+            f"{quote_section}\n\n"
             "Log your sets with `/log` or check progress with `/today`."
         ),
         color=0x3498DB
@@ -755,7 +757,7 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
     return embed
 
 
-def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str) -> discord.Embed:
+def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 16:30 afternoon check-in broadcast embed."""
     warrior_lines = []
     for u in enrolled_users:
@@ -766,12 +768,15 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
             f"• **{u['username']}** — **{prog['total_points']} / {prog['max_possible_points']} pts** ({pct}%){star}"
         )
 
+    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
+
     embed = discord.Embed(
         title="⏰ Winter Arc — Afternoon Check-in",
         description=(
             "Midday check-in. Complete your remaining disciplines before midnight.\n\n"
             "**Today's Progress**\n"
             + ("\n\n".join(warrior_lines) if warrior_lines else "_No enrolled participants yet. Use `/enroll` to join!_")
+            + quote_section
         ),
         color=0xE67E22
     )
@@ -779,7 +784,7 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
     return embed
 
 
-def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str) -> discord.Embed:
+def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 21:00 IST evening streak alert channel broadcast embed (3 hours before midnight)."""
     completed_lines = []
     pending_lines = []
@@ -813,9 +818,11 @@ def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str:
     if not completed_lines and not pending_lines:
         desc += "_No enrolled warriors yet. Use `/enroll` to join!_\n\n"
 
+    quote_section = f"\n\n🐺 **Amarok's Final Call**:\n> *\"{quote}\"*" if quote else ""
+
     embed = discord.Embed(
         title="🌙 Winter Arc — Evening Streak Alert",
-        description=desc.strip(),
+        description=desc.strip() + quote_section,
         color=0xE67E22
     )
     embed.set_footer(text=f"Log sets with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
@@ -938,18 +945,21 @@ def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> disc
     return embed
 
 
-def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_display: str) -> discord.Embed:
+def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_display: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds private morning briefing DM sent at 05:00 IST."""
     task_lines = [
         f"• **{t['name']}**: `{int(t['target']) if t['target'].is_integer() else t['target']} {t['unit']}` *(max {t['max_points']} pts)*"
         for t in tasks
     ]
 
+    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
+
     desc = (
         f"📅 **{date_display}**\n\n"
         f"🔥 **Your Streak**: **{streak} days**\n\n"
         "**Today's Challenge (500 pts ceiling)**\n"
         + "\n".join(task_lines)
+        + quote_section
         + "\n\n_Rise early. Move your body. Log your reps in the server with `/log`._"
     )
 
@@ -962,11 +972,12 @@ def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_displa
     return embed
 
 
-def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak: int, shield_status: Dict[str, Any]) -> discord.Embed:
+def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak: int, shield_status: Dict[str, Any], quote: Optional[str] = None) -> discord.Embed:
     """Builds private evening streak warning DM sent at 21:00 IST (3h before midnight)."""
     pts = progress["total_points"]
     max_pts = progress["max_possible_points"]
     pct = int(progress["overall_completion_rate"] * 100)
+    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
 
     if progress["perfect_day"]:
         title = "⭐ Winter Arc — Perfect Day Secured!"
@@ -975,7 +986,8 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
             f"Outstanding work, **{user.display_name}**.\n\n"
             f"You have reached **{pts} / {max_pts} pts** (100%) today.\n"
             f"Your **{streak}‑day streak** is fully protected at midnight.\n\n"
-            "_Rest up and recover for tomorrow's grind._"
+            + quote_section
+            + "\n_Rest up and recover for tomorrow's grind._"
         )
     elif pts >= MIN_STREAK_POINTS:
         title = "🔥 Winter Arc — Streak Secured!"
@@ -984,7 +996,8 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
             f"Solid work, **{user.display_name}**.\n\n"
             f"You logged **{pts} points** today, surpassing the {MIN_STREAK_POINTS}-point daily streak threshold.\n"
             f"Your **{streak}‑day streak** is locked in for midnight rollover.\n\n"
-            "_Aim for 100% (500 pts) before midnight to claim a Perfect Day!_"
+            + quote_section
+            + "\n_Aim for 100% (500 pts) before midnight to claim a Perfect Day!_"
         )
     else:
         title = "⚠️ Winter Arc — Evening Streak Warning"
@@ -1000,7 +1013,8 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
             f"**{user.display_name}**, only **3 hours remain** before midnight (00:00 IST).\n\n"
             f"📊 **Today's Score**: **{pts} / {max_pts} pts** ({needed} more pts needed to defend streak)\n"
             f"🔥 **Streak at Risk**: **{streak} days**"
-            f"{shield_info}\n\n"
+            f"{shield_info}"
+            f"{quote_section}\n\n"
             "_Lock in your remaining sets with `/log` before midnight!_"
         )
 

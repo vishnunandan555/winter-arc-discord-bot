@@ -31,7 +31,7 @@ MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
 # AI Configuration
 # Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing (/quick & #quick-log)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

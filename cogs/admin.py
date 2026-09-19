@@ -215,15 +215,41 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 channel = ch
                 role_ping = ping
 
+        user_streak = db.calculate_streak(interaction.user.id)
+        user_history = db.get_user_history(interaction.user.id, days=5)
+        user_logs = db.get_user_recent_logs(interaction.user.id, limit=3)
+        user_grinds = db.get_user_recent_grinds(interaction.user.id, limit=2)
+        tester_context = {
+            "username": interaction.user.display_name,
+            "streak": user_streak,
+            "recent_logs": user_logs,
+            "recent_grinds": user_grinds,
+        }
+
         if reminder_type == "morning":
-            await scheduler.broadcast_morning_kickoff(target_channel=channel, role_ping=role_ping)
-            await interaction.followup.send(f"✅ Dispatched Morning Kickoff preview to {channel.mention}.", ephemeral=True)
+            await scheduler.broadcast_morning_kickoff(
+                target_channel=channel,
+                role_ping=role_ping,
+                user_context=tester_context,
+                recent_history=user_history
+            )
+            await interaction.followup.send(f"✅ Dispatched Morning Kickoff preview with dynamic AI quote to {channel.mention}.", ephemeral=True)
         elif reminder_type == "afternoon":
-            await scheduler.broadcast_afternoon_checkin(target_channel=channel, role_ping=role_ping)
-            await interaction.followup.send(f"✅ Dispatched Afternoon Check-in preview to {channel.mention}.", ephemeral=True)
+            await scheduler.broadcast_afternoon_checkin(
+                target_channel=channel,
+                role_ping=role_ping,
+                user_context=tester_context,
+                recent_history=user_history
+            )
+            await interaction.followup.send(f"✅ Dispatched Afternoon Check-in preview with dynamic AI quote to {channel.mention}.", ephemeral=True)
         elif reminder_type == "evening":
-            await scheduler.broadcast_evening_checkin(target_channel=channel, role_ping=role_ping)
-            await interaction.followup.send(f"✅ Dispatched Evening Streak Alert preview to {channel.mention}.", ephemeral=True)
+            await scheduler.broadcast_evening_checkin(
+                target_channel=channel,
+                role_ping=role_ping,
+                user_context=tester_context,
+                recent_history=user_history
+            )
+            await interaction.followup.send(f"✅ Dispatched Evening Streak Alert preview with dynamic AI quote to {channel.mention}.", ephemeral=True)
         elif reminder_type == "sunday":
             await scheduler.broadcast_sunday_state_of_the_pack(target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Sunday State of the Pack preview to {channel.mention}.", ephemeral=True)
@@ -233,26 +259,47 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "morning_dm":
             from ui.embeds import build_dm_morning_embed
             from config import BOT_TZ
+            from ai import gemini_service
             active_tasks = db.get_active_tasks()
             today_str = datetime.now(BOT_TZ).strftime("%A, %B %d, %Y")
-            streak = db.calculate_streak(interaction.user.id)
-            dm_embed = build_dm_morning_embed(active_tasks, streak, today_str)
+            quote = ""
+            try:
+                quote = await gemini_service.generate_reminder_motivation(
+                    reminder_type="morning",
+                    user_context=tester_context,
+                    recent_history=user_history
+                )
+            except Exception as e:
+                logger.debug(f"Could not generate test morning DM quote: {e}")
+
+            dm_embed = build_dm_morning_embed(active_tasks, user_streak, today_str, quote=quote)
             try:
                 await interaction.user.send(embed=dm_embed)
-                await interaction.followup.send("✅ Dispatched Morning Briefing DM directly to your inbox.", ephemeral=True)
+                await interaction.followup.send("✅ Dispatched Morning Briefing DM preview with dynamic AI quote to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
         elif reminder_type == "evening_dm":
             from ui.embeds import build_dm_evening_embed
             from config import BOT_TZ
+            from ai import gemini_service
             today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
             prog = db.get_user_daily_progress(interaction.user.id, today_str)
-            streak = db.calculate_streak(interaction.user.id, today_str)
             shield_status = db.get_user_shield_status(interaction.user.id)
-            dm_embed = build_dm_evening_embed(interaction.user, prog, streak, shield_status)
+            quote = ""
+            try:
+                tester_context["today_points"] = prog.get("total_points", 0)
+                quote = await gemini_service.generate_reminder_motivation(
+                    reminder_type="evening",
+                    user_context=tester_context,
+                    recent_history=user_history
+                )
+            except Exception as e:
+                logger.debug(f"Could not generate test evening DM quote: {e}")
+
+            dm_embed = build_dm_evening_embed(interaction.user, prog, user_streak, shield_status, quote=quote)
             try:
                 await interaction.user.send(embed=dm_embed)
-                await interaction.followup.send("✅ Dispatched Evening Streak Alert DM directly to your inbox.", ephemeral=True)
+                await interaction.followup.send("✅ Dispatched Evening Streak Alert DM preview with dynamic AI quote to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
 

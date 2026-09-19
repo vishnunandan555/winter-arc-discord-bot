@@ -822,6 +822,84 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("tasks", commands)
         self.assertIn("today", commands)
 
+    def test_31_reminder_motivation_quotes_and_embeds(self):
+        import asyncio
+        from ai import gemini_service
+        from ui.embeds import (
+            build_morning_kickoff_embed,
+            build_afternoon_checkin_embed,
+            build_evening_checkin_embed,
+            build_dm_morning_embed,
+            build_dm_evening_embed,
+        )
+        from unittest.mock import MagicMock
+
+        # 1. Test generate_reminder_motivation
+        quote = asyncio.run(gemini_service.generate_reminder_motivation(reminder_type="morning"))
+        self.assertIsInstance(quote, str)
+        self.assertTrue(len(quote) > 0)
+        self.assertLessEqual(len(quote.split()), 35)
+
+        # 2. Test embeds with quote
+        test_quote = "The frost respects only discipline. Step into the cold."
+        active_tasks = db.get_active_tasks(TEST_DB)
+        
+        m_embed = build_morning_kickoff_embed(active_tasks, "Saturday, Sep 19", quote=test_quote)
+        self.assertIn("🐺 **Amarok's Edict**:", m_embed.description)
+        self.assertIn(test_quote, m_embed.description)
+
+        enrolled = db.get_enrolled_users(TEST_DB)
+        a_embed = build_afternoon_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
+        self.assertIn("🐺 **Amarok**:", a_embed.description)
+        self.assertIn(test_quote, a_embed.description)
+
+        e_embed = build_evening_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
+        self.assertIn("🐺 **Amarok's Final Call**:", e_embed.description)
+        self.assertIn(test_quote, e_embed.description)
+
+        mock_user = MagicMock()
+        mock_user.display_name = "Fenrir"
+        dm_m_embed = build_dm_morning_embed(active_tasks, streak=5, date_display="Saturday, Sep 19", quote=test_quote)
+        self.assertIn("🐺 **Amarok**:", dm_m_embed.description)
+        self.assertIn(test_quote, dm_m_embed.description)
+
+        prog = {"total_points": 50, "max_possible_points": 500, "overall_completion_rate": 0.1, "perfect_day": False}
+        shield_status = {"frost_shields": 1}
+        dm_e_embed = build_dm_evening_embed(mock_user, prog, streak=5, shield_status=shield_status, quote=test_quote)
+        self.assertIn("🐺 **Amarok**:", dm_e_embed.description)
+        self.assertIn(test_quote, dm_e_embed.description)
+
+    def test_32_user_recent_logs_and_grinds(self):
+        user_id = 999222
+        db.enroll_user(user_id, "Berserker", TEST_DB)
+        today = date.today().isoformat()
+
+        # Log physical tasks
+        db.log_activity(user_id, "Berserker", "Push-ups", 50, today, TEST_DB)
+        db.log_activity(user_id, "Berserker", "Running", 5, today, TEST_DB)
+
+        recent_logs = db.get_user_recent_logs(user_id, limit=3, db_path=TEST_DB)
+        self.assertGreaterEqual(len(recent_logs), 2)
+        task_names = [l["task_name"] for l in recent_logs]
+        self.assertIn("Push-ups", task_names)
+        self.assertIn("Running", task_names)
+
+        # Log grind
+        db.record_grind_entry(
+            discord_id=user_id,
+            date_str=today,
+            raw_input="Studied compiler memory layouts and registers",
+            verdict="ACCEPTED",
+            points=50,
+            key_learning="Compiler Registers",
+            commentary="Cold stoic discipline.",
+            db_path=TEST_DB
+        )
+
+        recent_grinds = db.get_user_recent_grinds(user_id, limit=2, db_path=TEST_DB)
+        self.assertEqual(len(recent_grinds), 1)
+        self.assertEqual(recent_grinds[0]["key_learning"], "Compiler Registers")
+
 
 if __name__ == "__main__":
     unittest.main()
