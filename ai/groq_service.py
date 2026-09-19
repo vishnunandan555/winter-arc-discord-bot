@@ -165,12 +165,12 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
 
 
 REACTIVE_STOIC_FALLBACKS = [
-    "The iron does not care how you feel today.",
-    "Every rep counts. Silence the excuses.",
-    "Words build nothing. Log the work.",
-    "The cold tests your will. Do not break.",
-    "Momentum is earned daily. Defend it.",
-    "Discipline is the only bridge between desire and reality.",
+    "The scoreboard doesn't lie. Finish what you started.",
+    "Every rep counts. Put the work on the board.",
+    "Words build nothing. Log the discipline.",
+    "Consistency beats intensity. Defend the streak today.",
+    "Momentum is earned daily. Keep moving.",
+    "Discipline is doing what needs to be done, regardless of how you feel.",
 ]
 
 
@@ -182,7 +182,7 @@ async def generate_reactive_nudge(
     """
     Generates an ultra-fast, contextual 1-sentence stoic observation/nudge
     based on the user's live progression snapshot using Groq.
-    Strictly 1 short sentence (under 20 words total). Zero AI slop.
+    Strictly 1 short sentence (under 18 words total). Zero AI slop, zero fantasy melodrama.
     """
     import random
     client = get_groq_client()
@@ -190,29 +190,39 @@ async def generate_reactive_nudge(
         return random.choice(REACTIVE_STOIC_FALLBACKS)
 
     system_prompt = (
-        "You are Amarok, the dark, cold wolf sentinel of the Winter Arc.\n"
-        "You are observing a warrior from the shadows who just executed a bot command.\n"
-        "Deliver a single razor-sharp stoic observation based on their live numbers.\n\n"
-        "STRICT CONSTRAINTS:\n"
-        "- LENGTH: EXACTLY 1 SHORT SENTENCE (STRICTLY UNDER 20 WORDS TOTAL).\n"
-        "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, no exclamation marks.\n"
-        "- Never say 'keep it up', 'great job', or 'congratulations'.\n"
-        "- Output ONLY the plain text sentence. Do not wrap in quotes or prefix with your name."
+        "You are Amarok, an uncompromising, no-nonsense accountability coach for the Winter Arc challenge.\n"
+        "A user just ran a bot command. Give a single, razor-sharp, realistic observation based strictly on their actual numbers.\n\n"
+        "CRITICAL RULES - NO CLICHES OR ROLEPLAY SLOP:\n"
+        "1. STRICTLY FORBIDDEN: NEVER use dramatic roleplay or fantasy metaphors like 'howling dark', 'blizzard', 'lone wolf', 'shadows', 'frost', 'prowling', or gothic melodrama.\n"
+        "2. Ground your observation in their REAL PROGRESS: Mention their remaining points, pending exercises, streak, or current completion rate realistically.\n"
+        "3. Tone: Direct, blunt, pragmatic, and grounded. No hype, no cheerleading ('great job', 'keep it up' are forbidden).\n"
+        "4. Examples of good observations:\n"
+        "   - '18% logged. 410 points left on the board—finish the job.'\n"
+        "   - 'Push-ups are done, but pull-ups and running are still untouched.'\n"
+        "   - 'A 7-day streak only counts if you log the rest before midnight.'\n"
+        "   - 'Solid set, but 350 points are still pending.'\n"
+        "5. LENGTH: EXACTLY 1 SHORT SENTENCE (strictly under 18 words total).\n"
+        "6. Output ONLY the plain text sentence. Do not wrap in quotes and do not include any prefix or emoji."
     )
 
     pts = progression.get("points", 0)
     max_pts = progression.get("max_points", 500)
     pct = progression.get("pct", 0)
     streak = progression.get("streak", 0)
+    remaining = max(0, max_pts - pts)
     extra = progression.get("extra_info", "")
+    completed = progression.get("completed_tasks", [])
     pending = progression.get("pending_tasks", [])
 
     user_prompt = (
         f"Warrior: {user_name}. Command: /{command_name}.\n"
-        f"Progress: {pts}/{max_pts} pts ({pct}%). Streak: {streak} days.\n"
+        f"Progress: {pts}/{max_pts} pts ({pct}%). Remaining: {remaining} pts.\n"
+        f"Streak: {streak} days.\n"
     )
     if extra:
         user_prompt += f"Action: {extra}\n"
+    if completed:
+        user_prompt += f"Completed: {', '.join(completed[:3])}\n"
     if pending:
         user_prompt += f"Pending: {', '.join(pending[:3])}\n"
 
@@ -224,12 +234,13 @@ async def generate_reactive_nudge(
             ],
             model=GROQ_MODEL,
             temperature=0.7,
-            max_tokens=60,
+            max_tokens=50,
         )
 
         txt = (chat_completion.choices[0].message.content or "").strip().strip('"').strip("'")
-        if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "sentinel", "edict", "observation"]:
+        if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "sentinel", "edict", "observation", "coach"]:
             txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+        txt = txt.strip("*").strip("_").strip('"').strip("'")
 
         if txt and len(txt.split()) <= 25:
             return txt

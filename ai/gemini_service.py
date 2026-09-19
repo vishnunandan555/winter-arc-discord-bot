@@ -206,13 +206,13 @@ async def generate_weekly_state_of_the_pack(
 
 CURATED_STOIC_FALLBACKS = [
     "The iron does not negotiate with your mood. Move.",
-    "Comfort is a slow poison. Step into the cold.",
-    "A wolf does not seek warmth from the fire it has not yet built.",
-    "Discipline is choosing between what you want now and what you want most.",
-    "The snow buries the weak and hardens the disciplined.",
     "Words build nothing. Numbers on the board are the only truth.",
-    "The winter does not care about your excuses. Only completed reps speak.",
-    "Control your mind, or the cold will control it for you.",
+    "Discipline is choosing between what you want now and what you want most.",
+    "Consistency beats intensity every single time.",
+    "A 7-day streak means nothing if you drop the standard today.",
+    "Excuses don't burn calories or write code. Log the work.",
+    "Small daily disciplines compound into undeniable results.",
+    "The scoreboard doesn't lie. Put in the work before midnight.",
 ]
 
 
@@ -224,7 +224,7 @@ async def generate_reminder_motivation(
 ) -> str:
     """
     Generates a dynamic, razor-sharp stoic motivational quote or personal progress judgment using Gemini.
-    Strictly 1 to 2 short sentences (under 25-30 words total). Zero AI slop.
+    Strictly 1 to 2 short sentences (under 25-30 words total). Zero AI slop, zero fantasy melodrama.
     """
     import random
     client = get_gemini_client()
@@ -255,22 +255,23 @@ async def generate_reminder_motivation(
         include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
 
     prompt = (
-        f"You are Amarok, the dark, stoic wolf sentinel of the Winter Arc.\n"
-        f"Generate a single razor-sharp stoic reminder or discipline quote for a {reminder_type.upper()} announcement.\n\n"
+        f"You are Amarok, an uncompromising, grounded discipline coach for the Winter Arc challenge.\n"
+        f"Generate a single razor-sharp, realistic discipline reminder for a {reminder_type.upper()} announcement.\n\n"
         "STRICT CONSTRAINTS:\n"
         "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 25 WORDS TOTAL).\n"
-        "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, zero generic motivational quotes.\n"
+        "- ZERO CLICHÉS, ZERO FANTASY ROLEPLAY: Strictly ban metaphors about 'howling dark', 'wolves', 'shadows', 'blizzards', 'frost', or gothic poetry.\n"
+        "- TONE: Grounded, blunt, stoic accountability. Focus on work, consistency, time, and standards. No corporate cheerleading, no fake hype.\n"
     )
 
     if include_history_judgment and context_notes:
         prompt += (
             f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
             f"  {'; '.join(context_notes)}\n"
-            f"- INSTRUCTION: Bluntly or subtly weave their past work or momentum into a cold stoic edict. "
-            f"If they are slacking/idle, call it out bluntly. If consistent, remind them yesterday's sweat buys nothing today.\n"
+            f"- INSTRUCTION: Bluntly weave their past work or momentum into a grounded accountability statement. "
+            f"If they are slacking/idle, call it out directly. If consistent, remind them yesterday's work buys nothing today.\n"
         )
     else:
-        prompt += "- Deliver an original, unpredictable stoic discipline edict tailored for the Winter Arc.\n"
+        prompt += "- Deliver an original, grounded stoic discipline thought focused on execution and standards.\n"
 
     prompt += "\nOutput ONLY the plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
 
