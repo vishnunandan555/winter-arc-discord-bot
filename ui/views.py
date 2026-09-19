@@ -11,6 +11,7 @@ from ui.embeds import (
     build_monthly_leaderboard_embed,
     build_overall_leaderboard_embed,
     build_settings_embed,
+    build_help_embed,
 )
 
 
@@ -115,5 +116,29 @@ class SettingsView(discord.ui.View):
         self.settings = db.update_user_dm_settings(self.user_id, dm_evening=new_state)
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
+class HelpView(discord.ui.View):
+    """Interactive select menu allowing warriors to navigate the complete command manual."""
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    @discord.ui.select(
+        placeholder="📖 Select a category to explore...",
+        min_values=1,
+        max_values=1,
+        options=[
+            discord.SelectOption(label="Manual Overview", value="overview", description="Rules, 500 daily targets, schedule & cheat sheet", emoji="📜"),
+            discord.SelectOption(label="Workout & AI Logging", value="logging", description="/quick, /log, /set, /grind & #quick-log", emoji="⚡"),
+            discord.SelectOption(label="Progress & Ranks", value="progress", description="/today, /profile, /leaderboard, /ranks", emoji="📊"),
+            discord.SelectOption(label="Frost Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
+            discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /enroll, /leave_arc", emoji="⚙️"),
+            discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
+        ]
+    )
+    async def select_category(self, interaction: discord.Interaction, select: discord.ui.Select):
+        chosen = select.values[0]
+        embed = build_help_embed(category=chosen)
         await interaction.response.edit_message(embed=embed, view=self)
 

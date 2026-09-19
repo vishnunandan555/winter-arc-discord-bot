@@ -14,16 +14,22 @@ from config import GROQ_API_KEY
 logger = logging.getLogger("winter_arc.ai.groq")
 
 
+_groq_client = None
+
+
 def get_groq_client():
-    """Returns an AsyncGroq client if GROQ_API_KEY is configured."""
+    """Returns an AsyncGroq client singleton if GROQ_API_KEY is configured."""
+    global _groq_client
     if not GROQ_API_KEY:
         return None
-    try:
-        from groq import AsyncGroq
-        return AsyncGroq(api_key=GROQ_API_KEY)
-    except Exception as e:
-        logger.error(f"Failed to initialize Groq client: {e}")
-        return None
+    if _groq_client is None:
+        try:
+            from groq import AsyncGroq
+            _groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+        except Exception as e:
+            logger.error(f"Failed to initialize Groq client: {e}")
+            return None
+    return _groq_client
 
 
 def regex_fallback_parser(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:

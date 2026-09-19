@@ -44,7 +44,7 @@ from ui.embeds import (
     build_grind_embed,
     build_quicklog_embed,
 )
-from ui.views import LeaderboardView, SettingsView
+from ui.views import LeaderboardView, SettingsView, HelpView
 from ai import gemini_service, groq_service
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
@@ -148,10 +148,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="help", description="View commands and challenge rules.")
+    @app_commands.command(name="help", description="View commands, challenge rules, and AI logging manual.")
     async def help_cmd(self, interaction: discord.Interaction):
-        embed = build_help_embed()
-        await interaction.response.send_message(embed=embed)
+        embed = build_help_embed(category="overview")
+        view = HelpView()
+        await interaction.response.send_message(embed=embed, view=view)
 
     # ==========================================
     # Daily Tracking Commands
@@ -294,8 +295,19 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         user = db.get_user_by_discord_id(target_user.id)
         streak = db.calculate_streak(target_user.id)
         stats_data = db.get_user_stats(target_user.id)
+        all_time_rank, total_warriors = db.get_user_all_time_rank(target_user.id)
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        today_progress = db.get_user_daily_progress(target_user.id, today_str)
 
-        embed = build_profile_embed(target_user, user, streak, stats_data)
+        embed = build_profile_embed(
+            target_user,
+            user,
+            streak,
+            stats_data,
+            all_time_rank=all_time_rank,
+            total_warriors=total_warriors,
+            today_progress=today_progress
+        )
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="ranks", description="View the 12-level Winter Pack hierarchy and requirements.")

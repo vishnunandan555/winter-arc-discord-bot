@@ -38,6 +38,8 @@ def setup_logging():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+    # Suppress prefix command intent warning since bot exclusively uses slash commands
+    logging.getLogger("discord.ext.commands.bot").setLevel(logging.ERROR)
     return logging.getLogger("winter_arc")
 
 logger = setup_logging()

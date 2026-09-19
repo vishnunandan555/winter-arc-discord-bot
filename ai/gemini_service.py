@@ -24,16 +24,22 @@ class GrindEvaluation(BaseModel):
     commentary: str = Field(description="Exactly 2 to 3 sentences in Amarok's stoic, razor-sharp voice.")
 
 
+_gemini_client = None
+
+
 def get_gemini_client():
-    """Returns an authenticated GenAI Client if GEMINI_API_KEY is configured."""
+    """Returns an authenticated GenAI Client singleton if GEMINI_API_KEY is configured."""
+    global _gemini_client
     if not GEMINI_API_KEY:
         return None
-    try:
-        from google import genai
-        return genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        logger.error(f"Failed to initialize Google GenAI client: {e}")
-        return None
+    if _gemini_client is None:
+        try:
+            from google import genai
+            _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+        except Exception as e:
+            logger.error(f"Failed to initialize Google GenAI client: {e}")
+            return None
+    return _gemini_client
 
 
 async def evaluate_grind(raw_text: str) -> Dict[str, Any]:

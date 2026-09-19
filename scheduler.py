@@ -7,8 +7,10 @@ Runs background checks every 30 seconds for:
 - 00:00 IST: Midnight day finalization & podium broadcast in dedicated channel
 """
 
+import os
 import logging
 import asyncio
+import gc
 from datetime import datetime, date, timedelta
 import discord
 from discord.ext import tasks
@@ -38,6 +40,7 @@ class WinterArcScheduler:
     def __init__(self, bot: discord.Client, db_path: str = db.DB_PATH):
         self.bot = bot
         self.db_path = db_path
+        self._presence_index = 0
         self._last_morning_date = db.get_bot_state("last_morning_date", db_path=self.db_path)
         self._last_afternoon_date = db.get_bot_state("last_afternoon_date", db_path=self.db_path)
         self._last_evening_date = db.get_bot_state("last_evening_date", db_path=self.db_path)
@@ -48,11 +51,17 @@ class WinterArcScheduler:
         if not self.ticker_loop.is_running():
             self.ticker_loop.start()
             logger.info("Scheduler ticker loop started (evaluating every 30s in Asia/Kolkata).")
+        if not self.maintenance_and_presence_loop.is_running():
+            self.maintenance_and_presence_loop.start()
+            logger.info("Maintenance & presence loop started (evaluating every 5m).")
 
     def stop(self):
         if self.ticker_loop.is_running():
             self.ticker_loop.stop()
             logger.info("Scheduler ticker loop stopped.")
+        if self.maintenance_and_presence_loop.is_running():
+            self.maintenance_and_presence_loop.stop()
+            logger.info("Maintenance & presence loop stopped.")
 
     # ==========================================
     # Main Ticker Loop (Every 30 seconds)
@@ -105,18 +114,72 @@ class WinterArcScheduler:
         logger.info("Scheduler ticker loop synchronized with Discord Gateway.")
 
     # ==========================================
+    # Maintenance & Presence Loop (Every 5 minutes)
+    # ==========================================
+
+    @tasks.loop(minutes=5.0)
+    async def maintenance_and_presence_loop(self):
+        """Rotates presence and executes lightweight heap compaction."""
+        # 1. Dynamic Presence Rotation
+        try:
+            enrolled_users = db.get_enrolled_users(db_path=self.db_path)
+            count = len(enrolled_users)
+
+            statuses = [
+                discord.Activity(type=discord.ActivityType.listening, name="Amarok | /help"),
+                discord.Activity(type=discord.ActivityType.watching, name=f"{count} Enrolled Warriors"),
+                discord.Activity(type=discord.ActivityType.competing, name="Winter Arc (500 pts daily)"),
+                discord.Activity(type=discord.ActivityType.playing, name="Defend the Flame | /streak"),
+            ]
+            activity = statuses[self._presence_index % len(statuses)]
+            self._presence_index += 1
+            await self.bot.change_presence(activity=activity, status=discord.Status.online)
+        except Exception as e:
+            logger.debug(f"Could not rotate presence: {e}")
+
+        # 2. Automated Low-Memory Heap Compaction
+        try:
+            collected = gc.collect()
+            if collected > 100:
+                logger.debug(f"Automated GC sweep collected {collected} unreferenced objects.")
+        except Exception as e:
+            logger.debug(f"Error during GC sweep: {e}")
+
+    @maintenance_and_presence_loop.before_loop
+    async def before_maintenance(self):
+        await self.bot.wait_until_ready()
+
+    # ==========================================
     # Channel & Ping Resolution
     # ==========================================
 
     def _get_target_channel_and_ping(self, guild: discord.Guild):
         """Returns the configured dedicated TextChannel and role ping string for a guild."""
-        settings = db.get_server_settings(guild.id)
+        target_channel = None
+        settings = db.get_server_settings(guild.id, db_path=self.db_path)
         channel_id = settings.get("channel_id")
-        if not channel_id:
-            return None, ""
+        if channel_id:
+            target_channel = guild.get_channel(channel_id)
 
-        channel = guild.get_channel(channel_id)
-        if not channel or not isinstance(channel, discord.TextChannel):
+        # Fallback 1: check DAILY_RESULTS_CHANNEL_ID or LOG_CHANNEL_ID env vars
+        if not target_channel:
+            env_id = os.getenv("DAILY_RESULTS_CHANNEL_ID") or os.getenv("LOG_CHANNEL_ID")
+            if env_id and env_id.strip().isdigit():
+                target_channel = guild.get_channel(int(env_id.strip()))
+
+        # Fallback 2: Auto-discover #winter-arc, #bot_chat, or #server_logs
+        if not target_channel:
+            for keyword in ["winter-arc", "bot_chat", "server_logs"]:
+                for ch in guild.text_channels:
+                    if keyword in ch.name.lower():
+                        perms = ch.permissions_for(guild.me)
+                        if perms.send_messages:
+                            target_channel = ch
+                            break
+                if target_channel:
+                    break
+
+        if not target_channel or not isinstance(target_channel, discord.TextChannel):
             return None, ""
 
         role_ping = ""
@@ -131,7 +194,7 @@ class WinterArcScheduler:
                 if r.name.lower() in ["winter arc", "winterarc", "the winter arc"]:
                     role_ping = f"{r.mention} "
                     break
-        return channel, role_ping
+        return target_channel, role_ping
 
     # ==========================================
     # Broadcast Methods

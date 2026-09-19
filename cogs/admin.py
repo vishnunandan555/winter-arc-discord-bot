@@ -8,14 +8,17 @@ Contains administrative controls for Winter Arc:
 - Scheduled broadcast previews (/test_reminder)
 """
 
+import os
+import gc
 import logging
-from datetime import datetime
+import resource
+from datetime import datetime, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 import database as db
-from config import BOT_TZ
+from config import BOT_TZ, DB_PATH
 from helpers import (
     task_autocomplete,
     all_tasks_autocomplete,
@@ -248,6 +251,91 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 await interaction.followup.send("✅ Dispatched Evening Streak Alert DM directly to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
+
+    @admin_group.command(name="health", description="Inspect server memory, database footprint, and host resources.")
+    async def admin_health(self, interaction: discord.Interaction):
+        """Displays real-time memory usage (RSS), database file sizes, and allows manual GC compaction."""
+        metrics = get_system_health_metrics(self.bot)
+        embed = build_health_embed(metrics)
+        view = HealthView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+def get_system_health_metrics(bot: commands.Bot) -> dict:
+    """Collects real-time process memory, disk, and bot metrics."""
+    try:
+        # ru_maxrss on Linux is in kilobytes
+        usage_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        ram_mb = round(usage_kb / 1024.0, 2)
+    except Exception:
+        ram_mb = 0.0
+
+    db_size_kb = 0.0
+    wal_size_kb = 0.0
+    if os.path.exists(DB_PATH):
+        db_size_kb = round(os.path.getsize(DB_PATH) / 1024.0, 1)
+    wal_path = f"{DB_PATH}-wal"
+    if os.path.exists(wal_path):
+        wal_size_kb = round(os.path.getsize(wal_path) / 1024.0, 1)
+
+    uptime_str = "Unknown"
+    if hasattr(bot, "start_time") and bot.start_time:
+        delta = datetime.now(timezone.utc) - bot.start_time
+        hours, rem = divmod(int(delta.total_seconds()), 3600)
+        mins, secs = divmod(rem, 60)
+        uptime_str = f"{hours}h {mins}m {secs}s"
+
+    enrolled_count = len(db.get_enrolled_users())
+    latency_ms = round(bot.latency * 1000, 1) if bot.latency else 0.0
+
+    return {
+        "ram_mb": ram_mb,
+        "db_size_kb": db_size_kb,
+        "wal_size_kb": wal_size_kb,
+        "uptime": uptime_str,
+        "enrolled_count": enrolled_count,
+        "latency_ms": latency_ms,
+    }
+
+
+def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
+    """Builds a diagnostic status card tailored for Wispbyte low-RAM container limits."""
+    ram = metrics["ram_mb"]
+    ram_pct = int((ram / 512.0) * 100) if ram else 0
+
+    desc = (
+        "**Host Environment**: Wispbyte Free Tier (Linux Container)\n\n"
+        f"📊 **Memory (RAM RSS)**: **{ram} MB** / ~512 MB ({ram_pct}% container limit)\n"
+        f"🗄️ **Database Disk Footprint**: **{metrics['db_size_kb']} KB** *(WAL: {metrics['wal_size_kb']} KB)*\n"
+        f"⚡ **Gateway Latency**: **{metrics['latency_ms']} ms**\n"
+        f"⏱️ **Bot Uptime**: **{metrics['uptime']}**\n"
+        f"👥 **Enrolled Warriors**: **{metrics['enrolled_count']}**\n\n"
+        "🛡️ *Optimizations active: SQLite ~2MB cache cap, message cache 100, AI client singletons.*"
+    )
+    if extra_note:
+        desc += f"\n\n{extra_note}"
+
+    embed = discord.Embed(
+        title="🖥️ Winter Arc — Server & Memory Health",
+        description=desc,
+        color=0x2ECC71 if ram < 250 else 0xE67E22
+    )
+    embed.set_footer(text="Wispbyte Resource Monitor • Click button below to free unused RAM")
+    return embed
+
+
+class HealthView(discord.ui.View):
+    """Interactive view allowing administrators to force garbage collection."""
+    def __init__(self, bot: commands.Bot):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+
+    @discord.ui.button(label="🧹 Collect GC & Free RAM", style=discord.ButtonStyle.secondary, custom_id="btn_collect_gc")
+    async def collect_gc_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        collected = gc.collect()
+        metrics = get_system_health_metrics(self.bot)
+        embed = build_health_embed(metrics, extra_note=f"✅ Cleaned **{collected}** cyclic references from memory.")
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 async def setup(bot: commands.Bot):

@@ -6,6 +6,7 @@ Tracks daily disciplines (pushups, pullups, squats, situps, running), 12-level p
 and automated daily check-ins.
 """
 
+import os
 import sys
 import logging
 import discord
@@ -27,16 +28,22 @@ class WinterArcBot(commands.Bot):
 
     def __init__(self):
         intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
+        # Privileged intents (members, message_content) require toggles in Discord Developer Portal.
+        # We leave members disabled and enable message_content only if explicitly configured.
+        if os.getenv("ENABLE_MESSAGE_CONTENT_INTENT", "false").lower() in ("true", "1", "yes"):
+            intents.message_content = True
 
         super().__init__(
             command_prefix="!",
             intents=intents,
-            help_command=None
+            help_command=None,
+            max_messages=100,
+            chunk_guilds_at_startup=False,
         )
         self.scheduler: WinterArcScheduler = None
         self._synced = False
+        from datetime import datetime, timezone
+        self.start_time = datetime.now(timezone.utc)
 
     async def setup_hook(self):
         """Initializes database, loads cogs, and initializes scheduler."""
@@ -65,10 +72,12 @@ class WinterArcBot(commands.Bot):
 
     async def on_ready(self):
         """Called when gateway connection is established."""
-        logger.info(f"Winter Arc Bot is online as {self.user} (ID: {self.user.id})")
+        logger.info("=" * 60)
+        logger.info(f"🐺 AMAROK IS ACTIVE: Online as {self.user} (ID: {self.user.id})")
         logger.info(f"Connected to {len(self.guilds)} Discord server(s):")
         for g in self.guilds:
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
+        logger.info("=" * 60)
 
         # Sync slash commands once connected to Discord Gateway if not synced yet
         if not self._synced:
@@ -90,9 +99,61 @@ class WinterArcBot(commands.Bot):
         if self.scheduler:
             self.scheduler.start()
 
+        # Send activation confirmation log to server channel
+        await self._send_startup_log()
+
+    async def _send_startup_log(self):
+        """Dispatches an activation log message to the server's designated channel."""
+        for guild in self.guilds:
+            try:
+                target_channel = None
+                # 1. Check database server_settings
+                settings = db.get_server_settings(guild.id)
+                ch_id = settings.get("channel_id")
+                if ch_id:
+                    target_channel = guild.get_channel(ch_id)
+
+                # 2. Check LOG_CHANNEL_ID or DAILY_RESULTS_CHANNEL_ID env vars
+                if not target_channel:
+                    env_log_id = os.getenv("LOG_CHANNEL_ID") or os.getenv("DAILY_RESULTS_CHANNEL_ID")
+                    if env_log_id and env_log_id.strip().isdigit():
+                        target_channel = guild.get_channel(int(env_log_id.strip()))
+
+                # 3. Fallback: discover #server_logs, #winter-arc, or #bot_chat
+                if not target_channel:
+                    for keyword in ["server_logs", "winter-arc", "bot_chat"]:
+                        for ch in guild.text_channels:
+                            if keyword in ch.name.lower():
+                                perms = ch.permissions_for(guild.me)
+                                if perms.send_messages:
+                                    target_channel = ch
+                                    break
+                        if target_channel:
+                            break
+
+                if target_channel:
+                    embed = discord.Embed(
+                        title="🐺 Amarok • Pack Systems Active",
+                        description=(
+                            "The flame burns against the cold. **Amarok is online and active.**\n\n"
+                            "• All 12-rank leveling & streak trackers are armed.\n"
+                            "• AI Grind & Workout logging active (`/quick`, `/grind`).\n"
+                            "• Run `/help` or `/today` to inspect your daily disciplines."
+                        ),
+                        color=0x00D2FF
+                    )
+                    latency = round(self.latency * 1000, 1) if self.latency else 0.0
+                    embed.add_field(name="Gateway Latency", value=f"`{latency} ms`", inline=True)
+                    embed.add_field(name="Enrolled Warriors", value=f"`{len(db.get_enrolled_users())}`", inline=True)
+                    embed.set_footer(text="Winter Arc • Discipline over motivation")
+                    await target_channel.send(embed=embed)
+                    logger.info(f"Startup log message dispatched to #{target_channel.name} in {guild.name}")
+            except Exception as e:
+                logger.warning(f"Could not send startup log in {guild.name}: {e}")
+
     async def on_message(self, message: discord.Message):
         """Auto-parsing for #quick-log channel and subtle mascot reactions."""
-        if message.author.bot:
+        if message.author.bot or not message.content:
             return
 
         # 1. Natural language fast logging for dedicated #quick-log channel

@@ -5,7 +5,7 @@ Covers: Enrollment gating, server settings, scoring math, capping, streaks, and 
 
 import os
 import unittest
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 import database as db
 
 TEST_DB = "test_winter_arc.db"
@@ -552,6 +552,158 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         # Monthly embed builds successfully
         embed = build_monthly_leaderboard_embed()
         self.assertIn("Standings", embed.title)
+
+    def test_24_twelve_level_progression_details(self):
+        from levels import get_level_info, RANKS
+        from ui.embeds import build_profile_embed
+        from unittest.mock import MagicMock
+
+        expected_titles = [
+            (0, 1, "Lone Stray"),
+            (499, 1, "Lone Stray"),
+            (500, 2, "Stray"),
+            (1199, 2, "Stray"),
+            (1200, 3, "Scout"),
+            (1999, 3, "Scout"),
+            (2000, 4, "Prowler"),
+            (2999, 4, "Prowler"),
+            (3000, 5, "Tracker"),
+            (4199, 5, "Tracker"),
+            (4200, 6, "Hunter"),
+            (5499, 6, "Hunter"),
+            (5500, 7, "Savage"),
+            (6999, 7, "Savage"),
+            (7000, 8, "Vanguard"),
+            (8499, 8, "Vanguard"),
+            (8500, 9, "Frostborn"),
+            (9799, 9, "Frostborn"),
+            (9800, 10, "Predator"),
+            (10799, 10, "Predator"),
+            (10800, 11, "Alpha"),
+            (11999, 11, "Alpha"),
+            (12000, 12, "Apex"),
+            (15000, 12, "Apex"),
+        ]
+
+        for pts, exp_lvl, exp_title in expected_titles:
+            info = get_level_info(pts)
+            self.assertEqual(info["level"], exp_lvl, f"Failed level for {pts} pts")
+            self.assertEqual(info["title"], exp_title, f"Failed title for {pts} pts")
+
+        # Test next level progress calculations at 180 pts (Level 1: Lone Stray -> Level 2: Stray at 500)
+        info180 = get_level_info(180)
+        self.assertEqual(info180["pts_to_next"], 320)
+        self.assertEqual(info180["points_in_tier"], 180)
+        self.assertEqual(info180["next_title"], "Stray")
+        self.assertEqual(info180["next_level"], 2)
+
+        # Profile embed verification: focuses on next level and doesn't mention distant 12,000 pts arc bar
+        mock_user = MagicMock()
+        mock_user.display_name = "Vishnu"
+        mock_user.avatar = None
+        user_record = {"joined_at": "2026-09-18 10:00:00", "frost_shields": 1}
+        stats_data = {"lifetime_points": 180}
+
+        profile_embed = build_profile_embed(mock_user, user_record, streak=5, stats_data=stats_data)
+        self.assertIn("Level Progression", profile_embed.description)
+        self.assertIn("Level 2 (Stray)", profile_embed.description)
+        self.assertIn("180 / 500 PTS", profile_embed.description)
+        self.assertIn("320 pts remaining", profile_embed.description)
+        self.assertIn("All-Time Rank", profile_embed.description)
+        self.assertIn("Pack Level", profile_embed.description)
+        self.assertIn("Today's Daily Progress", profile_embed.description)
+        self.assertNotIn("90-Day Arc Progress", profile_embed.description)
+
+    def test_25_memory_management_and_singletons(self):
+        from unittest.mock import MagicMock
+        from ai.gemini_service import get_gemini_client
+        from ai.groq_service import get_groq_client
+        from cogs.admin import get_system_health_metrics, build_health_embed
+
+        # Singleton verification
+        g1 = get_gemini_client()
+        g2 = get_gemini_client()
+        self.assertIs(g1, g2)
+
+        q1 = get_groq_client()
+        q2 = get_groq_client()
+        self.assertIs(q1, q2)
+
+        # Health metrics verification
+        mock_bot = MagicMock()
+        mock_bot.start_time = datetime.now(timezone.utc)
+        mock_bot.latency = 0.042
+        metrics = get_system_health_metrics(mock_bot)
+
+        self.assertIn("ram_mb", metrics)
+        self.assertIsInstance(metrics["ram_mb"], float)
+        self.assertIn("db_size_kb", metrics)
+        self.assertIn("uptime", metrics)
+        self.assertIn("enrolled_count", metrics)
+
+        # Health embed verification
+        embed = build_health_embed(metrics)
+        self.assertIn("Memory Health", embed.title)
+        self.assertIn("Wispbyte Free Tier", embed.description)
+
+    def test_26_help_command_and_view(self):
+        from ui.embeds import build_help_embed
+        from ui.views import HelpView
+
+        # 1. Overview
+        overview_embed = build_help_embed("overview")
+        self.assertIn("Master Command Manual", overview_embed.title)
+        field_texts = " ".join(f"{f.name} {f.value}" for f in overview_embed.fields)
+        self.assertIn("500 pts max", field_texts)
+        self.assertIn("05:00", field_texts)
+        self.assertIn("/quick", field_texts)
+        self.assertIn("/shield", field_texts)
+
+        # 2. Logging
+        logging_embed = build_help_embed("logging")
+        self.assertIn("Workout & AI Logging", logging_embed.title)
+        field_names = [f.name for f in logging_embed.fields]
+        self.assertTrue(any("/quick" in name for name in field_names))
+        self.assertTrue(any("#quick-log" in name for name in field_names))
+        self.assertTrue(any("/grind" in name for name in field_names))
+
+        # 3. Progress
+        progress_embed = build_help_embed("progress")
+        self.assertIn("Progression, Ranks", progress_embed.title)
+        p_names = [f.name for f in progress_embed.fields]
+        self.assertTrue(any("Accountability" in name for name in p_names))
+        self.assertTrue(any("12-Tier" in name for name in p_names))
+
+        # 4. Shields
+        shields_embed = build_help_embed("shields")
+        self.assertIn("Frost Shield", shields_embed.title)
+        s_names = [f.name for f in shields_embed.fields]
+        self.assertTrue(any("How Frost Shields Work" in name for name in s_names))
+        self.assertTrue(any("Shield Commands" in name for name in s_names))
+
+        # 5. Settings
+        settings_embed = build_help_embed("settings")
+        self.assertIn("Accountability, Settings", settings_embed.title)
+        set_names = [f.name for f in settings_embed.fields]
+        self.assertTrue(any("/settings" in name for name in set_names))
+        self.assertTrue(any("Enrollment" in name for name in set_names))
+
+        # 6. Admin
+        admin_embed = build_help_embed("admin")
+        self.assertIn("Server Administration", admin_embed.title)
+        adm_names = [f.name for f in admin_embed.fields]
+        self.assertTrue(any("Broadcast Configuration" in name for name in adm_names))
+        self.assertTrue(any("Diagnostics" in name for name in adm_names))
+
+        # 7. HelpView
+        view = HelpView()
+        self.assertEqual(view.timeout, 300)
+        selects = [child for child in view.children if hasattr(child, "options")]
+        self.assertEqual(len(selects), 1)
+        options = selects[0].options
+        self.assertEqual(len(options), 6)
+        option_values = [opt.value for opt in options]
+        self.assertEqual(option_values, ["overview", "logging", "progress", "shields", "settings", "admin"])
 
 
 if __name__ == "__main__":

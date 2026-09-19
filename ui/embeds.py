@@ -16,96 +16,116 @@ from ui.formatters import make_progress_bar, format_rank_badge, TASK_ICONS
 
 
 def build_daily_leaderboard_embed() -> discord.Embed:
-    """Builds the spacious daily standing leaderboard embed."""
+    """Builds the clean daily standing leaderboard embed (max top 10)."""
     now = datetime.now(BOT_TZ)
     today_str = now.strftime("%Y-%m-%d")
     date_display = now.strftime("%A, %B %d, %Y")
     data = db.get_daily_leaderboard(today_str)
+    top_10 = data[:10]
+
+    any_points = any(entry["points"] > 0 for entry in top_10)
 
     lines = []
-    for idx, entry in enumerate(data):
-        rank = format_rank_badge(idx)
-        pct = int(entry["completion_rate"] * 100)
-        pts = entry["points"]
-        star = " ⭐" if entry["perfect_day"] else ""
-        lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){star}")
-
-    if not lines:
-        lines.append("_No activity logged today yet. Use `/enroll` and `/log` to start._")
+    if not any_points:
+        lines.append("_No disciplines logged today yet._")
+        lines.append("_Log your workout with `/quick` or `/log` to claim #1!_")
+    else:
+        for idx, entry in enumerate(top_10):
+            pts = entry["points"]
+            badge = format_rank_badge(idx, pts=pts)
+            if pts > 0:
+                pct = int(entry["completion_rate"] * 100)
+                star = " ⭐" if entry["perfect_day"] else ""
+                lines.append(f"{badge} **{entry['username']}** — **{pts} pts** ({pct}%){star}")
+            else:
+                lines.append(f"{badge} **{entry['username']}** — **0 pts**")
 
     embed = discord.Embed(
         title="🏆 Winter Arc — Daily Standings",
         description=(
             f"📅 **{date_display}**\n\n"
-            + "\n\n".join(lines)
+            + "\n".join(lines)
         ),
         color=0xF1C40F
     )
-    embed.set_footer(text="Updated live • Resets daily at 00:00 IST")
+    footer_text = "Updated live • Resets daily at 00:00 IST"
+    if len(data) > 10:
+        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+    embed.set_footer(text=footer_text)
     return embed
 
 
 def build_overall_leaderboard_embed() -> discord.Embed:
-    """Builds the all-time standings leaderboard with Winter Pack ranks."""
+    """Builds the all-time standings leaderboard (max top 10)."""
     data = db.get_overall_leaderboard()
+    top_10 = data[:10]
 
     lines = []
-    for idx, entry in enumerate(data):
-        rank = format_rank_badge(idx)
-        lvl_info = get_level_info(entry["total_points"])
-        rank_tag = f"[{lvl_info['badge']} {lvl_info['title']}]"
+    for idx, entry in enumerate(top_10):
+        pts = entry["total_points"]
+        badge = format_rank_badge(idx, pts=pts)
+        lvl_info = get_level_info(pts)
 
         extras = []
         if entry.get("streak", 0) > 0:
             extras.append(f"🔥 {entry['streak']}d")
         if entry.get("perfect_days", 0) > 0:
             extras.append(f"⭐ {entry['perfect_days']} clean")
-        extra_str = f"  •  {' • '.join(extras)}" if extras else ""
-        lines.append(f"{rank}  **{entry['username']}** `{rank_tag}` — **{entry['total_points']:,} pts**{extra_str}")
+        extra_str = f" • {' '.join(extras)}" if extras else ""
+
+        lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts** *(Lvl {lvl_info['level']} {lvl_info['title']})*{extra_str}")
 
     if not lines:
-        lines.append("_No enrolled participants found._")
+        lines.append("_No enrolled warriors found._")
 
     embed = discord.Embed(
         title="🏆 Winter Arc — Overall Standings",
         description=(
-            "🌐 **All-Time Standings**\n\n"
-            + "\n\n".join(lines)
+            "🌐 **All-Time Leaderboard**\n\n"
+            + "\n".join(lines)
         ),
         color=0x3498DB
     )
-    embed.set_footer(text="Updated live • Ranked by lifetime points")
+    footer_text = "Updated live • Ranked by lifetime points"
+    if len(data) > 10:
+        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+    embed.set_footer(text=footer_text)
     return embed
 
 
 def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[int] = None) -> discord.Embed:
-    """Builds the monthly standings leaderboard."""
+    """Builds the monthly standings leaderboard (max top 10)."""
     now = datetime.now(BOT_TZ)
     y = year or now.year
     m = month or now.month
     month_name = datetime(y, m, 1).strftime("%B %Y")
     data = db.get_monthly_leaderboard(y, m)
+    top_10 = data[:10]
 
+    any_points = any(entry["total_points"] > 0 for entry in top_10)
     lines = []
-    for idx, entry in enumerate(data):
-        rank = format_rank_badge(idx)
-        pts = entry["total_points"]
-        clean = entry.get("perfect_days", 0)
-        clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
-        lines.append(f"{rank}  **{entry['username']}** — **{pts:,} pts**{clean_str}")
-
-    if not lines:
+    if not any_points:
         lines.append(f"_No activity recorded for {month_name} yet._")
+    else:
+        for idx, entry in enumerate(top_10):
+            pts = entry["total_points"]
+            badge = format_rank_badge(idx, pts=pts)
+            clean = entry.get("perfect_days", 0)
+            clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
+            lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts**{clean_str}")
 
     embed = discord.Embed(
         title=f"📆 Winter Arc — {month_name} Standings",
         description=(
             f"🏆 **Monthly Leaderboard • {month_name}**\n\n"
-            + "\n\n".join(lines)
+            + "\n".join(lines)
         ),
         color=0x9B59B6
     )
-    embed.set_footer(text="Updated live • Ranked by total points this month")
+    footer_text = "Updated live • Ranked by monthly points"
+    if len(data) > 10:
+        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+    embed.set_footer(text=footer_text)
     return embed
 
 
@@ -272,32 +292,109 @@ def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> dis
     return embed
 
 
-def build_profile_embed(user: discord.Member, user_record: Dict[str, Any], streak: int, stats_data: Dict[str, Any]) -> discord.Embed:
-    """Builds the comprehensive Member Profile card showcasing 12-level progression."""
+def build_profile_embed(
+    user: discord.Member,
+    user_record: Dict[str, Any],
+    streak: int,
+    stats_data: Dict[str, Any],
+    all_time_rank: Optional[int] = None,
+    total_warriors: Optional[int] = None,
+    today_progress: Optional[Dict[str, Any]] = None,
+) -> discord.Embed:
+    """Builds the comprehensive Member Profile card with distinct All-Time Rank, Pack Level, Next Level progression, and separate Daily Progress."""
+    raw_id = user_record.get("discord_id") or getattr(user, "id", 0)
+    discord_id = raw_id if isinstance(raw_id, int) else 0
+
+    if all_time_rank is None or total_warriors is None:
+        if discord_id:
+            try:
+                all_time_rank, total_warriors = db.get_user_all_time_rank(discord_id)
+            except Exception:
+                all_time_rank, total_warriors = 1, 1
+        else:
+            all_time_rank, total_warriors = 1, 1
+
+    if today_progress is None:
+        if discord_id:
+            try:
+                today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+                today_progress = db.get_user_daily_progress(discord_id, today_str)
+            except Exception:
+                today_progress = {}
+        else:
+            today_progress = {}
+
     pts = stats_data.get("lifetime_points", 0)
     lvl = get_level_info(pts)
 
-    tier_bar = make_progress_bar(lvl["points_in_tier"], lvl["tier_size"] if not lvl["is_apex"] else 1, length=10)
-    arc_bar = make_progress_bar(pts, APEX_THRESHOLD, length=10)
+    # 1. Rank & Level
+    rank_str = f"**#{all_time_rank}** of {total_warriors}" if all_time_rank > 0 else "Unranked"
 
-    next_info = (
-        f"Next: **{lvl['pts_to_next']:,} pts** to Level {lvl['level']+1} ({lvl['next_rank']['title']})"
-        if not lvl["is_apex"] else "👑 **MAX LEVEL ACHIEVED (APEX)**"
+    # 2. Next Level Progression Block
+    tier_bar = make_progress_bar(lvl["points_in_tier"], lvl["tier_size"] if not lvl["is_apex"] else 1, length=10)
+    if not lvl["is_apex"]:
+        next_lvl_num = lvl["level"] + 1
+        next_title = lvl["next_rank"]["title"] if lvl["next_rank"] else f"Level {next_lvl_num}"
+        next_target = lvl.get("next_threshold") or (lvl["min_pts"] + lvl["tier_size"])
+        progress_block = (
+            f"**Level {lvl['level']}** ➔ **Level {next_lvl_num} ({next_title})**\n"
+            f"`{tier_bar}` **{lvl['tier_pct']}%** • `{pts:,} / {next_target:,} PTS` *({lvl['pts_to_next']:,} pts remaining)*"
+        )
+    else:
+        progress_block = (
+            "👑 **MAX LEVEL ACHIEVED (APEX)**\n"
+            f"`{tier_bar}` **100%** • Arc Conquered"
+        )
+
+    # 3. Separate Daily Progress Block
+    today_pts = today_progress.get("total_points", 0)
+    today_max = today_progress.get("max_possible_points", 500) or 500
+    today_bar = make_progress_bar(today_pts, today_max, length=10)
+    today_pct = int(round((today_pts / today_max) * 100)) if today_max > 0 else 0
+
+    tasks = today_progress.get("tasks", [])
+    completed_count = sum(1 for t in tasks if t.get("completed"))
+    total_tasks = len(tasks)
+
+    today_extras = []
+    if total_tasks > 0:
+        today_extras.append(f"{completed_count}/{total_tasks} disciplines")
+    grind_pts = today_progress.get("grind_points", 0)
+    if grind_pts > 0:
+        today_extras.append(f"+{grind_pts} grind")
+
+    detail_str = f" • *({', '.join(today_extras)})*" if today_extras else ""
+    daily_block = (
+        f"`{today_bar}` **{today_pts} / {today_max} pts** ({today_pct}%){detail_str}"
     )
+
+    # 4. Enrolled Date & Days in Arc
+    joined_date_str = user_record.get("joined_at", "")[:10]
+    days_note = ""
+    if joined_date_str:
+        try:
+            j_date = datetime.fromisoformat(joined_date_str).date()
+            diff_days = (datetime.now(BOT_TZ).date() - j_date).days + 1
+            days_note = f" *(Day {diff_days} in Arc)*"
+        except Exception:
+            pass
 
     desc = (
         f"**{user.display_name}**\n\n"
-        f"🛡️ **Rank**: {lvl['badge']} **Level {lvl['level']} — {lvl['title']}**\n"
-        f"`{tier_bar}` {lvl['tier_pct']}%\n"
-        f"{next_info}\n\n"
+        f"🏆 **All-Time Rank**: {rank_str}\n"
+        f"🐺 **Pack Level**: **Level {lvl['level']} — {lvl['title']}** {lvl['badge']}\n"
+        f"*{lvl['description']}*\n\n"
+        f"📈 **Level Progression**\n"
+        f"{progress_block}\n\n"
+        f"🎯 **Today's Daily Progress**\n"
+        f"{daily_block}\n\n"
         f"🔥 **Current Streak**: **{streak} days** • 🛡️ **Frost Shields**: **{user_record.get('frost_shields', 0)}/2**\n"
         f"💎 **Lifetime Points**: **{pts:,} pts**\n"
-        f"🌐 **90-Day Arc Progress**: `{arc_bar}` {lvl['arc_pct']}%\n"
-        f"📅 **Enrolled**: `{user_record['joined_at'][:10]}`"
+        f"📅 **Enrolled**: `{joined_date_str}`{days_note}"
     )
 
     embed = discord.Embed(
-        title="🛡️ Winter Arc — Member Profile",
+        title="🐺 Winter Arc — Warrior Profile",
         description=desc,
         color=lvl["color"]
     )
@@ -337,34 +434,234 @@ def build_ranks_embed(current_points: int) -> discord.Embed:
     return embed
 
 
-def build_help_embed() -> discord.Embed:
-    """Builds the command manual and rules overview."""
-    desc = (
-        "**Daily Targets (500 pts max)**\n"
-        "• 💪 **Push-ups**: 100 reps *(1 pt / rep)*\n"
-        "• 🧗 **Pull-ups**: 100 reps *(1 pt / rep)*\n"
-        "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
-        "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
-        "• 🏃 **Running**: 10 km *(1 pt / 100m)*\n\n"
-        "**Core Commands**\n"
-        "• `/today` — Check your daily progress & streak\n"
-        "• `/log [task] [amount]` — Add completed reps or km\n"
-        "• `/set [task] [amount]` — Override count or reset to 0\n"
-        "• `/profile` — Member card, level & rank progress\n"
-        "• `/ranks` — View 12-level pack hierarchy\n"
-        "• `/leaderboard` — Daily & all-time standings\n"
-        "• `/stats` — Lifetime volume & records\n"
-        "• `/history` — 7-day point history\n"
-        "• `/enroll` • `/leave_arc` • `/ping`"
-    )
+def build_help_embed(category: str = "overview") -> discord.Embed:
+    """Builds the comprehensive command manual and rules overview."""
+    category = category.lower()
 
-    embed = discord.Embed(
-        title="❄️ Winter Arc — Commands & Rules",
-        description=desc,
-        color=0x2B2D31
-    )
-    embed.set_footer(text="05:00 Kickoff • 16:30 Check-in • 00:00 Finalization (IST)")
-    return embed
+    if category == "logging":
+        embed = discord.Embed(
+            title="⚡ Workout & AI Logging Manual",
+            description=(
+                "Log your physical and mental friction every single day.\n"
+                "Amarok supports natural language parsing, rigid slash commands, and dedicated channel logging."
+            ),
+            color=0x3498DB
+        )
+        embed.add_field(
+            name="🤖 `/quick [text]` — AI Workout Parser (Groq LLaMA 3.3)",
+            value=(
+                "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
+                "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
+                "• **Example**: `/quick text: 40 squats, 30 situps then 20 more squats`\n"
+                "🛡️ *Safeguard*: Unrealistic volume will be rejected by Amarok."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="💬 Dedicated `#quick-log` Channel",
+            value=(
+                "Type your workout directly in `#quick-log` or `#fast-log` without any slash command prefix!\n"
+                "Amarok will automatically parse the message, award your points, and react with 🐺."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="📝 Traditional Logging (`/log` & `/set`)",
+            value=(
+                "• `/log [task] [amount]` — Adds reps or km to your current daily count.\n"
+                "• `/set [task] [amount]` — Overrides today's count directly. Set to `0` to wipe accidental entries."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🧠 `/grind [friction]` — Academic & Engineering Bonus (Gemini AI)",
+            value=(
+                "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep reading).\n"
+                "• **Reward**: Up to **+50 bonus points** awarded directly to today's tally (Limit: 1/day).\n"
+                "• **Example**: `/grind friction: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
+                "⚠️ *Zero Slop Policy*: Generic or low-effort submissions will be roasted and awarded 0 points."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Use the menu below to navigate categories • Day resets at 00:00 IST")
+        return embed
+
+    elif category == "progress":
+        embed = discord.Embed(
+            title="📊 Progression, Ranks & Leaderboards",
+            description="Track your daily execution, climb the 12 pack ranks, and conquer the 90-day arc.",
+            color=0x9B59B6
+        )
+        embed.add_field(
+            name="🎯 Daily Accountability",
+            value=(
+                "• `/today [member]` — View today's completed reps, points, remaining quotas, and current streak.\n"
+                "• `/streak [member]` — Quick check of active streak days and Frost Shield protection status."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🐺 12-Tier Rank Hierarchy",
+            value=(
+                "• `/profile [member]` — Complete warrior dossier with current rank badge, tier progress bar, points remaining until next rank, and join date.\n"
+                "• `/ranks` — Inspect all 12 pack ranks from **Lone Stray (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🏆 Standings & History",
+            value=(
+                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly**, and **🌐 All-Time** rankings.\n"
+                "• `/stats [member]` — Lifetime repetitions per discipline, total kilometers logged, and milestone records.\n"
+                "• `/history [days]` — View point breakdown over the past 7, 14, or 30 days."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Consistency beats motivation • Apex rank unlocks at 12,000 points")
+        return embed
+
+    elif category == "shields":
+        embed = discord.Embed(
+            title="🛡️ Frost Shield & Recovery System",
+            description=(
+                "The Winter Arc demands relentless discipline, but smart recovery prevents collapse.\n"
+                "Frost Shields protect your unbroken streak during rest days, sickness, travel, or exams."
+            ),
+            color=0x00D2FF
+        )
+        embed.add_field(
+            name="❄️ How Frost Shields Work",
+            value=(
+                "• **Earning Shields**: You earn **+1 Frost Shield for every 14 consecutive active days**.\n"
+                "• **Inventory Cap**: You can hold a maximum of **2 Frost Shields** at any time.\n"
+                "• **Streak Defense**: When activated, the target date is marked as an intentional recovery day, preserving your streak even with 0 points logged."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🎮 Shield Commands",
+            value=(
+                "• `/shield status` — View your current shield count (e.g. `1/2`) and countdown days to the next shield unlock.\n"
+                "• `/shield use [target_date] [reason]` — Consume a shield to protect your streak.\n"
+                "  — `target_date`: Choose `Today` (preemptive) or `Yesterday` (rescue a missed day).\n"
+                "  — `reason`: Optional label (e.g. *Leg day recovery, Travel, Sick*)."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Shields preserve your streak, but true progress comes from the iron.")
+        return embed
+
+    elif category == "settings":
+        embed = discord.Embed(
+            title="⚙️ Accountability, Settings & Utilities",
+            description="Manage your participation and customize automated direct messages.",
+            color=0x2ECC71
+        )
+        embed.add_field(
+            name="🔔 `/settings` — Personal Direct Messages",
+            value=(
+                "Configure automated private DM alerts sent directly to your inbox:\n"
+                "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets and motivation.\n"
+                "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you have unlogged points.\n"
+                "*(Requires Discord privacy settings to allow DMs from server members)*"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="⚔️ Enrollment & Utilities",
+            value=(
+                "• `/enroll` — Join the Winter Arc challenge and establish your warrior profile.\n"
+                "• `/leave_arc` — Unenroll from active server rosters (lifetime stats preserved).\n"
+                "• `/ping` — Check bot response time, gateway latency, and timezone synchronization."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Automated broadcasts run on Asia/Kolkata (IST) time.")
+        return embed
+
+    elif category == "admin":
+        embed = discord.Embed(
+            title="👑 Server Administration & Maintenance",
+            description="Server controls for administrators to configure broadcast channels, roles, disciplines, and monitor system health.",
+            color=0xE67E22
+        )
+        embed.add_field(
+            name="📢 Broadcast Configuration",
+            value=(
+                "• `/admin set_channel [channel]` — Set the server channel for automated 05:00, 16:30, 21:00, and 00:00 broadcasts.\n"
+                "• `/admin set_role [role]` — Set the role to mention during scheduled announcements.\n"
+                "• `/admin overview` — View server channel, role ping, active disciplines, and enrolled roster."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🏋️ Discipline Management",
+            value=(
+                "• `/admin tasks_list` — List all challenge disciplines in the database.\n"
+                "• `/admin task_add` — Add a new discipline with custom targets, units, and point limits.\n"
+                "• `/admin task_toggle` — Temporarily enable or disable an existing discipline."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🖥️ System Diagnostics & Testing",
+            value=(
+                "• `/admin health` — Live RSS RAM monitor, SQLite file sizes, uptime, and one-click **🧹 Collect GC & Free RAM** button.\n"
+                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, or Sunday broadcasts on demand."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Admin commands require Administrator permissions.")
+        return embed
+
+    else:
+        # Default Overview
+        embed = discord.Embed(
+            title="❄️ Winter Arc — Master Command Manual",
+            description=(
+                "**Welcome to the Winter Arc.**\n"
+                "A 90-day crucible of physical and mental discipline governed by **Amarok**.\n"
+                "Use the interactive menu below to deep-dive into each subsystem."
+            ),
+            color=0x2B2D31
+        )
+        embed.add_field(
+            name="🎯 Daily Disciplines (500 pts max)",
+            value=(
+                "• 💪 **Push-ups**: 100 reps *(1 pt / rep)*\n"
+                "• 🧗 **Pull-ups**: 100 reps *(1 pt / rep)*\n"
+                "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
+                "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
+                "• 🏃 **Running**: 10 km *(1 pt / 100m)*\n"
+                "• 🧠 **Grind Bonus**: Up to +50 pts daily (`/grind`)"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="⏰ Automated Daily Schedule (Asia/Kolkata)",
+            value=(
+                "• 🌅 `05:00 IST` — Morning Kickoff & Discipline Targets\n"
+                "• ☀️ `16:30 IST` — Mid-day Check-in & Roster Standings\n"
+                "• ⚠️ `21:00 IST` — Evening Streak Warning (Save Your Streak)\n"
+                "• 🌑 `00:00 IST` — Midnight Reckoning & Final Day Tally\n"
+                "• 🏆 `Sunday 20:00` — Weekly Roast/Toast & State of the Pack"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="⚡ Command Directory Cheat Sheet",
+            value=(
+                "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
+                "• **Progress**: `/today` • `/streak` • `/profile` • `/stats` • `/history`\n"
+                "• **Standings**: `/leaderboard` • `/ranks`\n"
+                "• **Recovery**: `/shield status` • `/shield use`\n"
+                "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
+                "• **Admin**: `/admin overview` • `/admin health` • `/test_reminder`"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Select a category from the dropdown menu below for complete details")
+        return embed
 
 
 def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display: str) -> discord.Embed:
@@ -426,12 +723,12 @@ def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> disc
     perfect_count = 0
 
     for idx, entry in enumerate(leaderboard):
-        rank = format_rank_badge(idx)
+        pts = entry["points"]
+        rank = format_rank_badge(idx, pts=pts)
         perfect_star = " ⭐" if entry["perfect_day"] else ""
         if entry["perfect_day"]:
             perfect_count += 1
         pct = int(entry["completion_rate"] * 100)
-        pts = entry["points"]
         podium_lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){perfect_star}")
 
     if not podium_lines:

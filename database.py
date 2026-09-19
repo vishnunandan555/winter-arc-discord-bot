@@ -14,7 +14,7 @@ import sqlite3
 import math
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from config import DB_PATH
 
@@ -34,6 +34,8 @@ def get_connection(db_path: str = DB_PATH):
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA cache_size = -2000;")         # Cap memory cache to ~2 MB
+    conn.execute("PRAGMA wal_autocheckpoint = 500;")   # Frequent WAL flush to keep disk usage minimal
     try:
         yield conn
     finally:
@@ -975,6 +977,19 @@ def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
 
     overall_stats.sort(key=lambda x: (x["total_points"], x["perfect_days"], x["streak"]), reverse=True)
     return overall_stats
+
+
+def get_user_all_time_rank(discord_id: int, db_path: str = DB_PATH) -> Tuple[int, int]:
+    """
+    Returns (rank, total_warriors) for the user on the all-time overall leaderboard (1-indexed).
+    If user is not enrolled or not found, returns (0, total_warriors).
+    """
+    overall = get_overall_leaderboard(db_path)
+    total = len(overall)
+    for idx, entry in enumerate(overall):
+        if entry["discord_id"] == discord_id:
+            return idx + 1, total
+    return 0, total
 
 
 def get_user_lifetime_points(discord_id: int, db_path: str = DB_PATH) -> int:

@@ -25,13 +25,16 @@ def make_progress_bar(current: float, target: float, length: int = 10, filled: s
     return (filled * fill_count) + (empty * empty_count)
 
 
-def format_rank_badge(idx: int) -> str:
-    """Returns distinctive, cross-platform rank badge icon for leaderboard positions."""
-    if idx == 0:
-        return "👑"
-    elif idx == 1:
-        return "⚔️"
-    elif idx == 2:
-        return "🛡️"
+def format_rank_badge(idx: int, pts: int = 1) -> str:
+    """Returns clean, distinct medals or position numbers for leaderboard standings."""
+    pos = idx + 1
+    if pts <= 0:
+        return f"`#{pos}`"
+    if pos == 1:
+        return "🥇"
+    elif pos == 2:
+        return "🥈"
+    elif pos == 3:
+        return "🥉"
     else:
-        return f"▫️ #{idx+1}"
+        return f"`#{pos}`"
