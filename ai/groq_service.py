@@ -7,6 +7,7 @@ and strict active-task validation.
 
 import json
 import re
+import time
 import logging
 from typing import Dict, Any, List, Optional
 from config import GROQ_API_KEY, GROQ_MODEL, MAX_SINGLE_SET_LIMITS
@@ -121,6 +122,8 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
     )
 
     try:
+        logger.info(f"Calling Groq API ({GROQ_MODEL}) for workout parsing: '{raw_text}'...")
+        start_t = time.time()
         chat_completion = await client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -131,9 +134,10 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
             temperature=0.1,
             max_tokens=300,
         )
-
+        latency = time.time() - start_t
         content = chat_completion.choices[0].message.content
         data = json.loads(content)
+        logger.info(f"Groq parse response received in {latency:.2f}s: {len(data.get('matches', []))} match(es)")
 
         # Validate task_names against active_tasks and enforce single-set limits
         valid_names = {t["name"].lower(): t["name"] for t in active_tasks}
@@ -227,6 +231,8 @@ async def generate_reactive_nudge(
         user_prompt += f"Pending: {', '.join(pending[:3])}\n"
 
     try:
+        logger.info(f"Calling Groq API ({GROQ_MODEL}) for reactive observation: {user_name} on /{command_name}...")
+        start_t = time.time()
         chat_completion = await client.chat.completions.create(
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -236,11 +242,13 @@ async def generate_reactive_nudge(
             temperature=0.7,
             max_tokens=50,
         )
+        latency = time.time() - start_t
 
         txt = (chat_completion.choices[0].message.content or "").strip().strip('"').strip("'")
         if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "sentinel", "edict", "observation", "coach"]:
             txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
         txt = txt.strip("*").strip("_").strip('"').strip("'")
+        logger.info(f"Groq reactive observation generated in {latency:.2f}s: '{txt}'")
 
         if txt and len(txt.split()) <= 25:
             return txt

@@ -82,6 +82,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     )
 
     try:
+        logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for /grind evaluation...")
         from google.genai import types
         response = client.models.generate_content(
             model=GEMINI_MODEL,
@@ -101,6 +102,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         if verdict not in ["ACCEPTED", "REJECTED", "ROASTED"]:
             verdict = "ACCEPTED" if points > 0 else "REJECTED"
 
+        logger.info(f"Gemini /grind evaluation completed: {verdict} ({points} pts, tag: {data.get('key_learning', 'None')})")
         return {
             "verdict": verdict,
             "points": points,
@@ -276,6 +278,7 @@ async def generate_reminder_motivation(
     prompt += "\nOutput ONLY the plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
 
     try:
+        logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for {reminder_type} reminder quote...")
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
@@ -284,10 +287,11 @@ async def generate_reminder_motivation(
         if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
             txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
 
+        logger.info(f"Gemini {reminder_type} quote generated: '{txt}'")
         if txt and len(txt.split()) <= 35:
             return txt
         return random.choice(CURATED_STOIC_FALLBACKS)
     except Exception as e:
-        logger.debug(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.")
+        logger.warning(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.", exc_info=True)
         return random.choice(CURATED_STOIC_FALLBACKS)
 
