@@ -12,6 +12,7 @@ import logging
 import asyncio
 import gc
 from datetime import datetime, date, timedelta
+from typing import Optional, Dict, Any, List
 import discord
 from discord.ext import tasks
 

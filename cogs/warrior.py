@@ -18,7 +18,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import database as db
-from config import BOT_TZ
+from config import BOT_TZ, MAX_SINGLE_SET_LIMITS
 from helpers import (
     require_enrolled,
     task_autocomplete,
@@ -263,8 +263,15 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if amount <= 0:
             await interaction.response.send_message("❌ Amount must be greater than 0.", ephemeral=True)
             return
-        if amount > 5000:
-            await interaction.response.send_message("❌ Amount exceeds reasonable single log limit (5,000).", ephemeral=True)
+        task_key = task.lower().strip()
+        max_allowed = MAX_SINGLE_SET_LIMITS.get(task_key, 50.0)
+        if amount > max_allowed:
+            unit_display = "km" if "run" in task_key else "reps"
+            await interaction.response.send_message(
+                f"❌ **Unrealistic Volume Rejected**: `{int(amount) if amount.is_integer() else amount} {unit_display}` in a single go exceeds the realistic single-set limit (max `{int(max_allowed)} {unit_display}`). "
+                f"Log your completed sets individually as you finish them.",
+                ephemeral=True
+            )
             return
 
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
@@ -632,7 +639,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         if parsed.get("suspicious"):
             await interaction.followup.send(
-                "❌ **Log Rejected**: Amarok detected unrealistic volume. Log your actual completed numbers.",
+                "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
+                "Log your completed sets individually as you finish them (e.g. '30 pushups, 30 pushups, 30 pushups').",
                 ephemeral=True
             )
             return

@@ -211,7 +211,10 @@ class WinterArcBot(commands.Bot):
                 active_tasks = db.get_active_tasks()
                 parsed = await groq_service.parse_quicklog(text, active_tasks)
                 if parsed.get("suspicious"):
-                    await message.reply("❌ **Log Rejected**: Amarok detected unrealistic volume. Log your actual numbers.")
+                    await message.reply(
+                        "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
+                        "Log your completed sets individually."
+                    )
                     return
 
                 matches = parsed.get("matches", [])

@@ -1113,7 +1113,6 @@ def build_quicklog_embed(
         + unrec_line
         + f"\n\n📊 **Today's Points**: **{daily_total} / {daily_max} pts** (+{total_delta} pts earned)"
         + promo_banner
-        + f"\n\n🐺 **Amarok**:\n> *\"{commentary}\"*"
     )
 
     embed = discord.Embed(

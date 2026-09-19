@@ -28,6 +28,15 @@ DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 # Minimum points required in a day to maintain or advance an active streak (default: 30)
 MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
 
+# Realistic single-go / single-set limits to reject fake or unrealistic volume
+MAX_SINGLE_SET_LIMITS = {
+    "push-ups": 50.0,
+    "pull-ups": 20.0,
+    "squats": 50.0,
+    "sit-ups": 50.0,
+    "running": 10.0,
+}
+
 # AI Configuration
 # Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

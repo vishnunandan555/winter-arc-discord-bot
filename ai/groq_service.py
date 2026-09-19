@@ -9,7 +9,7 @@ import json
 import re
 import logging
 from typing import Dict, Any, List, Optional
-from config import GROQ_API_KEY, GROQ_MODEL
+from config import GROQ_API_KEY, GROQ_MODEL, MAX_SINGLE_SET_LIMITS
 
 logger = logging.getLogger("winter_arc.ai.groq")
 
@@ -64,10 +64,14 @@ def regex_fallback_parser(raw_text: str, active_tasks: List[Dict[str, Any]]) -> 
                 matches.append({"task_name": t["name"], "amount": val})
                 break
 
+    is_suspicious = any(
+        m["amount"] > MAX_SINGLE_SET_LIMITS.get(m["task_name"].lower(), 50.0)
+        for m in matches
+    )
     return {
         "matches": matches,
         "unrecognized": [],
-        "suspicious": any(m["amount"] > 1000 for m in matches),
+        "suspicious": is_suspicious,
         "commentary": "Exercises parsed via local parser." if matches else "Could not recognize any active disciplines.",
     }
 
@@ -93,12 +97,18 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         "1. ONLY extract exercises matching the active challenge tasks above. Ignore or put foreign exercises (e.g. bicep curls, bench press, yoga) in 'unrecognized'.\n"
         "2. Map slang and abbreviations to exact active task names (e.g. 'pushies' -> 'Push-ups', 'ran 5k' -> 'Running' amount 5.0, 'century squats' -> 'Squats' amount 100).\n"
         "3. Convert running distances to kilometers (e.g. '3000 meters' -> 3.0, '3 miles' -> 4.8).\n"
-        "4. REALITY CHECKS:\n"
-        "   - Set 'suspicious': true if an amount is blatantly absurd for a single session (e.g. >500 pushups, >200 pullups, >50 km running).\n"
+        "4. REALITY CHECKS (STRICT SINGLE-SET HUMAN LIMITS):\n"
+        "   - Maximum allowed in a single set / single go:\n"
+        "     * Push-ups: 50 reps max (e.g. '90 pushups' in one go is unrealistic -> suspicious: true)\n"
+        "     * Pull-ups: 20 reps max (e.g. '25 pullups' -> suspicious: true)\n"
+        "     * Squats: 50 reps max\n"
+        "     * Sit-ups: 50 reps max\n"
+        "     * Running: 10.0 km max in a single run\n"
+        "   - If ANY single exercise amount exceeds these limits: IMMEDIATELY set 'suspicious': true.\n"
         "   - Set 'low_effort': true if reps are trivially tiny (e.g. <= 5 reps of calisthenics or < 0.5 km run).\n"
         "5. COMMENTARY:\n"
         "   - EXACTLY 1 short, razor-sharp sentence in Amarok's stoic wolf tone.\n"
-        "   - If suspicious: 'Cut the cap. Log your actual numbers.'\n"
+        "   - If suspicious: 'Unrealistic single-set volume. Log sets individually.'\n"
         "   - If low_effort: 'X reps? The ground barely felt you. Finish the rest.'\n"
         "   - If solid: 'Discipline logged. Keep moving.'\n\n"
         "Return pure JSON format:\n"
@@ -125,9 +135,11 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         content = chat_completion.choices[0].message.content
         data = json.loads(content)
 
-        # Validate task_names against active_tasks
+        # Validate task_names against active_tasks and enforce single-set limits
         valid_names = {t["name"].lower(): t["name"] for t in active_tasks}
         validated_matches = []
+        is_suspicious = bool(data.get("suspicious", False))
+
         for m in data.get("matches", []):
             req_name = str(m.get("task_name", "")).strip().lower()
             amt = float(m.get("amount", 0))
@@ -136,11 +148,15 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
                     "task_name": valid_names[req_name],
                     "amount": round(amt, 2)
                 })
+                # Deterministic check: reject amounts exceeding single-set limits
+                limit = MAX_SINGLE_SET_LIMITS.get(req_name, 50.0)
+                if amt > limit:
+                    is_suspicious = True
 
         return {
             "matches": validated_matches,
             "unrecognized": data.get("unrecognized", []),
-            "suspicious": bool(data.get("suspicious", False)),
+            "suspicious": is_suspicious,
             "commentary": str(data.get("commentary", "Discipline logged.")),
         }
     except Exception as e:
@@ -291,7 +307,13 @@ async def dispatch_interaction_nudge(
             progression=progression,
         )
         if nudge:
-            content = f"🐺 **Amarok observes**:\n> *\"{nudge}\"*"
+            content = f"<@{user_id}> 🐺 **Amarok observes**:\n> *\"{nudge}\"*"
+            if getattr(interaction, "channel", None) and hasattr(interaction.channel, "send"):
+                try:
+                    await interaction.channel.send(content)
+                    return
+                except Exception:
+                    pass
             await interaction.followup.send(content)
     except Exception as e:
         logger.debug(f"Could not dispatch interaction nudge for {user_name}: {e}")
@@ -342,7 +364,7 @@ async def dispatch_channel_nudge(
             progression=progression,
         )
         if nudge:
-            content = f"🐺 **Amarok observes**:\n> *\"{nudge}\"*"
+            content = f"<@{user_id}> 🐺 **Amarok observes**:\n> *\"{nudge}\"*"
             await channel.send(content)
     except Exception as e:
         logger.debug(f"Could not dispatch channel nudge for {user_name}: {e}")
