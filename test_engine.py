@@ -482,8 +482,8 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         db.enroll_user(fin_user, "FinWarrior", TEST_DB)
         yesterday = (date.today() - timedelta(days=1)).isoformat()
 
-        # Log half workout for yesterday
-        db.log_activity(fin_user, "FinWarrior", "Push-ups", 50, yesterday, TEST_DB)
+        # Log under minimum workout for yesterday (15 pts < 30 pts)
+        db.log_activity(fin_user, "FinWarrior", "Push-ups", 15, yesterday, TEST_DB)
 
         # Give 1 frost shield and set active past streak
         user = db.get_user_by_discord_id(fin_user, TEST_DB)
@@ -725,7 +725,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         embed = build_today_embed(mock_user, progress, streak=4, date_display="Saturday, Sep 19")
         self.assertIn("WarriorX", embed.description)
-        self.assertIn("🔥 Current Streak: **4 days**", embed.description)
+        self.assertIn("🔥 Current Streak: **4 days** *(Streak Secured ✅)*", embed.description)
         self.assertIn("🟩🟩🟩🟩⬜⬜⬜⬜ `50%`", embed.description)
         self.assertIn("🟩🟩⬜⬜⬜⬜⬜⬜ `25%`", embed.description)
         self.assertIn("📊 **Total Daily Progress**: **75 / 500 pts** (**15%**)", embed.description)
@@ -744,6 +744,44 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("3 Hours Remaining", embed.description)
         self.assertIn("AlphaWolf", embed.description)
         self.assertIn("BetaPup", embed.description)
+
+    def test_29_streak_thirty_points_minimum(self):
+        user_id = 9001
+        db.enroll_user(user_id, "ThirtyPtWarrior", TEST_DB)
+        today = date.today().isoformat()
+
+        # Streak should initially be 0
+        self.assertEqual(db.calculate_streak(user_id, today, TEST_DB), 0)
+
+        # Log exactly 5 reps of 4 exercises (20 pts) + 1 km run (10 pts) = 30 pts
+        db.log_activity(user_id, "ThirtyPtWarrior", "Push-ups", 5, today, TEST_DB)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Pull-ups", 5, today, TEST_DB)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Squats", 5, today, TEST_DB)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Sit-ups", 5, today, TEST_DB)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Running", 1.0, today, TEST_DB)
+
+        prog = db.get_user_daily_progress(user_id, today, TEST_DB)
+        self.assertEqual(prog["total_points"], 30)
+
+        # 30 pts should now qualify for live streak!
+        streak = db.calculate_streak(user_id, today, TEST_DB)
+        self.assertEqual(streak, 1)
+
+        # Give 1 frost shield to ensure auto-shield is NOT consumed
+        with db.get_connection(TEST_DB) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
+            conn.commit()
+
+        # Finalize day
+        summaries = db.finalize_daily_summaries(today, TEST_DB)
+        user_summary = next(s for s in summaries if s["discord_id"] == user_id)
+        self.assertFalse(user_summary["is_shielded"])
+        self.assertEqual(user_summary["points"], 30)
+
+        # Shield should still be 1
+        shield_status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(shield_status["frost_shields"], 1)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
-from config import DB_PATH
+from config import DB_PATH, MIN_STREAK_POINTS
 
 DEFAULT_TASKS = [
     {"name": "Push-ups", "description": "Works chest, shoulders, and triceps (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
@@ -634,12 +634,13 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT date, perfect_day, completion_rate, is_shielded
+            SELECT date, points, perfect_day, completion_rate, is_shielded
             FROM daily_summaries
             WHERE user_id = ? AND date >= ? AND date <= ?;
         """, (user["id"], start_date_str, ref_date_str))
         summaries = {
             r["date"]: {
+                "points": int(r["points"]),
                 "perfect_day": bool(r["perfect_day"]),
                 "completion_rate": float(r["completion_rate"]),
                 "is_shielded": bool(r["is_shielded"])
@@ -657,10 +658,10 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
     today_shielded = ref_date_str in shielded_dates
     if ref_date_str in summaries:
         s = summaries[ref_date_str]
-        ref_completed = s["perfect_day"] or s["completion_rate"] >= 0.999 or s["is_shielded"]
+        ref_completed = s["points"] >= MIN_STREAK_POINTS or s["perfect_day"] or s["is_shielded"]
     else:
         today_prog = get_user_daily_progress(discord_id, ref_date_str, db_path)
-        ref_completed = today_prog["perfect_day"]
+        ref_completed = today_prog["total_points"] >= MIN_STREAK_POINTS or today_prog["perfect_day"]
 
     streak = 0
     if ref_completed or today_shielded:
@@ -676,7 +677,7 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
 
         if d_str in summaries:
             s = summaries[d_str]
-            if s["perfect_day"] or s["completion_rate"] >= 0.999 or s["is_shielded"]:
+            if s["points"] >= MIN_STREAK_POINTS or s["perfect_day"] or s["is_shielded"]:
                 streak += 1
                 current_check -= timedelta(days=1)
                 continue
@@ -685,7 +686,7 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
         else:
             # Fallback for unfinalized day without summary
             day_prog = get_user_daily_progress(discord_id, d_str, db_path)
-            if day_prog["perfect_day"] and day_prog["total_points"] > 0:
+            if (day_prog["total_points"] >= MIN_STREAK_POINTS or day_prog["perfect_day"]) and day_prog["total_points"] > 0:
                 streak += 1
                 current_check -= timedelta(days=1)
             else:
@@ -729,10 +730,11 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (u["id"], target_date_str))
             shielded = 1 if cursor.fetchone() is not None else 0
 
-        # Auto-shield logic: if not perfect, not already shielded, has shields and past streak
+        # Auto-shield logic: if points < MIN_STREAK_POINTS and not perfect, not already shielded, has shields and past streak
+        streak_qualifies = points >= MIN_STREAK_POINTS or bool(perfect)
         shields_available = u["frost_shields"] or 0
         auto_shield_applied = False
-        if not perfect and not shielded and shields_available > 0:
+        if not streak_qualifies and not shielded and shields_available > 0:
             past_streak = calculate_streak(u["discord_id"], day_before, db_path)
             if past_streak > 0:
                 auto_shield_applied = True

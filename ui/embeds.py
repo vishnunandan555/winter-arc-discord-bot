@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 import discord
 
 import database as db
-from config import BOT_TZ
+from config import BOT_TZ, MIN_STREAK_POINTS
 from levels import get_level_info, get_all_ranks, APEX_THRESHOLD
 from ui.formatters import make_progress_bar, format_rank_badge, TASK_ICONS
 
@@ -160,9 +160,11 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
 
     total_line = f"\n\n📊 **Total Daily Progress**: **{total_pts} / {max_pts} pts** (**{pct}%**){points_breakdown}"
 
+    streak_status = " *(Streak Secured ✅)*" if (total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]) else f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
+
     desc = (
         f"**{target_user.display_name}** • {date_display}\n"
-        f"🔥 Current Streak: **{streak} days**\n\n"
+        f"🔥 Current Streak: **{streak} days**{streak_status}\n\n"
         "**Daily Disciplines**\n"
         + "\n\n".join(task_lines)
         + grind_section
@@ -172,9 +174,9 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     embed = discord.Embed(
         title="❄️ Winter Arc — Today",
         description=desc,
-        color=0x1ABC9C if progress["perfect_day"] else 0x3498DB
+        color=0x1ABC9C if progress["perfect_day"] else (0x2ECC71 if total_pts >= MIN_STREAK_POINTS else 0x3498DB)
     )
-    embed.set_footer(text="Log with /log • Set with /set • Standings with /leaderboard")
+    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • 500 pts for Perfect Day")
     return embed
 
 
@@ -538,11 +540,12 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             color=0x00D2FF
         )
         embed.add_field(
-            name="❄️ How Frost Shields Work",
+            name="❄️ How Frost Shields Work & Streaks",
             value=(
-                "• **Earning Shields**: You earn **+1 Frost Shield for every 14 consecutive active days**.\n"
+                f"• **Daily Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day (e.g. 5 push-ups, 5 sit-ups, 5 squats, 5 pull-ups, 1 km run) to maintain your streak.\n"
+                "• **Earning Shields**: You earn **+1 Frost Shield for every 7-day streak milestone**.\n"
                 "• **Inventory Cap**: You can hold a maximum of **2 Frost Shields** at any time.\n"
-                "• **Streak Defense**: When activated, the target date is marked as an intentional recovery day, preserving your streak even with 0 points logged."
+                f"• **Auto-Protection**: If you finish a day under {MIN_STREAK_POINTS} points, a shield is automatically consumed at midnight to preserve your streak."
             ),
             inline=False
         )
@@ -732,22 +735,23 @@ def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str:
         streak = db.calculate_streak(u["discord_id"], today_str)
 
         if prog["perfect_day"]:
-            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (100% ✅ • 🔥 {streak}d)")
+            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (⭐ 100% Perfect Day • 🔥 {streak}d)")
+        elif pts >= MIN_STREAK_POINTS:
+            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (Streak Secured ✅ • 🔥 {streak}d)")
         else:
-            completed_tasks = sum(1 for t in prog["tasks"] if t["completed"])
-            total_tasks = len(prog["tasks"])
-            pending_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** ({pct}% • {completed_tasks}/{total_tasks} disciplines)")
+            needed = MIN_STREAK_POINTS - pts
+            pending_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (⚠️ {needed} pts needed for streak)")
 
     desc = (
         "⏳ **3 Hours Remaining Until Midnight Rollover!**\n"
-        "Scores lock in at 00:00 IST. Defend your streak and push through your remaining reps.\n\n"
+        f"Scores lock in at 00:00 IST. Earn at least **{MIN_STREAK_POINTS} pts** to defend your streak.\n\n"
     )
 
     if completed_lines:
-        desc += "**🔥 Streak Secured (100% Complete)**\n" + "\n".join(completed_lines) + "\n\n"
+        desc += "**🔥 Streak Secured**\n" + "\n".join(completed_lines) + "\n\n"
 
     if pending_lines:
-        desc += "**⚠️ Reps Remaining Before Midnight**\n" + "\n".join(pending_lines) + "\n\n"
+        desc += "**⚠️ Streak at Risk (< 30 pts)**\n" + "\n".join(pending_lines) + "\n\n"
 
     if not completed_lines and not pending_lines:
         desc += "_No enrolled warriors yet. Use `/enroll` to join!_\n\n"
@@ -757,7 +761,7 @@ def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str:
         description=desc.strip(),
         color=0xE67E22
     )
-    embed.set_footer(text="Log sets with /log • Protect streak with /shield • Rollover at 00:00 IST")
+    embed.set_footer(text=f"Log sets with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
     return embed
 
 
@@ -916,19 +920,29 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
             f"Your **{streak}‑day streak** is fully protected at midnight.\n\n"
             "_Rest up and recover for tomorrow's grind._"
         )
+    elif pts >= MIN_STREAK_POINTS:
+        title = "🔥 Winter Arc — Streak Secured!"
+        color = 0x2ECC71
+        desc = (
+            f"Solid work, **{user.display_name}**.\n\n"
+            f"You logged **{pts} points** today, surpassing the {MIN_STREAK_POINTS}-point daily streak threshold.\n"
+            f"Your **{streak}‑day streak** is locked in for midnight rollover.\n\n"
+            "_Aim for 100% (500 pts) before midnight to claim a Perfect Day!_"
+        )
     else:
         title = "⚠️ Winter Arc — Evening Streak Warning"
         color = 0xE74C3C
+        needed = MIN_STREAK_POINTS - pts
         shield_info = (
             f"\n\n🛡️ **Safety Net**: You have **{shield_status['frost_shields']} Frost Shield(s)**. "
-            "If you cannot finish today, run `/shield use` in the server to protect your streak."
+            "If you cannot finish today, an auto-shield will protect your streak at midnight."
             if shield_status["frost_shields"] > 0
-            else "\n\n⚠️ **No Frost Shields available!** Complete your disciplines to prevent your streak from resetting."
+            else f"\n\n⚠️ **No Frost Shields available!** Log {needed} more points before midnight to prevent your streak from resetting."
         )
         desc = (
             f"**{user.display_name}**, only **3 hours remain** before midnight (00:00 IST).\n\n"
-            f"📊 **Today's Score**: **{pts} / {max_pts} pts** ({pct}%)\n"
-            f"🔥 **Streak in Danger**: **{streak} days**"
+            f"📊 **Today's Score**: **{pts} / {max_pts} pts** ({needed} more pts needed to defend streak)\n"
+            f"🔥 **Streak at Risk**: **{streak} days**"
             f"{shield_info}\n\n"
             "_Lock in your remaining sets with `/log` before midnight!_"
         )

@@ -25,6 +25,9 @@ DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "0"))
 # Database path
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
+# Minimum points required in a day to maintain or advance an active streak (default: 30)
+MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
+
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
