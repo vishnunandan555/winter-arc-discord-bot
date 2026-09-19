@@ -5,7 +5,7 @@ Centralizes all presentation styling, layout spacing, color palettes,
 and progression information across user commands, admin tools, and scheduled announcements.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import discord
 
@@ -49,6 +49,49 @@ def build_daily_leaderboard_embed() -> discord.Embed:
         color=0xF1C40F
     )
     footer_text = "Updated live • Resets daily at 00:00 IST"
+    if len(data) > 10:
+        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+    embed.set_footer(text=footer_text)
+    return embed
+
+
+def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: Optional[str] = None) -> discord.Embed:
+    """Builds the weekly standings leaderboard for a specific calendar week (max top 10)."""
+    now = datetime.now(BOT_TZ)
+    today = now.date()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    s_date = start_date or start_of_week.isoformat()
+    e_date = end_date or end_of_week.isoformat()
+
+    s_dt = date.fromisoformat(s_date)
+    e_dt = date.fromisoformat(e_date)
+    date_display = f"{s_dt.strftime('%b %d')} – {e_dt.strftime('%b %d, %Y')}"
+
+    data = db.get_weekly_leaderboard(s_date, e_date)
+    top_10 = data[:10]
+
+    any_points = any(entry["total_points"] > 0 for entry in top_10)
+    lines = []
+    if not any_points:
+        lines.append(f"_No activity recorded for this week ({date_display}) yet._")
+    else:
+        for idx, entry in enumerate(top_10):
+            pts = entry["total_points"]
+            badge = format_rank_badge(idx, pts=pts)
+            clean = entry.get("perfect_days", 0)
+            clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
+            lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts**{clean_str}")
+
+    embed = discord.Embed(
+        title="🏆 Winter Arc — Weekly Standings",
+        description=(
+            f"📅 **Week of {date_display}**\n\n"
+            + "\n".join(lines)
+        ),
+        color=0x2ECC71
+    )
+    footer_text = "Updated live • Ranked by weekly points (Mon–Sun)"
     if len(data) > 10:
         footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
     embed.set_footer(text=footer_text)

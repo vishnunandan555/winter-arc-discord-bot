@@ -539,15 +539,26 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
     def test_23_views_and_embeds(self):
         from ui.views import LeaderboardView
-        from ui.embeds import build_monthly_leaderboard_embed, build_quicklog_embed
+        from ui.embeds import build_monthly_leaderboard_embed, build_weekly_leaderboard_embed, build_quicklog_embed
 
-        # LeaderboardView has 600s timeout and 3 tabs
+        # LeaderboardView has 600s timeout and 4 tabs: Daily, Weekly, Monthly, All-Time
         view = LeaderboardView()
         self.assertEqual(view.timeout, 600)
         custom_ids = [child.custom_id for child in view.children if hasattr(child, "custom_id")]
         self.assertIn("tab_daily", custom_ids)
+        self.assertIn("tab_weekly", custom_ids)
         self.assertIn("tab_monthly", custom_ids)
         self.assertIn("tab_overall", custom_ids)
+
+        labels = [child.label for child in view.children if hasattr(child, "label")]
+        self.assertEqual(labels, ["Daily", "Weekly", "Monthly", "All-Time"])
+
+        # Weekly embed and database method test
+        weekly_lb = db.get_weekly_leaderboard(db_path=TEST_DB)
+        self.assertIsInstance(weekly_lb, list)
+
+        weekly_embed = build_weekly_leaderboard_embed()
+        self.assertIn("Weekly Standings", weekly_embed.title)
 
         # Monthly embed builds successfully
         embed = build_monthly_leaderboard_embed()

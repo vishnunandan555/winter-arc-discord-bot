@@ -873,6 +873,69 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
     return results
 
 
+def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Computes weekly standings for all enrolled users for a specific week (Monday to Sunday)."""
+    today = date.today()
+    if not start_date_str or not end_date_str:
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        start_date_str = start_of_week.isoformat()
+        end_date_str = end_of_week.isoformat()
+
+    today_str = today.isoformat()
+    users = get_enrolled_users(db_path)
+    if not users:
+        return []
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                user_id,
+                COALESCE(SUM(points), 0) AS total_points,
+                COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                COUNT(DISTINCT date) AS recorded_days
+            FROM daily_summaries
+            WHERE date >= ? AND date <= ? AND date != ?
+            GROUP BY user_id;
+        """, (start_date_str, end_date_str, today_str))
+        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+
+    today_standings = {}
+    if start_date_str <= today_str <= end_date_str:
+        today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, db_path)}
+
+    weekly_stats = []
+    for u in users:
+        past = past_map.get(u["id"])
+        past_points = int(past["total_points"]) if past else 0
+        perfect_days = int(past["perfect_days"]) if past else 0
+        recorded_days = int(past["recorded_days"]) if past else 0
+
+        if u["discord_id"] in today_standings:
+            today_prog = today_standings[u["discord_id"]]
+            total_points = past_points + today_prog["points"]
+            if today_prog["perfect_day"]:
+                perfect_days += 1
+            if today_prog["points"] > 0:
+                recorded_days += 1
+        else:
+            total_points = past_points
+
+        weekly_stats.append({
+            "discord_id": u["discord_id"],
+            "username": u["username"],
+            "total_points": total_points,
+            "perfect_days": perfect_days,
+            "recorded_days": recorded_days,
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+        })
+
+    weekly_stats.sort(key=lambda x: (x["total_points"], x["perfect_days"]), reverse=True)
+    return weekly_stats
+
+
 def get_monthly_leaderboard(year: int, month: int, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     """Computes monthly standings for all enrolled users."""
     month_prefix = f"{year:04d}-{month:02d}%"
