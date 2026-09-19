@@ -514,7 +514,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             color=0x3498DB
         )
         embed.add_field(
-            name="🤖 `/quick [text]` — AI Workout Parser (Groq LLaMA 3.3)",
+            name="🤖 `/quick [text]` — AI Workout Parser (Ultra-Fast Groq)",
             value=(
                 "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
                 "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
@@ -549,6 +549,15 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             ),
             inline=False
         )
+        embed.add_field(
+            name="🐺 Amarok's Reactive Observations",
+            value=(
+                "When you log workouts or check progress (`/today`, `/tasks`, `/log`, `/quick`, `/streak`, `/profile`), "
+                "Amarok occasionally whispers a terse, razor-sharp stoic observation from the shadows. "
+                "These run asynchronously in the background so commands never experience any lag."
+            ),
+            inline=False
+        )
         embed.set_footer(text="Use the menu below to navigate categories • Day resets at 00:00 IST")
         return embed
 
@@ -561,16 +570,16 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🎯 Daily Accountability",
             value=(
-                "• `/today [member]` — View today's clean progress bars, points, and current streak.\n"
-                "• `/tasks [member]` — Extended disciplines overview with progress bars and exercise descriptions.\n"
-                "• `/streak [member]` — Quick check of active streak days and Frost Shield protection status."
+                "• `/today [member]` — Clean daily progress card with individual emoji progress bars, points, and completion rate.\n"
+                "• `/tasks [member]` — Extended disciplines overview with individual emoji progress bars, targets, and exercise descriptions.\n"
+                "• `/streak [member]` — Quick check of active streak days, clean days (100%), and Frost Shield protection status."
             ),
             inline=False
         )
         embed.add_field(
             name="🐺 12-Tier Rank Hierarchy",
             value=(
-                "• `/profile [member]` — Complete warrior dossier with current rank badge, tier progress bar, points remaining until next rank, and join date.\n"
+                "• `/profile [member]` — Complete warrior dossier with All-Time Rank (#X of Y), Pack Level, Next Level progression, and separate Daily Progress.\n"
                 "• `/ranks` — Inspect all 12 pack ranks from **Lone Stray (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
             ),
             inline=False
@@ -578,7 +587,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🏆 Standings & History",
             value=(
-                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly**, and **🌐 All-Time** rankings.\n"
+                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly**, and **🌐 All-Time** rankings (top 10).\n"
                 "• `/stats [member]` — Lifetime repetitions per discipline, total kilometers logged, and milestone records.\n"
                 "• `/history [days]` — View point breakdown over the past 7, 14, or 30 days."
             ),
@@ -675,7 +684,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="🖥️ System Diagnostics & Testing",
             value=(
                 "• `/admin health` — Live RSS RAM monitor, SQLite file sizes, uptime, and one-click **🧹 Collect GC & Free RAM** button.\n"
-                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, or Sunday broadcasts on demand."
+                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, Sunday, DM briefings, or reactive Groq observations (`groq_nudge`)."
             ),
             inline=False
         )

@@ -109,14 +109,21 @@ class WinterArcBot(commands.Bot):
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
         logger.info("=" * 60)
 
-        # Sync slash commands once connected to Discord Gateway if not synced yet
-        if not self._synced:
+        # Sync slash commands to all connected guilds for INSTANT Discord client appearance
+        for g in self.guilds:
             try:
-                synced = await self.tree.sync()
-                self._synced = True
-                logger.info(f"Slash command tree synchronized ({len(synced)} commands registered).")
+                self.tree.copy_global_to(guild=g)
+                synced_guild = await self.tree.sync(guild=g)
+                logger.info(f"Slash command tree synchronized instantly to '{g.name}' ({len(synced_guild)} commands registered).")
             except Exception as e:
-                logger.error(f"Failed to sync slash commands in on_ready: {e}")
+                logger.warning(f"Could not sync commands to guild {g.name}: {e}")
+
+        # Also sync globally
+        try:
+            synced_global = await self.tree.sync()
+            logger.info(f"Global slash command tree synchronized ({len(synced_global)} commands registered).")
+        except Exception as e:
+            logger.warning(f"Could not sync global commands: {e}")
 
         await self.change_presence(
             activity=discord.Activity(
