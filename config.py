@@ -31,6 +31,11 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+class VoiceWarningFilter(logging.Filter):
+    """Filters out irrelevant voice-related warnings since Winter Arc does not use voice channels."""
+    def filter(self, record):
+        return "voice will NOT be supported" not in record.getMessage()
+
 # Setup logger
 def setup_logging():
     logging.basicConfig(
@@ -40,6 +45,8 @@ def setup_logging():
     )
     # Suppress prefix command intent warning since bot exclusively uses slash commands
     logging.getLogger("discord.ext.commands.bot").setLevel(logging.ERROR)
+    # Filter voice warnings
+    logging.getLogger("discord.client").addFilter(VoiceWarningFilter())
     return logging.getLogger("winter_arc")
 
 logger = setup_logging()

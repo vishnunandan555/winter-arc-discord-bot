@@ -193,6 +193,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     @app_commands.choices(reminder_type=[
         app_commands.Choice(name="Morning Kickoff (05:00 Channel)", value="morning"),
         app_commands.Choice(name="Afternoon Group Check-in (16:30 Channel)", value="afternoon"),
+        app_commands.Choice(name="Evening Streak Alert (21:00 Channel)", value="evening"),
         app_commands.Choice(name="Sunday State of the Pack (20:00 Channel)", value="sunday"),
         app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
         app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),
@@ -220,6 +221,9 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "afternoon":
             await scheduler.broadcast_afternoon_checkin(target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Afternoon Check-in preview to {channel.mention}.", ephemeral=True)
+        elif reminder_type == "evening":
+            await scheduler.broadcast_evening_checkin(target_channel=channel, role_ping=role_ping)
+            await interaction.followup.send(f"✅ Dispatched Evening Streak Alert preview to {channel.mention}.", ephemeral=True)
         elif reminder_type == "sunday":
             await scheduler.broadcast_sunday_state_of_the_pack(target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Sunday State of the Pack preview to {channel.mention}.", ephemeral=True)

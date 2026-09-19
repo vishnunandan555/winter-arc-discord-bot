@@ -705,6 +705,46 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         option_values = [opt.value for opt in options]
         self.assertEqual(option_values, ["overview", "logging", "progress", "shields", "settings", "admin"])
 
+    def test_27_today_embed_per_task_bars(self):
+        from ui.embeds import build_today_embed
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.display_name = "WarriorX"
+        progress = {
+            "total_points": 75,
+            "max_possible_points": 500,
+            "overall_completion_rate": 0.15,
+            "perfect_day": False,
+            "tasks": [
+                {"name": "Push-ups", "current_amount": 50, "target": 100, "unit": "reps", "points_earned": 50, "completed": False},
+                {"name": "Pull-ups", "current_amount": 25, "target": 100, "unit": "reps", "points_earned": 25, "completed": False},
+            ],
+            "grind_points": 0,
+        }
+
+        embed = build_today_embed(mock_user, progress, streak=4, date_display="Saturday, Sep 19")
+        self.assertIn("WarriorX", embed.description)
+        self.assertIn("🔥 Current Streak: **4 days**", embed.description)
+        self.assertIn("🟩🟩🟩🟩⬜⬜⬜⬜ `50%`", embed.description)
+        self.assertIn("🟩🟩⬜⬜⬜⬜⬜⬜ `25%`", embed.description)
+        self.assertIn("📊 **Total Daily Progress**: **75 / 500 pts** (**15%**)", embed.description)
+
+    def test_28_evening_checkin_broadcast_embed(self):
+        from ui.embeds import build_evening_checkin_embed
+
+        enrolled = [
+            {"discord_id": 101, "username": "AlphaWolf"},
+            {"discord_id": 102, "username": "BetaPup"},
+        ]
+        today_str = "2026-09-19"
+        embed = build_evening_checkin_embed(enrolled, today_str)
+
+        self.assertIn("Evening Streak Alert", embed.title)
+        self.assertIn("3 Hours Remaining", embed.description)
+        self.assertIn("AlphaWolf", embed.description)
+        self.assertIn("BetaPup", embed.description)
+
 
 if __name__ == "__main__":
     unittest.main()

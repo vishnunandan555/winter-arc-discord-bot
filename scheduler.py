@@ -20,6 +20,7 @@ from config import BOT_TZ, DEFAULT_ROLE_ID
 from ui.embeds import (
     build_morning_kickoff_embed,
     build_afternoon_checkin_embed,
+    build_evening_checkin_embed,
     build_podium_embed,
     build_dm_morning_embed,
     build_dm_evening_embed,
@@ -87,11 +88,12 @@ class WinterArcScheduler:
             logger.info(f"Triggering Afternoon Check-in for {today_str}...")
             await self.broadcast_afternoon_checkin()
 
-        # 3. 21:00 - 21:05 IST - Evening Streak Warning DMs (3h before midnight)
+        # 3. 21:00 - 21:05 IST - Evening Streak Warning Channel Broadcast & Personal DMs (3h before midnight)
         if now.hour == 21 and now.minute < 5 and self._last_evening_date != today_str:
             self._last_evening_date = today_str
             db.set_bot_state("last_evening_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Evening Streak Warning DMs for {today_str}...")
+            logger.info(f"Triggering Evening Streak Warning for {today_str}...")
+            await self.broadcast_evening_checkin()
             await self.dispatch_evening_dms()
 
         # 3.5 Sunday 20:00 - 20:05 IST - Weekly State of the Pack
@@ -239,6 +241,26 @@ class WinterArcScheduler:
                     await channel.send(content=f"{ping}⏰ **Afternoon Check-in**", embed=embed)
                 except Exception as e:
                     logger.warning(f"Could not send afternoon check-in to {channel.name} in {guild.name}: {e}")
+
+    async def broadcast_evening_checkin(self, target_channel: discord.TextChannel = None, role_ping: str = ""):
+        """Sends evening streak alert showing completed & pending warriors to dedicated channel."""
+        now = get_now_ist()
+        today_str = now.strftime("%Y-%m-%d")
+        enrolled_users = db.get_enrolled_users(db_path=self.db_path)
+
+        embed = build_evening_checkin_embed(enrolled_users, today_str)
+
+        if target_channel:
+            await target_channel.send(content=f"{role_ping}🌙 **Evening Streak Alert — Final Call (3h Left)**", embed=embed)
+            return
+
+        for guild in self.bot.guilds:
+            channel, ping = self._get_target_channel_and_ping(guild)
+            if channel:
+                try:
+                    await channel.send(content=f"{ping}🌙 **Evening Streak Alert — Final Call (3h Left)**", embed=embed)
+                except Exception as e:
+                    logger.warning(f"Could not send evening streak alert to {channel.name} in {guild.name}: {e}")
 
     async def broadcast_midnight_finalization(self, target_channel: discord.TextChannel = None, role_ping: str = "") -> discord.Embed:
         """Finalizes day's results, stores daily_summaries, and publishes podium with AI Toast & Roast."""

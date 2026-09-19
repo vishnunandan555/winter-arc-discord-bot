@@ -130,17 +130,23 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
 
 
 def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], streak: int, date_display: str) -> discord.Embed:
-    """Builds the spacious daily progress card with physical disciplines and grind bonus."""
+    """Builds the daily progress card with individual emoji progress bars per task and total percentage at the end."""
     task_lines = []
     for t in progress["tasks"]:
-        icon = TASK_ICONS.get(t["name"].lower(), "🎯")
-        cur = int(t["current_amount"]) if t["current_amount"].is_integer() else t["current_amount"]
-        tgt = int(t["target"]) if t["target"].is_integer() else t["target"]
+        name = t["name"]
+        unit = t["unit"]
+        pts = t["points_earned"]
+        icon = TASK_ICONS.get(name.lower(), "🎯")
+        cur = int(t["current_amount"]) if float(t["current_amount"]).is_integer() else t["current_amount"]
+        tgt = int(t["target"]) if float(t["target"]).is_integer() else t["target"]
         check = " ✅" if t["completed"] else ""
-        task_lines.append(f"{icon}  **{t['name']}** — {cur} / {tgt} {t['unit']} *({t['points_earned']} pts)*{check}")
+        bar = make_progress_bar(cur, tgt, length=8)
+        pct = int(round((cur / tgt) * 100)) if tgt > 0 else 0
+        task_lines.append(f"{icon} **{name}** — {cur} / {tgt} {unit} *({pts} pts)*{check}\n{bar} `{pct}%`")
 
-    pct = int(progress["overall_completion_rate"] * 100)
-    bar = make_progress_bar(progress["total_points"], progress["max_possible_points"], length=10)
+    total_pts = progress["total_points"]
+    max_pts = progress["max_possible_points"]
+    pct = int(round(progress["overall_completion_rate"] * 100))
 
     grind_pts = progress.get("grind_points", 0)
     grind_section = ""
@@ -149,16 +155,18 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
         entry = progress.get("grind_entry") or {}
         learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
         grind_section = f"\n\n**🧠 Mental / Academic Friction**\n• **Grind Bonus**: +{grind_pts} pts *({learning})*"
-        phys_pts = progress.get("physical_points", progress["total_points"] - grind_pts)
+        phys_pts = progress.get("physical_points", total_pts - grind_pts)
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
+    total_line = f"\n\n📊 **Total Daily Progress**: **{total_pts} / {max_pts} pts** (**{pct}%**){points_breakdown}"
+
     desc = (
-        f"**{target_user.display_name}** • {date_display}\n\n"
-        f"`{bar}`  **{progress['total_points']} / {progress['max_possible_points']} pts** ({pct}%){points_breakdown}\n"
+        f"**{target_user.display_name}** • {date_display}\n"
         f"🔥 Current Streak: **{streak} days**\n\n"
         "**Daily Disciplines**\n"
-        + "\n".join(task_lines)
+        + "\n\n".join(task_lines)
         + grind_section
+        + total_line
     )
 
     embed = discord.Embed(
@@ -708,6 +716,48 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
         color=0xE67E22
     )
     embed.set_footer(text="Log sets with /log • Finalizes at 00:00 IST")
+    return embed
+
+
+def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str) -> discord.Embed:
+    """Builds the 21:00 IST evening streak alert channel broadcast embed (3 hours before midnight)."""
+    completed_lines = []
+    pending_lines = []
+
+    for u in enrolled_users:
+        prog = db.get_user_daily_progress(u["discord_id"], today_str)
+        pct = int(round(prog["overall_completion_rate"] * 100))
+        pts = prog["total_points"]
+        max_pts = prog["max_possible_points"]
+        streak = db.calculate_streak(u["discord_id"], today_str)
+
+        if prog["perfect_day"]:
+            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (100% ✅ • 🔥 {streak}d)")
+        else:
+            completed_tasks = sum(1 for t in prog["tasks"] if t["completed"])
+            total_tasks = len(prog["tasks"])
+            pending_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** ({pct}% • {completed_tasks}/{total_tasks} disciplines)")
+
+    desc = (
+        "⏳ **3 Hours Remaining Until Midnight Rollover!**\n"
+        "Scores lock in at 00:00 IST. Defend your streak and push through your remaining reps.\n\n"
+    )
+
+    if completed_lines:
+        desc += "**🔥 Streak Secured (100% Complete)**\n" + "\n".join(completed_lines) + "\n\n"
+
+    if pending_lines:
+        desc += "**⚠️ Reps Remaining Before Midnight**\n" + "\n".join(pending_lines) + "\n\n"
+
+    if not completed_lines and not pending_lines:
+        desc += "_No enrolled warriors yet. Use `/enroll` to join!_\n\n"
+
+    embed = discord.Embed(
+        title="🌙 Winter Arc — Evening Streak Alert",
+        description=desc.strip(),
+        color=0xE67E22
+    )
+    embed.set_footer(text="Log sets with /log • Protect streak with /shield • Rollover at 00:00 IST")
     return embed
 
 
