@@ -180,6 +180,62 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     return embed
 
 
+def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], streak: int, date_display: str) -> discord.Embed:
+    """Builds the comprehensive daily disciplines embed explaining each task alongside progress bars."""
+    task_blocks = []
+    for t in progress["tasks"]:
+        name = t["name"]
+        unit = t["unit"]
+        pts = t["points_earned"]
+        max_pts = t.get("max_points", 100)
+        desc = t.get("description") or "Discipline workout target"
+        icon = TASK_ICONS.get(name.lower(), "🎯")
+        cur = int(t["current_amount"]) if float(t["current_amount"]).is_integer() else t["current_amount"]
+        tgt = int(t["target"]) if float(t["target"]).is_integer() else t["target"]
+        check = " ✅" if t["completed"] else ""
+        bar = make_progress_bar(cur, tgt, length=8)
+        pct = int(round((cur / tgt) * 100)) if tgt > 0 else 0
+        task_blocks.append(
+            f"{icon} **{name}** — **{cur} / {tgt} {unit}** *({pts}/{max_pts} pts)*{check}\n"
+            f"{bar} `{pct}%`\n"
+            f"> ℹ️ *{desc}*"
+        )
+
+    total_pts = progress["total_points"]
+    max_pts = progress["max_possible_points"]
+    pct = int(round(progress["overall_completion_rate"] * 100))
+
+    grind_pts = progress.get("grind_points", 0)
+    grind_section = ""
+    points_breakdown = ""
+    if grind_pts > 0 or progress.get("grind_entry"):
+        entry = progress.get("grind_entry") or {}
+        learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
+        grind_section = f"\n\n**🧠 Mental / Academic Friction**\n• **Grind Bonus**: +{grind_pts} pts *({learning})*"
+        phys_pts = progress.get("physical_points", total_pts - grind_pts)
+        points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
+
+    total_line = f"\n\n📊 **Total Daily Progress**: **{total_pts} / {max_pts} pts** (**{pct}%**){points_breakdown}"
+    streak_status = " *(Streak Secured ✅)*" if (total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]) else f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
+
+    description = (
+        f"**{target_user.display_name}** • {date_display}\n"
+        f"🔥 Current Streak: **{streak} days**{streak_status}\n\n"
+        "**Daily Disciplines & Task Guide**\n\n"
+        + "\n\n".join(task_blocks)
+        + grind_section
+        + total_line
+    )
+
+    embed = discord.Embed(
+        title="📋 Winter Arc — Disciplines & Tasks",
+        description=description,
+        color=0x1ABC9C if progress["perfect_day"] else (0x2ECC71 if total_pts >= MIN_STREAK_POINTS else 0x3498DB)
+    )
+    embed.set_footer(text=f"Log with /log • Set with /set • {MIN_STREAK_POINTS} pts/day minimum for streak")
+    return embed
+
+
 def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> discord.Embed:
     """Builds the confirmation embed after logging sets, including level up promotion banners."""
     cur = int(result["new_total"]) if result["new_total"].is_integer() else result["new_total"]
@@ -505,7 +561,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🎯 Daily Accountability",
             value=(
-                "• `/today [member]` — View today's completed reps, points, remaining quotas, and current streak.\n"
+                "• `/today [member]` — View today's clean progress bars, points, and current streak.\n"
+                "• `/tasks [member]` — Extended disciplines overview with progress bars and exercise descriptions.\n"
                 "• `/streak [member]` — Quick check of active streak days and Frost Shield protection status."
             ),
             inline=False
@@ -663,7 +720,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚡ Command Directory Cheat Sheet",
             value=(
                 "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
-                "• **Progress**: `/today` • `/streak` • `/profile` • `/stats` • `/history`\n"
+                "• **Progress**: `/today` • `/tasks` • `/streak` • `/profile` • `/stats` • `/history`\n"
                 "• **Standings**: `/leaderboard` • `/ranks`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
                 "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"

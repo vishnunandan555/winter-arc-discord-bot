@@ -30,6 +30,7 @@ from helpers import (
 from levels import check_level_up
 from ui.embeds import (
     build_today_embed,
+    build_tasks_embed,
     build_log_embed,
     build_set_embed,
     build_stats_embed,
@@ -179,6 +180,34 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         streak = db.calculate_streak(target_user.id, today_str)
 
         embed = build_today_embed(target_user, progress, streak, date_display)
+        await interaction.response.send_message(embed=embed)
+
+        if progress["perfect_day"]:
+            await safe_react(interaction, "⭐", "🔥")
+        else:
+            await safe_react(interaction, "🐺", "❄️")
+
+    @app_commands.command(name="tasks", description="View all daily disciplines with progress bars, targets, and exercise descriptions.")
+    @app_commands.describe(member="Optional: View another member's tasks & disciplines")
+    async def tasks_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target_user = member or interaction.user
+
+        if target_user.id == interaction.user.id:
+            if not await require_enrolled(interaction):
+                return
+        else:
+            if not db.is_user_enrolled(target_user.id):
+                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                return
+
+        now = datetime.now(BOT_TZ)
+        today_str = now.strftime("%Y-%m-%d")
+        date_display = now.strftime("%A, %B %d, %Y")
+
+        progress = db.get_user_daily_progress(target_user.id, today_str)
+        streak = db.calculate_streak(target_user.id, today_str)
+
+        embed = build_tasks_embed(target_user, progress, streak, date_display)
         await interaction.response.send_message(embed=embed)
 
         if progress["perfect_day"]:
@@ -378,13 +407,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         next_milestone = ((streak // 7) + 1) * 7
         days_to_milestone = next_milestone - streak
 
+        shields_count = shield_status.get("frost_shields", shield_status.get("inventory", 0))
+        is_shielded = shield_status.get("is_today_shielded", shield_status.get("is_shielded_today", False))
+
         desc = (
             f"**{target_user.display_name}** • Streak Status\n\n"
             f"🔥 **Current Streak**: **{streak} days**\n"
             f"⭐ **Clean Days (100%)**: **{stats.get('perfect_days', 0)}**\n"
-            f"🛡️ **Frost Shields**: **{shield_status['inventory']}/2 available**\n"
+            f"🛡️ **Frost Shields**: **{shields_count}/2 available**\n"
             f"⏳ **Next Shield Milestone**: **{days_to_milestone} day(s)** (at Day {next_milestone})\n\n"
-            + ("🛡️ *Protected by Frost Shield today!*" if shield_status["is_shielded_today"] else "⚡ *Maintain daily discipline to defend the flame.*")
+            + ("🛡️ *Protected by Frost Shield today!*" if is_shielded else "⚡ *Maintain daily discipline to defend the flame.*")
         )
         embed = discord.Embed(
             title="🔥 Winter Arc — Streak Status",

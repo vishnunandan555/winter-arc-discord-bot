@@ -783,6 +783,45 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         shield_status = db.get_user_shield_status(user_id, TEST_DB)
         self.assertEqual(shield_status["frost_shields"], 1)
 
+    def test_30_tasks_embed_and_command(self):
+        from ui.embeds import build_tasks_embed
+        from cogs.warrior import WarriorCog
+        from unittest.mock import MagicMock
+
+        mock_user = MagicMock()
+        mock_user.display_name = "Fenrir"
+        progress = {
+            "total_points": 50,
+            "max_possible_points": 500,
+            "overall_completion_rate": 0.10,
+            "perfect_day": False,
+            "tasks": [
+                {
+                    "name": "Push-ups",
+                    "description": "Works chest, shoulders, and triceps",
+                    "current_amount": 50,
+                    "target": 100,
+                    "unit": "reps",
+                    "points_earned": 50,
+                    "max_points": 100,
+                    "completed": False,
+                }
+            ],
+            "grind_points": 0,
+        }
+
+        embed = build_tasks_embed(mock_user, progress, streak=2, date_display="Saturday, Sep 19")
+        self.assertIn("Fenrir", embed.description)
+        self.assertIn("Disciplines & Task Guide", embed.description)
+        self.assertIn("Works chest, shoulders, and triceps", embed.description)
+        self.assertIn("🟩🟩🟩🟩⬜⬜⬜⬜ `50%`", embed.description)
+        self.assertIn("50 / 100 reps", embed.description)
+
+        # Verify command registration in WarriorCog
+        commands = [cmd.name for cmd in WarriorCog.get_app_commands(WarriorCog(MagicMock()))]
+        self.assertIn("tasks", commands)
+        self.assertIn("today", commands)
+
 
 if __name__ == "__main__":
     unittest.main()
