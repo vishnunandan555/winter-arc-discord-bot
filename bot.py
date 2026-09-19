@@ -61,7 +61,36 @@ class WinterArcBot(commands.Bot):
         # 3. Initialize background scheduler
         self.scheduler = WinterArcScheduler(self)
 
-        # 4. Global slash command tree synchronization if application_id is available
+        # 4. Global slash command tree error handler
+        async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+            if isinstance(error, discord.app_commands.CommandOnCooldown):
+                msg = f"⏳ **Patience, Warrior.** You are on cooldown. Try again in `{error.retry_after:.1f}s`."
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+                return
+            elif isinstance(error, discord.app_commands.MissingPermissions):
+                msg = "🛡️ **Access Denied.** You lack the required permissions to execute this command."
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+                return
+            cmd_name = interaction.command.name if interaction.command else "unknown"
+            logger.error(f"Slash command '{cmd_name}' failed: {error}", exc_info=error)
+            msg = "❌ An unexpected error occurred while executing this command."
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+            except Exception:
+                pass
+
+        self.tree.on_error = on_tree_error
+
+        # 5. Global slash command tree synchronization if application_id is available
         if self.application_id:
             try:
                 synced = await self.tree.sync()
