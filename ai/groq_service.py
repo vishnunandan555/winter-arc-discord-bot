@@ -9,7 +9,7 @@ import json
 import re
 import logging
 from typing import Dict, Any, List, Optional
-from config import GROQ_API_KEY
+from config import GROQ_API_KEY, GROQ_MODEL
 
 logger = logging.getLogger("winter_arc.ai.groq")
 
@@ -116,7 +116,7 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": raw_text},
             ],
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             response_format={"type": "json_object"},
             temperature=0.1,
             max_tokens=300,

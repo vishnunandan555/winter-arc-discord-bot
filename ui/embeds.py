@@ -1065,10 +1065,11 @@ def build_quicklog_embed(
     daily_max = log_results[-1]["daily_points_max"] if log_results else 500
 
     for r in log_results:
-        cur = int(r["new_total"]) if r["new_total"].is_integer() else r["new_total"]
-        tgt = int(r["target"]) if r["target"].is_integer() else r["target"]
-        amt = int(r["amount_logged"]) if r["amount_logged"].is_integer() else r["amount_logged"]
-        bar = make_progress_bar(r["new_total"], r["target"], length=8)
+        raw_tgt = r.get("target") or r.get("task_target") or 100.0
+        cur = int(r["new_total"]) if float(r["new_total"]).is_integer() else r["new_total"]
+        tgt = int(raw_tgt) if float(raw_tgt).is_integer() else raw_tgt
+        amt = int(r["amount_logged"]) if float(r["amount_logged"]).is_integer() else r["amount_logged"]
+        bar = make_progress_bar(r["new_total"], tgt, length=8)
         delta_tag = f"+{r['points_earned_delta']} pts" if r['points_earned_delta'] > 0 else "Capped"
         lines.append(f"• **{r['task_name']}**: `+{amt} {r['unit']}` ➔ `{cur} / {tgt} {r['unit']}` ({delta_tag})\n  `{bar}`")
 

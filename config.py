@@ -29,10 +29,13 @@ DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
 
 # AI Configuration
+# Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+
+# Groq API: Ultra-fast inference for rapid NLP workout parsing (/quick & #quick-log)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 class VoiceWarningFilter(logging.Filter):
     """Filters out irrelevant voice-related warnings since Winter Arc does not use voice channels."""
