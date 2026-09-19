@@ -58,12 +58,20 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        cmd = interaction.command.name if interaction.command else "unknown"
+        logger.error(
+            f"Error in warrior command '/{cmd}' for {interaction.user} (ID: {interaction.user.id}): {error}",
+            exc_info=error
+        )
+
     # ==========================================
     # Enrollment Commands
     # ==========================================
 
     @app_commands.command(name="enroll", description="Enroll in the Winter Arc challenge.")
     async def enroll(self, interaction: discord.Interaction):
+        logger.info(f"Slash command '/enroll' invoked by {interaction.user} (ID: {interaction.user.id})")
         is_already = db.is_user_enrolled(interaction.user.id)
         db.enroll_user(interaction.user.id, interaction.user.name)
 
@@ -164,6 +172,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.describe(member="Optional: View another member's progress")
     async def today(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target_user = member or interaction.user
+        logger.info(f"Slash command '/today' invoked by {interaction.user} (target: {target_user.display_name})")
 
         if target_user.id == interaction.user.id:
             if not await require_enrolled(interaction):
@@ -257,6 +266,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     )
     @app_commands.autocomplete(task=task_autocomplete, amount=log_amount_autocomplete)
     async def log_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
+        logger.info(f"Slash command '/log' invoked by {interaction.user}: {task} +{amount}")
         if not await require_enrolled(interaction):
             return
 
@@ -267,6 +277,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         max_allowed = MAX_SINGLE_SET_LIMITS.get(task_key, 50.0)
         if amount > max_allowed:
             unit_display = "km" if "run" in task_key else "reps"
+            logger.warning(f"/log rejected for {interaction.user}: {amount} {unit_display} for {task} exceeds limit {max_allowed}")
             await interaction.response.send_message(
                 f"❌ **Unrealistic Volume Rejected**: `{int(amount) if amount.is_integer() else amount} {unit_display}` in a single go exceeds the realistic single-set limit (max `{int(max_allowed)} {unit_display}`). "
                 f"Log your completed sets individually as you finish them.",
@@ -286,11 +297,13 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 log_date=today_str
             )
         except ValueError as e:
+            logger.warning(f"/log validation error for {interaction.user} on {task}: {e}")
             await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
             return
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
         level_up_info = check_level_up(old_points, new_points)
+        logger.info(f"/log successful for {interaction.user}: {task} +{amount} (+{result['points_added']} pts, daily total: {result['new_points']} pts)")
 
         embed = build_log_embed(result, amount, level_up_info=level_up_info)
         await interaction.response.send_message(embed=embed)
@@ -317,6 +330,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     )
     @app_commands.autocomplete(task=task_autocomplete, amount=set_amount_autocomplete)
     async def set_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
+        logger.info(f"Slash command '/set' invoked by {interaction.user}: {task} set to {amount}")
         if not await require_enrolled(interaction):
             return
 
@@ -339,11 +353,13 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 log_date=today_str
             )
         except ValueError as e:
+            logger.warning(f"/set validation error for {interaction.user} on {task}: {e}")
             await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
             return
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
         level_up_info = check_level_up(old_points, new_points)
+        logger.info(f"/set successful for {interaction.user}: {task} set to {amount} (points: {result['old_points']} -> {result['new_points']})")
 
         embed = build_set_embed(result, amount, level_up_info=level_up_info)
         await interaction.response.send_message(embed=embed)
@@ -571,6 +587,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="grind", description="Submit daily academic/engineering friction for Amarok's evaluation.")
     @app_commands.describe(text="Your daily intellectual friction (academics, LeetCode, deep work, math, systems)")
     async def grind_cmd(self, interaction: discord.Interaction, text: str):
+        logger.info(f"Slash command '/grind' invoked by {interaction.user}: '{text[:60]}...'")
         if not await require_enrolled(interaction):
             return
 
@@ -597,6 +614,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         # Evaluate via Gemini
         evaluation = await gemini_service.evaluate_grind(text)
+        logger.info(f"/grind evaluated for {interaction.user}: {evaluation.get('verdict')} (+{evaluation.get('points')} pts, tag: {evaluation.get('key_learning')})")
 
         # Record in database
         try:
@@ -625,6 +643,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="quick", description="Natural language workout logging (e.g. 'did 45 pushups and ran 5k').")
     @app_commands.describe(text="Natural language workout text (e.g. '40 pushups, 12 pullups, ran 5k')")
     async def quick_cmd(self, interaction: discord.Interaction, text: str):
+        logger.info(f"Slash command '/quick' invoked by {interaction.user}: '{text}'")
         if not await require_enrolled(interaction):
             return
 
@@ -638,6 +657,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         parsed = await groq_service.parse_quicklog(text, active_tasks)
 
         if parsed.get("suspicious"):
+            logger.warning(f"/quick rejected for {interaction.user} as suspicious single-set volume: '{text}'")
             await interaction.followup.send(
                 "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
                 "Log your completed sets individually as you finish them (e.g. '30 pushups, 30 pushups, 30 pushups').",
@@ -647,6 +667,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         matches = parsed.get("matches", [])
         if not matches:
+            logger.info(f"/quick could not detect active disciplines from '{text}' for {interaction.user}")
             task_names = ", ".join(t["name"] for t in active_tasks)
             await interaction.followup.send(
                 f"❌ Could not detect any active disciplines. Active tasks: **{task_names}**.",
@@ -676,6 +697,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
         level_up_info = check_level_up(old_points, new_points)
+        logger.info(f"/quick successfully logged {len(log_results)} disciplines for {interaction.user}")
 
         embed = build_quicklog_embed(
             user=interaction.user,

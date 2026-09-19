@@ -36,6 +36,13 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        cmd = interaction.command.name if interaction.command else "unknown"
+        logger.error(
+            f"Error in admin command '/admin {cmd}' invoked by {interaction.user} (ID: {interaction.user.id}): {error}",
+            exc_info=error
+        )
+
     admin_group = app_commands.Group(
         name="admin",
         description="Winter Arc server administration (Requires Administrator).",

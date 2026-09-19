@@ -246,7 +246,7 @@ async def generate_reactive_nudge(
             return txt
         return random.choice(REACTIVE_STOIC_FALLBACKS)
     except Exception as e:
-        logger.debug(f"Groq reactive nudge failed: {e}. Using curated fallback.")
+        logger.warning(f"Groq reactive nudge generation failed: {e}. Using curated fallback.", exc_info=True)
         return random.choice(REACTIVE_STOIC_FALLBACKS)
 
 
@@ -257,14 +257,23 @@ NUDGE_COOLDOWN_SECONDS: float = 3600.0  # 1 hour per user
 def should_trigger_nudge(user_id: int, force: bool = False, roll_chance: float = 0.35) -> bool:
     """Evaluates whether a reactive nudge should trigger based on cooldown and random probability."""
     if force:
+        logger.info(f"Nudge check for user {user_id}: triggered (force=True).")
         return True
     import time
     import random
     now = time.time()
     last_time = _last_nudge_timestamps.get(user_id, 0.0)
-    if now - last_time < NUDGE_COOLDOWN_SECONDS:
+    elapsed = now - last_time
+    if elapsed < NUDGE_COOLDOWN_SECONDS:
+        rem_min = int((NUDGE_COOLDOWN_SECONDS - elapsed) // 60)
+        logger.info(f"Nudge check for user {user_id}: skipped (on cooldown for {rem_min}m).")
         return False
-    return random.random() <= roll_chance
+    roll = random.random()
+    if roll <= roll_chance:
+        logger.info(f"Nudge check for user {user_id}: triggered (roll {roll:.2f} <= {roll_chance:.2f}).")
+        return True
+    logger.info(f"Nudge check for user {user_id}: skipped (roll {roll:.2f} > {roll_chance:.2f}).")
+    return False
 
 
 def record_nudge_triggered(user_id: int):

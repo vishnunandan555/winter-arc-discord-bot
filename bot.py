@@ -64,30 +64,46 @@ class WinterArcBot(commands.Bot):
 
         # 4. Global slash command tree error handler
         async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+            cmd_name = interaction.command.name if interaction.command else "unknown"
+            user_info = f"{interaction.user} (ID: {interaction.user.id})"
+            guild_name = getattr(interaction.guild, "name", "DM")
+            channel_name = getattr(interaction.channel, "name", "unknown")
+
             if isinstance(error, discord.app_commands.CommandOnCooldown):
+                logger.info(f"Command '/{cmd_name}' by {user_info} rejected: on cooldown ({error.retry_after:.1f}s remaining).")
                 msg = f"⏳ **Patience, Warrior.** You are on cooldown. Try again in `{error.retry_after:.1f}s`."
-                if interaction.response.is_done():
-                    await interaction.followup.send(msg, ephemeral=True)
-                else:
-                    await interaction.response.send_message(msg, ephemeral=True)
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(msg, ephemeral=True)
+                except Exception as send_err:
+                    logger.warning(f"Could not send cooldown message to {user_info}: {send_err}")
                 return
             elif isinstance(error, discord.app_commands.MissingPermissions):
+                logger.warning(f"Command '/{cmd_name}' by {user_info} rejected: missing permissions in '{guild_name}'.")
                 msg = "🛡️ **Access Denied.** You lack the required permissions to execute this command."
-                if interaction.response.is_done():
-                    await interaction.followup.send(msg, ephemeral=True)
-                else:
-                    await interaction.response.send_message(msg, ephemeral=True)
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(msg, ephemeral=True)
+                except Exception as send_err:
+                    logger.warning(f"Could not send missing permissions message to {user_info}: {send_err}")
                 return
-            cmd_name = interaction.command.name if interaction.command else "unknown"
-            logger.error(f"Slash command '{cmd_name}' failed: {error}", exc_info=error)
+
+            logger.error(
+                f"Slash command '/{cmd_name}' failed for {user_info} in '{guild_name}' #{channel_name}: {error}",
+                exc_info=error
+            )
             msg = "❌ An unexpected error occurred while executing this command."
             try:
                 if interaction.response.is_done():
                     await interaction.followup.send(msg, ephemeral=True)
                 else:
                     await interaction.response.send_message(msg, ephemeral=True)
-            except Exception:
-                pass
+            except Exception as send_err:
+                logger.warning(f"Could not send error response for '/{cmd_name}' to {user_info}: {send_err}")
 
         self.tree.on_error = on_tree_error
 
@@ -208,9 +224,11 @@ class WinterArcBot(commands.Bot):
                 from levels import check_level_up
                 from ui.embeds import build_quicklog_embed
 
+                logger.info(f"Processing #{channel_name} message from {message.author}: '{text}'")
                 active_tasks = db.get_active_tasks()
                 parsed = await groq_service.parse_quicklog(text, active_tasks)
                 if parsed.get("suspicious"):
+                    logger.warning(f"#{channel_name} entry from {message.author} rejected as suspicious: '{text}'")
                     await message.reply(
                         "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
                         "Log your completed sets individually."
@@ -219,6 +237,7 @@ class WinterArcBot(commands.Bot):
 
                 matches = parsed.get("matches", [])
                 if matches:
+                    logger.info(f"#{channel_name} parsed {len(matches)} disciplines for {message.author}: {matches}")
                     today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
                     old_points = db.get_user_lifetime_points(message.author.id)
                     log_results = []
