@@ -125,7 +125,9 @@ Once you invite the bot into your server:
 | `/ranks` | View full 12-level pack hierarchy and point milestones. |
 | `/leaderboard` | Interactive leaderboard with **Daily** and **Overall** tabs. |
 | `/stats [member]` | View lifetime points, perfect days, active days, and all-time volume. |
-| `/history` | View points and completion rates over the past 7 days. |
+| `/shield status` | View Frost Shield inventory, protection status, and next unlock. |
+| `/shield use [reason]` | Activate a Frost Shield to protect your streak on a recovery day. |
+| `/settings [dms]` | Interactive private DM preferences (05:00 briefing & 21:00 streak alert). |
 | `/enroll` | Join the Winter Arc challenge and receive the server role. |
 | `/leave_arc` | Step away and unenroll from the challenge. |
 | `/help` | View command manual, daily schedule, and rules. |

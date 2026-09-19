@@ -20,6 +20,7 @@ logger = logging.getLogger("winter_arc.export_web")
 def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB_PATH) -> dict:
     """Exports active standings, disciplines, server stats, and levels to JSON."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    db.init_db(db_path)
 
     now = datetime.now(BOT_TZ)
     today_str = now.strftime("%Y-%m-%d")

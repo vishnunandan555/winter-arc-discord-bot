@@ -38,3 +38,72 @@ class LeaderboardView(discord.ui.View):
         self._update_buttons()
         embed = build_overall_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+class SettingsView(discord.ui.View):
+    """Interactive view for configuring personal DM notifications."""
+
+    def __init__(self, user_id: int, settings: dict):
+        super().__init__(timeout=180.0)
+        self.user_id = user_id
+        self.settings = settings
+        self._sync_buttons()
+
+    def _sync_buttons(self):
+        master = self.settings["dm_reminders"]
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "toggle_master":
+                    child.label = "🔔 Master DMs: Enabled" if master else "🔕 Master DMs: Disabled"
+                    child.style = discord.ButtonStyle.success if master else discord.ButtonStyle.secondary
+                elif child.custom_id == "toggle_morning":
+                    child.disabled = not master
+                    child.label = "🌅 Morning: On" if self.settings["dm_morning"] else "🌅 Morning: Off"
+                    child.style = discord.ButtonStyle.primary if self.settings["dm_morning"] and master else discord.ButtonStyle.secondary
+                elif child.custom_id == "toggle_evening":
+                    child.disabled = not master
+                    child.label = "🌙 Evening: On" if self.settings["dm_evening"] else "🌙 Evening: Off"
+                    child.style = discord.ButtonStyle.primary if self.settings["dm_evening"] and master else discord.ButtonStyle.secondary
+
+    async def _guard_user(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ These settings belong to another warrior. Run `/settings` to manage yours.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="🔔 Master DMs", style=discord.ButtonStyle.secondary, custom_id="toggle_master")
+    async def toggle_master_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_user(interaction):
+            return
+        import database as db
+        from ui.embeds import build_settings_embed
+        new_state = not self.settings["dm_reminders"]
+        self.settings = db.update_user_dm_settings(self.user_id, dm_reminders=new_state)
+        self._sync_buttons()
+        embed = build_settings_embed(interaction.user, self.settings)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="🌅 Morning: On", style=discord.ButtonStyle.secondary, custom_id="toggle_morning")
+    async def toggle_morning_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_user(interaction):
+            return
+        import database as db
+        from ui.embeds import build_settings_embed
+        new_state = not self.settings["dm_morning"]
+        self.settings = db.update_user_dm_settings(self.user_id, dm_morning=new_state)
+        self._sync_buttons()
+        embed = build_settings_embed(interaction.user, self.settings)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="🌙 Evening: On", style=discord.ButtonStyle.secondary, custom_id="toggle_evening")
+    async def toggle_evening_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_user(interaction):
+            return
+        import database as db
+        from ui.embeds import build_settings_embed
+        new_state = not self.settings["dm_evening"]
+        self.settings = db.update_user_dm_settings(self.user_id, dm_evening=new_state)
+        self._sync_buttons()
+        embed = build_settings_embed(interaction.user, self.settings)
+        await interaction.response.edit_message(embed=embed, view=self)
+

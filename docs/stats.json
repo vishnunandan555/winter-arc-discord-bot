@@ -1,11 +1,11 @@
 {
   "meta": {
-    "generated_at": "2026-09-18T20:30:25.466993+05:30",
-    "date_display": "Friday, September 18, 2026",
-    "today_str": "2026-09-18",
+    "generated_at": "2026-09-19T14:50:08.276831+05:30",
+    "date_display": "Saturday, September 19, 2026",
+    "today_str": "2026-09-19",
     "timezone": "Asia/Kolkata (IST)",
     "total_warriors": 4,
-    "total_collective_points": 140,
+    "total_collective_points": 0,
     "apex_threshold": 12000,
     "daily_point_cap": 500
   },
@@ -66,22 +66,6 @@
   "daily_standings": [
     {
       "rank": 1,
-      "username": "ssstrang3rrr",
-      "points": 72,
-      "max_points": 500,
-      "completion_rate": 14.4,
-      "perfect_day": false
-    },
-    {
-      "rank": 2,
-      "username": "flugel198",
-      "points": 68,
-      "max_points": 500,
-      "completion_rate": 13.6,
-      "perfect_day": false
-    },
-    {
-      "rank": 3,
       "username": "Test",
       "points": 0,
       "max_points": 500,
@@ -89,8 +73,24 @@
       "perfect_day": false
     },
     {
-      "rank": 4,
+      "rank": 2,
       "username": "SKL",
+      "points": 0,
+      "max_points": 500,
+      "completion_rate": 0.0,
+      "perfect_day": false
+    },
+    {
+      "rank": 3,
+      "username": "flugel198",
+      "points": 0,
+      "max_points": 500,
+      "completion_rate": 0.0,
+      "perfect_day": false
+    },
+    {
+      "rank": 4,
+      "username": "ssstrang3rrr",
       "points": 0,
       "max_points": 500,
       "completion_rate": 0.0,
@@ -100,38 +100,6 @@
   "overall_standings": [
     {
       "rank": 1,
-      "discord_id": "691485824805503056",
-      "username": "ssstrang3rrr",
-      "total_points": 72,
-      "streak": 0,
-      "perfect_days": 0,
-      "recorded_days": 1,
-      "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
-      "color": "0x7f8c8d",
-      "tier_pct": 14,
-      "pts_to_next": 428,
-      "arc_pct": 0.6
-    },
-    {
-      "rank": 2,
-      "discord_id": "716168018836848690",
-      "username": "flugel198",
-      "total_points": 68,
-      "streak": 0,
-      "perfect_days": 0,
-      "recorded_days": 1,
-      "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
-      "color": "0x7f8c8d",
-      "tier_pct": 13,
-      "pts_to_next": 432,
-      "arc_pct": 0.6
-    },
-    {
-      "rank": 3,
       "discord_id": "12345",
       "username": "Test",
       "total_points": 0,
@@ -147,9 +115,41 @@
       "arc_pct": 0.0
     },
     {
-      "rank": 4,
+      "rank": 2,
       "discord_id": "99999",
       "username": "SKL",
+      "total_points": 0,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 0,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 0,
+      "pts_to_next": 500,
+      "arc_pct": 0.0
+    },
+    {
+      "rank": 3,
+      "discord_id": "716168018836848690",
+      "username": "flugel198",
+      "total_points": 0,
+      "streak": 0,
+      "perfect_days": 0,
+      "recorded_days": 0,
+      "level": 1,
+      "title": "Lone Stray",
+      "badge": "\ud83d\udc3e",
+      "color": "0x7f8c8d",
+      "tier_pct": 0,
+      "pts_to_next": 500,
+      "arc_pct": 0.0
+    },
+    {
+      "rank": 4,
+      "discord_id": "691485824805503056",
+      "username": "ssstrang3rrr",
       "total_points": 0,
       "streak": 0,
       "perfect_days": 0,

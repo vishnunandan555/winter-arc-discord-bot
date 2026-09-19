@@ -123,6 +123,8 @@ def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Option
             f"\n\n🎉 **RANK PROMOTION!**\n"
             f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!\n"
         )
+    if result.get("shield_awarded"):
+        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
 
     desc = (
         f"**+{amt} {result['unit']}** logged to **{result['task_name']}**\n\n"
@@ -157,6 +159,8 @@ def build_set_embed(result: Dict[str, Any], amount: float, level_up_info: Option
             f"\n\n🎉 **RANK PROMOTION!**\n"
             f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!\n"
         )
+    if result.get("shield_awarded"):
+        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
 
     desc = (
         f"**{result['task_name']}** adjusted: **{prev}** ➔ **{cur} {result['unit']}**\n\n"
@@ -244,7 +248,7 @@ def build_profile_embed(user: discord.Member, user_record: Dict[str, Any], strea
         f"🛡️ **Rank**: {lvl['badge']} **Level {lvl['level']} — {lvl['title']}**\n"
         f"`{tier_bar}` {lvl['tier_pct']}%\n"
         f"{next_info}\n\n"
-        f"🔥 **Current Streak**: **{streak} days**\n"
+        f"🔥 **Current Streak**: **{streak} days** • 🛡️ **Frost Shields**: **{user_record.get('frost_shields', 0)}/2**\n"
         f"💎 **Lifetime Points**: **{pts:,} pts**\n"
         f"🌐 **90-Day Arc Progress**: `{arc_bar}` {lvl['arc_pct']}%\n"
         f"📅 **Enrolled**: `{user_record['joined_at'][:10]}`"
@@ -404,3 +408,147 @@ def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> disc
     )
     embed.set_footer(text="A new day has begun • Check your fresh slate with /today")
     return embed
+
+
+def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> discord.Embed:
+    """Builds the Frost Shield inventory, protection status, and earning progress embed."""
+    shields = status["frost_shields"]
+    shield_icons = "🛡️ " * shields + "⚪ " * (status["max_shields"] - shields)
+    shield_icons = shield_icons.strip()
+
+    active_tag = "🟢 **Active Today** (Rest day declared)" if status["is_today_shielded"] else "⚪ **Inactive** (Regular training day)"
+    next_tag = f"**{status['days_until_next_shield']} day(s)** of clean streak until next shield" if shields < status["max_shields"] else "💎 **MAX SHIELDS STORED (2/2)**"
+
+    history_lines = []
+    for h in status.get("recent_uses", []):
+        history_lines.append(f"• `{h['date']}` — {h['reason']}")
+
+    desc = (
+        f"**{user.display_name}** • Streak Protection\n\n"
+        f"**Shield Inventory**: {shield_icons} `({shields}/{status['max_shields']})`\n"
+        f"**Today's Status**: {active_tag}\n"
+        f"🔥 **Current Streak**: **{status['current_streak']} days**\n"
+        f"⏳ **Next Unlock**: {next_tag}\n\n"
+        "**How Frost Shields Work**\n"
+        "• **Earn**: +1 Shield earned every **7 consecutive streak days** *(cap 2)*.\n"
+        "• **Manual Rest Day**: `/shield use` consumes 1 shield to protect your streak today.\n"
+        "• **Midnight Safety Net**: If you miss your targets with an active streak, 1 shield is automatically consumed at 00:00 IST."
+    )
+
+    if history_lines:
+        desc += "\n\n**Recent Recovery Days**\n" + "\n".join(history_lines)
+
+    embed = discord.Embed(
+        title="🛡️ Winter Arc — Frost Shield Status",
+        description=desc,
+        color=0x00D2FF
+    )
+    embed.set_footer(text="Consistency beats burnout • Rest with purpose")
+    return embed
+
+
+def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -> discord.Embed:
+    """Builds confirmation embed after manually activating a Frost Shield."""
+    embed = discord.Embed(
+        title="🛡️ Frost Shield Activated",
+        description=(
+            f"**{user.display_name}**, your streak is protected for **{result['target_date']}**.\n\n"
+            f"• **Remaining Shields**: `🛡️ {result['remaining_shields']} / 2`\n"
+            f"• **Reason**: _{result['reason']}_\n\n"
+            "Take today for intentional active recovery, hydration, and mental reset.\n"
+            "Your streak will not break at midnight."
+        ),
+        color=0x2ECC71
+    )
+    embed.set_footer(text="Winter Arc • Rest Smart, Strike Harder Tomorrow")
+    return embed
+
+
+def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> discord.Embed:
+    """Builds the interactive private DM notification settings embed."""
+    master_icon = "🟢 Enabled" if settings["dm_reminders"] else "🔴 Disabled"
+    morning_icon = "🟢 On" if settings["dm_morning"] else "⚪ Off"
+    evening_icon = "🟢 On" if settings["dm_evening"] else "⚪ Off"
+
+    desc = (
+        f"**{user.display_name}** • Notification Preferences\n\n"
+        f"**Master DM Notifications**: {master_icon}\n"
+        f"• 🌅 **Morning Kickoff (05:00 IST)**: {morning_icon}\n"
+        f"• 🌙 **Evening Streak Alert (21:00 IST)**: {evening_icon}\n\n"
+        "_Toggle settings using the interactive buttons below._\n"
+        "_Note: Ensure your Discord privacy settings allow DMs from server members._"
+    )
+
+    embed = discord.Embed(
+        title="⚙️ Winter Arc — Private Accountability Settings",
+        description=desc,
+        color=0x5865F2
+    )
+    embed.set_footer(text="Zero spam • Only high-leverage discipline alerts")
+    return embed
+
+
+def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_display: str) -> discord.Embed:
+    """Builds private morning briefing DM sent at 05:00 IST."""
+    task_lines = [
+        f"• **{t['name']}**: `{int(t['target']) if t['target'].is_integer() else t['target']} {t['unit']}` *(max {t['max_points']} pts)*"
+        for t in tasks
+    ]
+
+    desc = (
+        f"📅 **{date_display}**\n\n"
+        f"🔥 **Your Streak**: **{streak} days**\n\n"
+        "**Today's Challenge (500 pts ceiling)**\n"
+        + "\n".join(task_lines)
+        + "\n\n_Rise early. Move your body. Log your reps in the server with `/log`._"
+    )
+
+    embed = discord.Embed(
+        title="🌅 Winter Arc — Morning Briefing",
+        description=desc,
+        color=0x00D2FF
+    )
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    return embed
+
+
+def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak: int, shield_status: Dict[str, Any]) -> discord.Embed:
+    """Builds private evening streak warning DM sent at 21:00 IST (3h before midnight)."""
+    pts = progress["total_points"]
+    max_pts = progress["max_possible_points"]
+    pct = int(progress["overall_completion_rate"] * 100)
+
+    if progress["perfect_day"]:
+        title = "⭐ Winter Arc — Perfect Day Secured!"
+        color = 0x2ECC71
+        desc = (
+            f"Outstanding work, **{user.display_name}**.\n\n"
+            f"You have reached **{pts} / {max_pts} pts** (100%) today.\n"
+            f"Your **{streak}‑day streak** is fully protected at midnight.\n\n"
+            "_Rest up and recover for tomorrow's grind._"
+        )
+    else:
+        title = "⚠️ Winter Arc — Evening Streak Warning"
+        color = 0xE74C3C
+        shield_info = (
+            f"\n\n🛡️ **Safety Net**: You have **{shield_status['frost_shields']} Frost Shield(s)**. "
+            "If you cannot finish today, run `/shield use` in the server to protect your streak."
+            if shield_status["frost_shields"] > 0
+            else "\n\n⚠️ **No Frost Shields available!** Complete your disciplines to prevent your streak from resetting."
+        )
+        desc = (
+            f"**{user.display_name}**, only **3 hours remain** before midnight (00:00 IST).\n\n"
+            f"📊 **Today's Score**: **{pts} / {max_pts} pts** ({pct}%)\n"
+            f"🔥 **Streak in Danger**: **{streak} days**"
+            f"{shield_info}\n\n"
+            "_Lock in your remaining sets with `/log` before midnight!_"
+        )
+
+    embed = discord.Embed(
+        title=title,
+        description=desc,
+        color=color
+    )
+    embed.set_footer(text="Winter Arc • Discipline is Destiny")
+    return embed
+

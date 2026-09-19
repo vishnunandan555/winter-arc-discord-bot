@@ -254,7 +254,106 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         res_pts = asyncio.run(max_points_autocomplete(mock_interaction, "100"))
         self.assertTrue(any(c.value == 100 for c in res_pts))
 
+    def test_12_frost_shield_lifecycle(self):
+        user_id = 2001
+        db.enroll_user(user_id, "ShieldWarrior", TEST_DB)
+
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 0)
+        self.assertEqual(status["max_shields"], 2)
+        self.assertFalse(status["is_today_shielded"])
+
+        # Award shield at streak = 7
+        awarded = db.check_and_award_shield(user_id, 7, TEST_DB)
+        self.assertTrue(awarded)
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 1)
+
+        # No duplicate award for same milestone
+        dup = db.check_and_award_shield(user_id, 7, TEST_DB)
+        self.assertFalse(dup)
+
+        # Award at streak = 14
+        awarded_14 = db.check_and_award_shield(user_id, 14, TEST_DB)
+        self.assertTrue(awarded_14)
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 2)
+
+        # Capped at 2 max
+        awarded_21 = db.check_and_award_shield(user_id, 21, TEST_DB)
+        self.assertFalse(awarded_21)
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 2)
+
+        # Manual activation
+        act = db.activate_frost_shield(user_id, reason="Testing recovery", db_path=TEST_DB)
+        self.assertTrue(act["success"])
+        self.assertEqual(act["remaining_shields"], 1)
+
+        # Today should now be shielded
+        status_after = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status_after["frost_shields"], 1)
+        self.assertTrue(status_after["is_today_shielded"])
+
+        # Cannot double-activate for same day
+        with self.assertRaises(ValueError):
+            db.activate_frost_shield(user_id, reason="Duplicate attempt", db_path=TEST_DB)
+
+    def test_13_auto_shield_midnight(self):
+        user_id = 2002
+        db.enroll_user(user_id, "AutoShieldWarrior", TEST_DB)
+
+        # Award 1 shield
+        db.check_and_award_shield(user_id, 7, TEST_DB)
+
+        day_1 = "2026-09-10"
+        day_2 = "2026-09-11"
+
+        # Log perfect day on day_1 to have active streak
+        for t in ["Push-ups", "Pull-ups", "Squats", "Sit-ups", "Running"]:
+            tgt = 10.0 if t == "Running" else 100.0
+            db.log_activity(user_id, "AutoShieldWarrior", t, tgt, day_1, TEST_DB)
+
+        db.finalize_daily_summaries(day_1, TEST_DB)
+        streak_d1 = db.calculate_streak(user_id, day_1, TEST_DB)
+        self.assertEqual(streak_d1, 1)
+
+        # Day 2: User logs nothing, but has 1 shield and streak > 0
+        db.finalize_daily_summaries(day_2, TEST_DB)
+
+        # Shield should have been auto-consumed
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 0)
+
+        # Streak should be preserved across Day 2!
+        streak_d2 = db.calculate_streak(user_id, day_2, TEST_DB)
+        self.assertEqual(streak_d2, 2)
+
+    def test_14_user_dm_settings(self):
+        user_id = 2003
+        db.enroll_user(user_id, "DMWarrior", TEST_DB)
+
+        # Default settings: DMs off
+        defaults = db.get_user_dm_settings(user_id, TEST_DB)
+        self.assertFalse(defaults["dm_reminders"])
+        self.assertTrue(defaults["dm_morning"])
+        self.assertTrue(defaults["dm_evening"])
+
+        # Opt in
+        updated = db.update_user_dm_settings(user_id, dm_reminders=True, dm_evening=False, db_path=TEST_DB)
+        self.assertTrue(updated["dm_reminders"])
+        self.assertTrue(updated["dm_morning"])
+        self.assertFalse(updated["dm_evening"])
+
+        # Query opted in users
+        morning_users = db.get_opted_in_dm_users("morning", TEST_DB)
+        self.assertTrue(any(u["discord_id"] == user_id for u in morning_users))
+
+        evening_users = db.get_opted_in_dm_users("evening", TEST_DB)
+        self.assertFalse(any(u["discord_id"] == user_id for u in evening_users))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

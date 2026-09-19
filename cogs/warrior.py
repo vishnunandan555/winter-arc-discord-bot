@@ -38,8 +38,11 @@ from ui.embeds import (
     build_ranks_embed,
     build_help_embed,
     build_daily_leaderboard_embed,
+    build_shield_status_embed,
+    build_shield_activated_embed,
+    build_settings_embed,
 )
-from ui.views import LeaderboardView
+from ui.views import LeaderboardView, SettingsView
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
 
@@ -337,6 +340,58 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_history_embed(interaction.user, hist)
         await interaction.response.send_message(embed=embed)
 
+    # ==========================================
+    # Frost Shield & Streak Protection Commands
+    # ==========================================
+
+    shield_group = app_commands.Group(
+        name="shield",
+        description="Frost Shield streak protection and recovery controls."
+    )
+
+    @shield_group.command(name="status", description="View Frost Shield inventory, protection status, and next unlock.")
+    async def shield_status_cmd(self, interaction: discord.Interaction):
+        if not await require_enrolled(interaction):
+            return
+
+        status = db.get_user_shield_status(interaction.user.id)
+        embed = build_shield_status_embed(interaction.user, status)
+        await interaction.response.send_message(embed=embed)
+
+    @shield_group.command(name="use", description="Activate a Frost Shield to protect your streak today.")
+    @app_commands.describe(reason="Optional reason for recovery day (e.g. Muscle Recovery, Travel, Illness)")
+    async def shield_use_cmd(self, interaction: discord.Interaction, reason: Optional[str] = "Intentional active recovery"):
+        if not await require_enrolled(interaction):
+            return
+
+        try:
+            result = db.activate_frost_shield(interaction.user.id, reason=reason)
+            embed = build_shield_activated_embed(interaction.user, result)
+            await interaction.response.send_message(embed=embed)
+            await safe_react(interaction, "🛡️", "❄️")
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+
+    # ==========================================
+    # Personal Direct Messaging Settings
+    # ==========================================
+
+    @app_commands.command(name="settings", description="Configure personal DM notifications and accountability.")
+    @app_commands.describe(dms="Quick toggle to enable/disable all DM notifications")
+    async def settings_cmd(self, interaction: discord.Interaction, dms: Optional[bool] = None):
+        if not await require_enrolled(interaction):
+            return
+
+        if dms is not None:
+            settings = db.update_user_dm_settings(interaction.user.id, dm_reminders=dms)
+        else:
+            settings = db.get_user_dm_settings(interaction.user.id)
+
+        embed = build_settings_embed(interaction.user, settings)
+        view = SettingsView(interaction.user.id, settings)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarriorCog(bot))
+

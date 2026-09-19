@@ -100,16 +100,50 @@ def init_db(db_path: str = DB_PATH):
                 points INTEGER NOT NULL,
                 completion_rate REAL NOT NULL,
                 perfect_day BOOLEAN DEFAULT 0,
+                is_shielded BOOLEAN DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, date),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
         """)
 
+        # 6. Shield usage logs table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS shield_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                reason TEXT DEFAULT 'Manual rest day',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, date),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+
+        # Safe migrations for existing databases
+        user_columns = [
+            ("frost_shields", "INTEGER DEFAULT 0"),
+            ("last_shield_milestone", "INTEGER DEFAULT 0"),
+            ("dm_reminders", "BOOLEAN DEFAULT 0"),
+            ("dm_morning", "BOOLEAN DEFAULT 1"),
+            ("dm_evening", "BOOLEAN DEFAULT 1"),
+        ]
+        for col_name, col_def in user_columns:
+            try:
+                cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def};")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+        try:
+            cursor.execute("ALTER TABLE daily_summaries ADD COLUMN is_shielded BOOLEAN DEFAULT 0;")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
         # Indices
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_logs_user_date ON daily_logs(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_date ON daily_summaries(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_date ON daily_summaries(date);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shield_logs_user_date ON shield_logs(user_id, date);")
 
         # Seed default tasks (ensures all 5 tasks and targets are present)
         for task in DEFAULT_TASKS:
@@ -337,12 +371,16 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
     pts_delta = pts_after - pts_before
 
     daily_progress = get_user_daily_progress(discord_id, log_date, db_path)
+    shield_awarded = False
+    if daily_progress["perfect_day"]:
+        streak = calculate_streak(discord_id, log_date, db_path)
+        shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
     return {
-        "user_id": user["id"],
-        "username": user["username"],
+        "discord_id": discord_id,
+        "username": username,
         "task_name": task["name"],
-        "target": target,
+        "task_target": target,
         "unit": task["unit"],
         "amount_logged": amount,
         "previous_total": total_before,
@@ -355,6 +393,7 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
         "daily_points_max": daily_progress["max_possible_points"],
         "daily_completion_rate": daily_progress["overall_completion_rate"],
         "date": log_date,
+        "shield_awarded": shield_awarded,
     }
 
 
@@ -413,6 +452,10 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
     pts_delta = pts_after - pts_before
 
     daily_progress = get_user_daily_progress(discord_id, log_date, db_path)
+    shield_awarded = False
+    if daily_progress["perfect_day"]:
+        streak = calculate_streak(discord_id, log_date, db_path)
+        shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
     return {
         "user_id": user["id"],
@@ -431,6 +474,7 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
         "daily_points_max": daily_progress["max_possible_points"],
         "daily_completion_rate": daily_progress["overall_completion_rate"],
         "date": log_date,
+        "shield_awarded": shield_awarded,
     }
 
 
@@ -507,10 +551,16 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
         return 0
 
     ref_date = date.fromisoformat(as_of_date) if as_of_date else date.today()
-    
-    today_progress = get_user_daily_progress(discord_id, ref_date.isoformat(), db_path)
+    ref_date_str = ref_date.isoformat()
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], ref_date_str))
+        today_shielded = cursor.fetchone() is not None
+
+    today_progress = get_user_daily_progress(discord_id, ref_date_str, db_path)
     streak = 0
-    if today_progress["perfect_day"]:
+    if today_progress["perfect_day"] or today_shielded:
         streak += 1
         current_check = ref_date - timedelta(days=1)
     else:
@@ -521,20 +571,27 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
         for _ in range(365):
             date_str = current_check.isoformat()
             cursor.execute("""
-                SELECT perfect_day, completion_rate
+                SELECT perfect_day, completion_rate, is_shielded
                 FROM daily_summaries
                 WHERE user_id = ? AND date = ?;
             """, (user["id"], date_str))
             summary_row = cursor.fetchone()
 
+            cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], date_str))
+            is_log_shielded = cursor.fetchone() is not None
+
             if summary_row:
-                if summary_row["perfect_day"] or summary_row["completion_rate"] >= 0.999:
+                if summary_row["perfect_day"] or summary_row["completion_rate"] >= 0.999 or bool(summary_row["is_shielded"]) or is_log_shielded:
                     streak += 1
                     current_check -= timedelta(days=1)
                     continue
                 else:
                     break
             else:
+                if is_log_shielded:
+                    streak += 1
+                    current_check -= timedelta(days=1)
+                    continue
                 day_prog = get_user_daily_progress(discord_id, date_str, db_path)
                 if day_prog["perfect_day"] and day_prog["total_points"] > 0:
                     streak += 1
@@ -557,7 +614,7 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, discord_id, username FROM users WHERE enrolled = 1")
+        cursor.execute("SELECT id, discord_id, username, frost_shields FROM users WHERE enrolled = 1")
         users = cursor.fetchall()
 
         for u in users:
@@ -566,14 +623,35 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             completion = progress["overall_completion_rate"]
             perfect = 1 if progress["perfect_day"] else 0
 
+            # Check if this date was already manually shielded
+            cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?", (u["id"], target_date_str))
+            shielded = 1 if cursor.fetchone() is not None else 0
+
+            # Auto-shield logic: if not perfect, not already shielded, but user has shields and an active streak
+            if not perfect and not shielded and (u["frost_shields"] or 0) > 0:
+                day_before = (date.fromisoformat(target_date_str) - timedelta(days=1)).isoformat()
+                past_streak = calculate_streak(u["discord_id"], day_before, db_path)
+                if past_streak > 0:
+                    cursor.execute("UPDATE users SET frost_shields = frost_shields - 1 WHERE id = ?", (u["id"],))
+                    cursor.execute("""
+                        INSERT INTO shield_logs (user_id, date, reason)
+                        VALUES (?, ?, 'Auto-protection (Midnight Finalization)')
+                        ON CONFLICT(user_id, date) DO NOTHING;
+                    """, (u["id"], target_date_str))
+                    shielded = 1
+
             cursor.execute("""
-                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, date) DO UPDATE SET
                     points = excluded.points,
                     completion_rate = excluded.completion_rate,
-                    perfect_day = excluded.perfect_day;
-            """, (u["id"], target_date_str, points, completion, perfect))
+                    perfect_day = excluded.perfect_day,
+                    is_shielded = excluded.is_shielded;
+            """, (u["id"], target_date_str, points, completion, perfect, shielded))
+
+            current_streak = calculate_streak(u["discord_id"], target_date_str, db_path)
+            check_and_award_shield(u["discord_id"], current_streak, db_path)
 
             leaderboard.append({
                 "discord_id": u["discord_id"],
@@ -581,6 +659,7 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
                 "points": points,
                 "completion_rate": completion,
                 "perfect_day": bool(perfect),
+                "is_shielded": bool(shielded),
             })
 
         conn.commit()
@@ -800,3 +879,182 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
         })
 
     return history
+
+
+# ==========================================
+# Frost Shield & Streak Protection DAO
+# ==========================================
+
+def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """Returns current shield capacity, availability, and progress to next shield."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {
+            "frost_shields": 0,
+            "max_shields": 2,
+            "is_today_shielded": False,
+            "current_streak": 0,
+            "days_until_next_shield": 7,
+            "recent_uses": [],
+        }
+
+    today_str = date.today().isoformat()
+    streak = calculate_streak(discord_id, today_str, db_path)
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], today_str))
+        is_today_shielded = cursor.fetchone() is not None
+
+        cursor.execute("""
+            SELECT date, reason, created_at
+            FROM shield_logs
+            WHERE user_id = ?
+            ORDER BY date DESC
+            LIMIT 5;
+        """, (user["id"],))
+        recent_uses = [dict(r) for r in cursor.fetchall()]
+
+    days_into_cycle = streak % 7
+    days_until_next = 7 if (days_into_cycle == 0 and streak == 0) else (7 - days_into_cycle)
+
+    return {
+        "frost_shields": user.get("frost_shields", 0) or 0,
+        "max_shields": 2,
+        "is_today_shielded": is_today_shielded,
+        "current_streak": streak,
+        "days_until_next_shield": days_until_next,
+        "recent_uses": recent_uses,
+    }
+
+
+def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, reason: str = "Manual rest day", db_path: str = DB_PATH) -> Dict[str, Any]:
+    """Consumes 1 Frost Shield for the user and protects their streak on target_date."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user or not user["enrolled"]:
+        raise ValueError("You must be enrolled in Winter Arc to use a Frost Shield.")
+
+    shields = user.get("frost_shields", 0) or 0
+    if shields <= 0:
+        raise ValueError("You have 0 Frost Shields available. Maintain a 7-day streak to earn a shield.")
+
+    target_date_str = target_date or date.today().isoformat()
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], target_date_str))
+        if cursor.fetchone():
+            raise ValueError(f"A Frost Shield is already active for {target_date_str}.")
+
+        cursor.execute("UPDATE users SET frost_shields = frost_shields - 1 WHERE id = ?;", (user["id"],))
+        cursor.execute("""
+            INSERT INTO shield_logs (user_id, date, reason)
+            VALUES (?, ?, ?);
+        """, (user["id"], target_date_str, reason))
+
+        cursor.execute("UPDATE daily_summaries SET is_shielded = 1 WHERE user_id = ? AND date = ?;", (user["id"], target_date_str))
+        conn.commit()
+
+    return {
+        "success": True,
+        "target_date": target_date_str,
+        "remaining_shields": shields - 1,
+        "reason": reason,
+    }
+
+
+def check_and_award_shield(discord_id: int, streak: int, db_path: str = DB_PATH) -> bool:
+    """Awards +1 Frost Shield (up to 2) if streak reaches a new 7-day milestone."""
+    if streak < 7:
+        return False
+
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return False
+
+    milestone = (streak // 7) * 7
+    last_milestone = user.get("last_shield_milestone", 0) or 0
+    current_shields = user.get("frost_shields", 0) or 0
+
+    if milestone > last_milestone:
+        new_shields = min(2, current_shields + 1)
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users
+                SET frost_shields = ?, last_shield_milestone = ?
+                WHERE id = ?;
+            """, (new_shields, milestone, user["id"]))
+            conn.commit()
+        return new_shields > current_shields
+
+    return False
+
+
+# ==========================================
+# Direct Messaging Preferences DAO
+# ==========================================
+
+def get_user_dm_settings(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """Retrieves user's private DM notification preferences."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {
+            "dm_reminders": False,
+            "dm_morning": True,
+            "dm_evening": True,
+        }
+    return {
+        "dm_reminders": bool(user.get("dm_reminders", 0)),
+        "dm_morning": bool(user.get("dm_morning", 1) if user.get("dm_morning") is not None else 1),
+        "dm_evening": bool(user.get("dm_evening", 1) if user.get("dm_evening") is not None else 1),
+    }
+
+
+def update_user_dm_settings(
+    discord_id: int,
+    dm_reminders: Optional[bool] = None,
+    dm_morning: Optional[bool] = None,
+    dm_evening: Optional[bool] = None,
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """Updates user's private DM notification preferences."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        raise ValueError("User not found in Winter Arc database.")
+
+    updates = []
+    params = []
+    if dm_reminders is not None:
+        updates.append("dm_reminders = ?")
+        params.append(1 if dm_reminders else 0)
+    if dm_morning is not None:
+        updates.append("dm_morning = ?")
+        params.append(1 if dm_morning else 0)
+    if dm_evening is not None:
+        updates.append("dm_evening = ?")
+        params.append(1 if dm_evening else 0)
+
+    if updates:
+        params.append(user["id"])
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?;", params)
+            conn.commit()
+
+    return get_user_dm_settings(discord_id, db_path)
+
+
+def get_opted_in_dm_users(category: str = "all", db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Fetches users who have enabled DMs, optionally filtered by category (morning/evening)."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM users WHERE enrolled = 1 AND dm_reminders = 1"
+        if category == "morning":
+            query += " AND dm_morning = 1"
+        elif category == "evening":
+            query += " AND dm_evening = 1"
+        query += " ORDER BY id ASC;"
+        cursor.execute(query)
+        return [dict(r) for r in cursor.fetchall()]
+

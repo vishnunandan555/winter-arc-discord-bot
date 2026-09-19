@@ -185,12 +185,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     # Diagnostic & Testing Command
     # ==========================================
 
-    @app_commands.command(name="test_reminder", description="Admin: Preview scheduled announcements.")
+    @app_commands.command(name="test_reminder", description="Admin: Preview scheduled announcements or DMs.")
     @app_commands.describe(reminder_type="Select announcement type to test")
     @app_commands.choices(reminder_type=[
-        app_commands.Choice(name="Morning Kickoff (05:00)", value="morning"),
-        app_commands.Choice(name="Afternoon Group Check-in (16:30)", value="afternoon"),
-        app_commands.Choice(name="Midnight Finalization (00:00)", value="midnight"),
+        app_commands.Choice(name="Morning Kickoff (05:00 Channel)", value="morning"),
+        app_commands.Choice(name="Afternoon Group Check-in (16:30 Channel)", value="afternoon"),
+        app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
+        app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),
+        app_commands.Choice(name="Personal Evening Streak Alert (Direct DM)", value="evening_dm"),
     ])
     @app_commands.default_permissions(administrator=True)
     async def test_reminder(self, interaction: discord.Interaction, reminder_type: str):
@@ -217,6 +219,31 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "midnight":
             await scheduler.broadcast_midnight_finalization(target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Midnight Podium preview to {channel.mention}.", ephemeral=True)
+        elif reminder_type == "morning_dm":
+            from ui.embeds import build_dm_morning_embed
+            from config import BOT_TZ
+            active_tasks = db.get_active_tasks()
+            today_str = datetime.now(BOT_TZ).strftime("%A, %B %d, %Y")
+            streak = db.calculate_streak(interaction.user.id)
+            dm_embed = build_dm_morning_embed(active_tasks, streak, today_str)
+            try:
+                await interaction.user.send(embed=dm_embed)
+                await interaction.followup.send("✅ Dispatched Morning Briefing DM directly to your inbox.", ephemeral=True)
+            except discord.Forbidden:
+                await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
+        elif reminder_type == "evening_dm":
+            from ui.embeds import build_dm_evening_embed
+            from config import BOT_TZ
+            today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+            prog = db.get_user_daily_progress(interaction.user.id, today_str)
+            streak = db.calculate_streak(interaction.user.id, today_str)
+            shield_status = db.get_user_shield_status(interaction.user.id)
+            dm_embed = build_dm_evening_embed(interaction.user, prog, streak, shield_status)
+            try:
+                await interaction.user.send(embed=dm_embed)
+                await interaction.followup.send("✅ Dispatched Evening Streak Alert DM directly to your inbox.", ephemeral=True)
+            except discord.Forbidden:
+                await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
