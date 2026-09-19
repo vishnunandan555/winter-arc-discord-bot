@@ -8,6 +8,7 @@ and automated daily check-ins.
 
 import os
 import sys
+import asyncio
 import logging
 import discord
 from discord import app_commands
@@ -235,6 +236,15 @@ class WinterArcBot(commands.Bot):
                             level_up_info=level_up_info
                         )
                         await message.reply(embed=embed)
+                        asyncio.create_task(
+                            groq_service.dispatch_channel_nudge(
+                                channel=message.channel,
+                                user_id=message.author.id,
+                                user_name=message.author.display_name,
+                                command_name="quick-log",
+                                extra_info=f"Quick logged: {text}"
+                            )
+                        )
                         try:
                             await message.add_reaction("🐺")
                         except Exception:

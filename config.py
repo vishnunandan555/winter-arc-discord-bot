@@ -33,9 +33,9 @@ MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 
-# Groq API: Ultra-fast inference for rapid NLP workout parsing (/quick & #quick-log)
+# Groq API: Ultra-fast inference for rapid NLP workout parsing & reactive command nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 class VoiceWarningFilter(logging.Filter):
     """Filters out irrelevant voice-related warnings since Winter Arc does not use voice channels."""

@@ -198,6 +198,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
         app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),
         app_commands.Choice(name="Personal Evening Streak Alert (Direct DM)", value="evening_dm"),
+        app_commands.Choice(name="Reactive Groq Observation (Follow-up Nudge)", value="groq_nudge"),
     ])
     @app_commands.default_permissions(administrator=True)
     async def test_reminder(self, interaction: discord.Interaction, reminder_type: str):
@@ -302,6 +303,17 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 await interaction.followup.send("✅ Dispatched Evening Streak Alert DM preview with dynamic AI quote to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
+        elif reminder_type == "groq_nudge":
+            from ai import groq_service
+            await interaction.followup.send("✅ Simulating reactive Groq observation nudge from Amarok...", ephemeral=True)
+            await groq_service.dispatch_channel_nudge(
+                channel=channel,
+                user_id=interaction.user.id,
+                user_name=interaction.user.display_name,
+                command_name="today",
+                extra_info="Simulated from /test_reminder",
+                force=True
+            )
 
     @admin_group.command(name="health", description="Inspect server memory, database footprint, and host resources.")
     async def admin_health(self, interaction: discord.Interaction):

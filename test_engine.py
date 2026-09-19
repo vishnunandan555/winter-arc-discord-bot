@@ -900,6 +900,40 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(len(recent_grinds), 1)
         self.assertEqual(recent_grinds[0]["key_learning"], "Compiler Registers")
 
+    def test_33_groq_reactive_nudges(self):
+        import asyncio
+        from ai import groq_service
+
+        # 1. Test generate_reactive_nudge
+        progression = {
+            "points": 250,
+            "max_points": 500,
+            "pct": 50,
+            "streak": 5,
+            "completed_tasks": ["Push-ups", "Sit-ups"],
+            "pending_tasks": ["Running", "Squats", "Pull-ups"],
+            "extra_info": "Logged 50 pushups",
+        }
+        nudge = asyncio.run(groq_service.generate_reactive_nudge(
+            user_name="Fenrir",
+            command_name="today",
+            progression=progression
+        ))
+        self.assertIsInstance(nudge, str)
+        self.assertTrue(len(nudge) > 0)
+        self.assertLessEqual(len(nudge.split()), 25)
+
+        # 2. Test Cooldown and force logic
+        test_uid = 999333
+        # Should trigger when forced
+        self.assertTrue(groq_service.should_trigger_nudge(test_uid, force=True))
+        
+        # Record trigger
+        groq_service.record_nudge_triggered(test_uid)
+        
+        # Normal check right after should return False due to 1-hour cooldown
+        self.assertFalse(groq_service.should_trigger_nudge(test_uid, force=False))
+
 
 if __name__ == "__main__":
     unittest.main()

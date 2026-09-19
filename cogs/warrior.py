@@ -9,6 +9,7 @@ Contains commands for enrolled participants:
 - General utilities (/help, /ping)
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -182,6 +183,23 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_today_embed(target_user, progress, streak, date_display)
         await interaction.response.send_message(embed=embed)
 
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=target_user.id,
+                user_name=target_user.display_name,
+                command_name="today",
+                progression={
+                    "points": progress.get("total_points", 0),
+                    "max_points": progress.get("max_possible_points", 500),
+                    "pct": int(round(progress.get("overall_completion_rate", 0) * 100)),
+                    "streak": streak,
+                    "completed_tasks": [t["name"] for t in progress.get("tasks", []) if t.get("completed")],
+                    "pending_tasks": [t["name"] for t in progress.get("tasks", []) if not t.get("completed")],
+                }
+            )
+        )
+
         if progress["perfect_day"]:
             await safe_react(interaction, "⭐", "🔥")
         else:
@@ -209,6 +227,23 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         embed = build_tasks_embed(target_user, progress, streak, date_display)
         await interaction.response.send_message(embed=embed)
+
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=target_user.id,
+                user_name=target_user.display_name,
+                command_name="tasks",
+                progression={
+                    "points": progress.get("total_points", 0),
+                    "max_points": progress.get("max_possible_points", 500),
+                    "pct": int(round(progress.get("overall_completion_rate", 0) * 100)),
+                    "streak": streak,
+                    "completed_tasks": [t["name"] for t in progress.get("tasks", []) if t.get("completed")],
+                    "pending_tasks": [t["name"] for t in progress.get("tasks", []) if not t.get("completed")],
+                }
+            )
+        )
 
         if progress["perfect_day"]:
             await safe_react(interaction, "⭐", "🔥")
@@ -253,10 +288,18 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_log_embed(result, amount, level_up_info=level_up_info)
         await interaction.response.send_message(embed=embed)
 
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=interaction.user.id,
+                user_name=interaction.user.display_name,
+                command_name="log",
+                extra_info=f"Logged {amount} {task}"
+            )
+        )
+
         if level_up_info:
             await safe_react(interaction, "🎉", "🐺")
-        elif result["is_target_reached"]:
-            await safe_react(interaction, "⭐", "🔥")
         else:
             await safe_react(interaction, "🐺", "💪")
 
@@ -338,6 +381,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             today_progress=today_progress
         )
         await interaction.response.send_message(embed=embed)
+
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=target_user.id,
+                user_name=target_user.display_name,
+                command_name="profile",
+                extra_info=f"Rank #{all_time_rank} of {total_warriors}"
+            )
+        )
 
     @app_commands.command(name="ranks", description="View the 12-level Winter Pack hierarchy and requirements.")
     async def ranks(self, interaction: discord.Interaction):
@@ -426,6 +479,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed.set_footer(text="Consistency Beats Motivation • Defend your streak")
         await interaction.response.send_message(embed=embed)
         await safe_react(interaction, "🔥", "🐺")
+
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=target_user.id,
+                user_name=target_user.display_name,
+                command_name="streak",
+                extra_info=f"Streak {streak}d, Shields: {shields_count}/2"
+            )
+        )
 
     # ==========================================
     # Frost Shield & Streak Protection Commands
@@ -618,6 +681,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             await safe_react(interaction, "🎉", "🐺")
         else:
             await safe_react(interaction, "🐺", "⚡")
+
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=interaction.user.id,
+                user_name=interaction.user.display_name,
+                command_name="quick",
+                extra_info=f"Quick logged: {text}"
+            )
+        )
 
 
 async def setup(bot: commands.Bot):
