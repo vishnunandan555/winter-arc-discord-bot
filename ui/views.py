@@ -5,13 +5,19 @@ Contains interactive views such as LeaderboardView with Daily / Overall tabs.
 """
 
 import discord
-from ui.embeds import build_daily_leaderboard_embed, build_overall_leaderboard_embed
+import database as db
+from ui.embeds import (
+    build_daily_leaderboard_embed,
+    build_monthly_leaderboard_embed,
+    build_overall_leaderboard_embed,
+    build_settings_embed,
+)
 
 
 class LeaderboardView(discord.ui.View):
-    """Interactive view allowing users to toggle between Daily and Overall leaderboards."""
+    """Interactive view allowing users to toggle between Daily, Overall, and Monthly leaderboards."""
     def __init__(self, current_tab: str = "daily"):
-        super().__init__(timeout=None)
+        super().__init__(timeout=600)
         self.current_tab = current_tab
         self._update_buttons()
 
@@ -21,6 +27,9 @@ class LeaderboardView(discord.ui.View):
                 if child.custom_id == "tab_daily":
                     child.disabled = (self.current_tab == "daily")
                     child.style = discord.ButtonStyle.primary if self.current_tab == "daily" else discord.ButtonStyle.secondary
+                elif child.custom_id == "tab_monthly":
+                    child.disabled = (self.current_tab == "monthly")
+                    child.style = discord.ButtonStyle.primary if self.current_tab == "monthly" else discord.ButtonStyle.secondary
                 elif child.custom_id == "tab_overall":
                     child.disabled = (self.current_tab == "overall")
                     child.style = discord.ButtonStyle.primary if self.current_tab == "overall" else discord.ButtonStyle.secondary
@@ -30,6 +39,13 @@ class LeaderboardView(discord.ui.View):
         self.current_tab = "daily"
         self._update_buttons()
         embed = build_daily_leaderboard_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="📆 Monthly", style=discord.ButtonStyle.secondary, custom_id="tab_monthly")
+    async def tab_monthly_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_tab = "monthly"
+        self._update_buttons()
+        embed = build_monthly_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="🌐 All-Time Overall", style=discord.ButtonStyle.secondary, custom_id="tab_overall")
@@ -75,8 +91,6 @@ class SettingsView(discord.ui.View):
     async def toggle_master_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        import database as db
-        from ui.embeds import build_settings_embed
         new_state = not self.settings["dm_reminders"]
         self.settings = db.update_user_dm_settings(self.user_id, dm_reminders=new_state)
         self._sync_buttons()
@@ -87,8 +101,6 @@ class SettingsView(discord.ui.View):
     async def toggle_morning_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        import database as db
-        from ui.embeds import build_settings_embed
         new_state = not self.settings["dm_morning"]
         self.settings = db.update_user_dm_settings(self.user_id, dm_morning=new_state)
         self._sync_buttons()
@@ -99,8 +111,6 @@ class SettingsView(discord.ui.View):
     async def toggle_evening_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        import database as db
-        from ui.embeds import build_settings_embed
         new_state = not self.settings["dm_evening"]
         self.settings = db.update_user_dm_settings(self.user_id, dm_evening=new_state)
         self._sync_buttons()

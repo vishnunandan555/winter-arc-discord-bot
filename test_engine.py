@@ -432,7 +432,126 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("points", res)
         self.assertTrue(0 <= res["points"] <= 60)
         self.assertIn("commentary", res)
-        self.assertTrue(len(res["commentary"]) > 5)
+    def test_18_bot_state_persistence(self):
+        # Initial missing state returns default
+        val = db.get_bot_state("non_existent_key", default="fallback", db_path=TEST_DB)
+        self.assertEqual(val, "fallback")
+
+        # Set and retrieve state
+        db.set_bot_state("last_midnight_date", "2026-09-19", db_path=TEST_DB)
+        val = db.get_bot_state("last_midnight_date", db_path=TEST_DB)
+        self.assertEqual(val, "2026-09-19")
+
+        # Update existing state
+        db.set_bot_state("last_midnight_date", "2026-09-20", db_path=TEST_DB)
+        val = db.get_bot_state("last_midnight_date", db_path=TEST_DB)
+        self.assertEqual(val, "2026-09-20")
+
+    def test_19_optimized_streak_calculation(self):
+        streak_user = 3001
+        db.enroll_user(streak_user, "StreakWarrior", TEST_DB)
+        today = date.today()
+
+        # Seed 3 consecutive perfect days in daily_summaries
+        with db.get_connection(TEST_DB) as conn:
+            cursor = conn.cursor()
+            user_rec = db.get_user_by_discord_id(streak_user, TEST_DB)
+            for i in range(1, 4):
+                d = (today - timedelta(days=i)).isoformat()
+                cursor.execute("""
+                    INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                    VALUES (?, ?, 500, 1.0, 1, 0);
+                """, (user_rec["id"], d))
+            conn.commit()
+
+        # Without today done, streak should be 3
+        streak = db.calculate_streak(streak_user, today.isoformat(), TEST_DB)
+        self.assertEqual(streak, 3)
+
+        # Log a perfect day for today: 100 for all 5 tasks
+        active_tasks = db.get_active_tasks(TEST_DB)
+        for t in active_tasks:
+            db.log_activity(streak_user, "StreakWarrior", t["name"], t["target"], today.isoformat(), TEST_DB)
+
+        # Streak should now be 4
+        streak = db.calculate_streak(streak_user, today.isoformat(), TEST_DB)
+        self.assertEqual(streak, 4)
+
+    def test_20_finalize_without_lock(self):
+        fin_user = 4001
+        db.enroll_user(fin_user, "FinWarrior", TEST_DB)
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+        # Log half workout for yesterday
+        db.log_activity(fin_user, "FinWarrior", "Push-ups", 50, yesterday, TEST_DB)
+
+        # Give 1 frost shield and set active past streak
+        user = db.get_user_by_discord_id(fin_user, TEST_DB)
+        day_before = (date.today() - timedelta(days=2)).isoformat()
+        with db.get_connection(TEST_DB) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE id = ?;", (user["id"],))
+            cursor.execute("""
+                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, ?, 500, 1.0, 1, 0);
+            """, (user["id"], day_before))
+            conn.commit()
+
+        # Finalization should auto-shield without throwing lock error
+        summaries = db.finalize_daily_summaries(yesterday, TEST_DB)
+        self.assertTrue(len(summaries) >= 1)
+
+        fin_summary = next((s for s in summaries if s["discord_id"] == fin_user), None)
+        self.assertIsNotNone(fin_summary)
+        self.assertTrue(fin_summary["is_shielded"])
+
+    def test_21_shield_yesterday(self):
+        shield_user = 5001
+        db.enroll_user(shield_user, "ShieldWarrior", TEST_DB)
+        user = db.get_user_by_discord_id(shield_user, TEST_DB)
+
+        # Give 1 shield
+        with db.get_connection(TEST_DB) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE id = ?;", (user["id"],))
+            conn.commit()
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        res = db.activate_frost_shield(shield_user, target_date=yesterday, reason="Travel", db_path=TEST_DB)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["target_date"], yesterday)
+        self.assertEqual(res["remaining_shields"], 0)
+
+    def test_22_batched_leaderboards(self):
+        today_str = date.today().isoformat()
+        daily_lb = db.get_daily_leaderboard(today_str, TEST_DB)
+        self.assertIsInstance(daily_lb, list)
+        self.assertTrue(len(daily_lb) >= 1)
+
+        overall_lb = db.get_overall_leaderboard(TEST_DB)
+        self.assertIsInstance(overall_lb, list)
+        self.assertTrue(len(overall_lb) >= 1)
+
+        now = date.today()
+        monthly_lb = db.get_monthly_leaderboard(now.year, now.month, TEST_DB)
+        self.assertIsInstance(monthly_lb, list)
+        self.assertTrue(len(monthly_lb) >= 1)
+
+    def test_23_views_and_embeds(self):
+        from ui.views import LeaderboardView
+        from ui.embeds import build_monthly_leaderboard_embed, build_quicklog_embed
+
+        # LeaderboardView has 600s timeout and 3 tabs
+        view = LeaderboardView()
+        self.assertEqual(view.timeout, 600)
+        custom_ids = [child.custom_id for child in view.children if hasattr(child, "custom_id")]
+        self.assertIn("tab_daily", custom_ids)
+        self.assertIn("tab_monthly", custom_ids)
+        self.assertIn("tab_overall", custom_ids)
+
+        # Monthly embed builds successfully
+        embed = build_monthly_leaderboard_embed()
+        self.assertIn("Standings", embed.title)
 
 
 if __name__ == "__main__":

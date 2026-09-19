@@ -91,10 +91,67 @@ class WinterArcBot(commands.Bot):
             self.scheduler.start()
 
     async def on_message(self, message: discord.Message):
-        """Subtle mascot reactions when replied to or mentioned."""
+        """Auto-parsing for #quick-log channel and subtle mascot reactions."""
         if message.author.bot:
             return
 
+        # 1. Natural language fast logging for dedicated #quick-log channel
+        channel_name = getattr(message.channel, "name", "").lower()
+        if channel_name in ["quick-log", "quicklog", "fast-log"] and not message.content.startswith("!"):
+            if not db.is_user_enrolled(message.author.id):
+                await message.reply("❌ You must enroll in the Winter Arc first. Run `/enroll` to join.", delete_after=15)
+                return
+
+            text = message.content.strip()
+            if len(text) >= 3:
+                from datetime import datetime
+                from config import BOT_TZ
+                from ai import groq_service
+                from levels import check_level_up
+                from ui.embeds import build_quicklog_embed
+
+                active_tasks = db.get_active_tasks()
+                parsed = await groq_service.parse_quicklog(text, active_tasks)
+                if parsed.get("suspicious"):
+                    await message.reply("❌ **Log Rejected**: Amarok detected unrealistic volume. Log your actual numbers.")
+                    return
+
+                matches = parsed.get("matches", [])
+                if matches:
+                    today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+                    old_points = db.get_user_lifetime_points(message.author.id)
+                    log_results = []
+                    for m in matches:
+                        try:
+                            res = db.log_activity(
+                                discord_id=message.author.id,
+                                username=message.author.name,
+                                task_name=m["task_name"],
+                                amount=m["amount"],
+                                log_date=today_str
+                            )
+                            log_results.append(res)
+                        except Exception as e:
+                            logger.warning(f"Error logging quick message item: {e}")
+
+                    if log_results:
+                        new_points = db.get_user_lifetime_points(message.author.id)
+                        level_up_info = check_level_up(old_points, new_points)
+                        embed = build_quicklog_embed(
+                            user=message.author,
+                            log_results=log_results,
+                            commentary=parsed.get("commentary", "Discipline logged."),
+                            unrecognized=parsed.get("unrecognized", []),
+                            level_up_info=level_up_info
+                        )
+                        await message.reply(embed=embed)
+                        try:
+                            await message.add_reaction("🐺")
+                        except Exception:
+                            pass
+                        return
+
+        # 2. Subtle mascot reactions when replied to or mentioned
         is_reply_to_bot = (
             message.reference
             and message.reference.resolved
@@ -139,9 +196,41 @@ class WinterArcBot(commands.Bot):
 bot = WinterArcBot()
 
 
+async def shutdown(bot_instance: WinterArcBot):
+    """Graceful shutdown handler for SIGTERM and SIGINT."""
+    logger.info("Shutdown signal received. Closing scheduler and gateway connection...")
+    if bot_instance.scheduler:
+        bot_instance.scheduler.stop()
+    await bot_instance.close()
+    logger.info("Winter Arc Bot closed cleanly.")
+
+
+def handle_signals(bot_instance: WinterArcBot, loop: asyncio.AbstractEventLoop):
+    """Registers POSIX termination signals for graceful shutdown."""
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(bot_instance)))
+        except (NotImplementedError, RuntimeError):
+            # Fallback for non-main thread or unsupported platforms
+            signal.signal(sig, lambda *_: asyncio.create_task(shutdown(bot_instance)))
+
+
+async def main():
+    async with bot:
+        loop = asyncio.get_running_loop()
+        handle_signals(bot, loop)
+        await bot.start(DISCORD_TOKEN)
+
+
 if __name__ == "__main__":
+    import asyncio
+    import signal
+
     if not DISCORD_TOKEN:
         logger.error("❌ DISCORD_TOKEN is not set in your .env file!")
         sys.exit(1)
 
-    bot.run(DISCORD_TOKEN)
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Winter Arc Bot process terminated.")

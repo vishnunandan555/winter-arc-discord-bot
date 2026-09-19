@@ -12,7 +12,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, GEMINI_MODEL
 
 logger = logging.getLogger("winter_arc.ai.gemini")
 
@@ -78,7 +78,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     try:
         from google.genai import types
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=GEMINI_MODEL,
             contents=f"User Reflection:\n\"{raw_text}\"",
             config=types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -140,7 +140,7 @@ async def generate_daily_toast_and_roast(
     try:
         from google.genai import types
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
@@ -185,7 +185,7 @@ async def generate_weekly_state_of_the_pack(
     try:
         from google.genai import types
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,

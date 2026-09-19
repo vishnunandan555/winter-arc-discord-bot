@@ -78,8 +78,39 @@ def build_overall_leaderboard_embed() -> discord.Embed:
     return embed
 
 
+def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[int] = None) -> discord.Embed:
+    """Builds the monthly standings leaderboard."""
+    now = datetime.now(BOT_TZ)
+    y = year or now.year
+    m = month or now.month
+    month_name = datetime(y, m, 1).strftime("%B %Y")
+    data = db.get_monthly_leaderboard(y, m)
+
+    lines = []
+    for idx, entry in enumerate(data):
+        rank = format_rank_badge(idx)
+        pts = entry["total_points"]
+        clean = entry.get("perfect_days", 0)
+        clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
+        lines.append(f"{rank}  **{entry['username']}** — **{pts:,} pts**{clean_str}")
+
+    if not lines:
+        lines.append(f"_No activity recorded for {month_name} yet._")
+
+    embed = discord.Embed(
+        title=f"📆 Winter Arc — {month_name} Standings",
+        description=(
+            f"🏆 **Monthly Leaderboard • {month_name}**\n\n"
+            + "\n\n".join(lines)
+        ),
+        color=0x9B59B6
+    )
+    embed.set_footer(text="Updated live • Ranked by total points this month")
+    return embed
+
+
 def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], streak: int, date_display: str) -> discord.Embed:
-    """Builds the spacious daily progress card."""
+    """Builds the spacious daily progress card with physical disciplines and grind bonus."""
     task_lines = []
     for t in progress["tasks"]:
         icon = TASK_ICONS.get(t["name"].lower(), "🎯")
@@ -91,12 +122,23 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     pct = int(progress["overall_completion_rate"] * 100)
     bar = make_progress_bar(progress["total_points"], progress["max_possible_points"], length=10)
 
+    grind_pts = progress.get("grind_points", 0)
+    grind_section = ""
+    points_breakdown = ""
+    if grind_pts > 0 or progress.get("grind_entry"):
+        entry = progress.get("grind_entry") or {}
+        learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
+        grind_section = f"\n\n**🧠 Mental / Academic Friction**\n• **Grind Bonus**: +{grind_pts} pts *({learning})*"
+        phys_pts = progress.get("physical_points", progress["total_points"] - grind_pts)
+        points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
+
     desc = (
         f"**{target_user.display_name}** • {date_display}\n\n"
-        f"`{bar}`  **{progress['total_points']} / {progress['max_possible_points']} pts** ({pct}%)\n"
+        f"`{bar}`  **{progress['total_points']} / {progress['max_possible_points']} pts** ({pct}%){points_breakdown}\n"
         f"🔥 Current Streak: **{streak} days**\n\n"
         "**Daily Disciplines**\n"
         + "\n".join(task_lines)
+        + grind_section
     )
 
     embed = discord.Embed(
@@ -595,7 +637,8 @@ def build_quicklog_embed(
     user: discord.Member,
     log_results: List[Dict[str, Any]],
     commentary: str,
-    unrecognized: List[str] = None
+    unrecognized: List[str] = None,
+    level_up_info: Optional[Dict[str, Any]] = None
 ) -> discord.Embed:
     """Builds the combined confirmation embed for natural language /quick logging."""
     lines = []
@@ -613,12 +656,22 @@ def build_quicklog_embed(
 
     unrec_line = f"\n\n⚠️ *Ignored non-Arc disciplines*: `{', '.join(unrecognized)}`" if unrecognized else ""
 
+    promo_banner = ""
+    if level_up_info:
+        promo_banner = (
+            f"\n\n🎉 **RANK PROMOTION!**\n"
+            f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!"
+        )
+    if any(r.get("shield_awarded") for r in log_results):
+        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+
     desc = (
         f"**{user.display_name}** • Fast Workout Log\n\n"
         + "\n\n".join(lines)
         + unrec_line
-        + f"\n\n📊 **Today's Points**: **{daily_total} / {daily_max} pts** (+{total_delta} pts earned)\n\n"
-        f"🐺 **Amarok**:\n> *\"{commentary}\"*"
+        + f"\n\n📊 **Today's Points**: **{daily_total} / {daily_max} pts** (+{total_delta} pts earned)"
+        + promo_banner
+        + f"\n\n🐺 **Amarok**:\n> *\"{commentary}\"*"
     )
 
     embed = discord.Embed(

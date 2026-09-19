@@ -10,7 +10,7 @@ Contains commands for enrolled participants:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import discord
 from discord import app_commands
@@ -308,7 +308,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # Competition & History Commands
     # ==========================================
 
-    @app_commands.command(name="leaderboard", description="View daily and overall standings.")
+    @app_commands.command(name="leaderboard", description="View daily, monthly, and overall standings.")
+    @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def leaderboard(self, interaction: discord.Interaction):
         embed = build_daily_leaderboard_embed()
         view = LeaderboardView(current_tab="daily")
@@ -317,6 +318,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="stats", description="View lifetime volume and performance statistics.")
     @app_commands.describe(member="Optional: View another member's statistics")
+    @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def stats(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target_user = member or interaction.user
         if target_user.id == interaction.user.id:
@@ -334,6 +336,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="history", description="View point and completion history.")
     @app_commands.describe(days="Timeframe to inspect (e.g. 7, 14, 30 days)")
     @app_commands.autocomplete(days=history_days_autocomplete)
+    @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def history(self, interaction: discord.Interaction, days: Optional[int] = 7):
         if not await require_enrolled(interaction):
             return
@@ -342,6 +345,43 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         hist = db.get_user_history(interaction.user.id, days=days_count)
         embed = build_history_embed(interaction.user, hist)
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="streak", description="Quickly look up current streak and shield protection status.")
+    @app_commands.describe(member="Optional: Check another warrior's streak")
+    async def streak_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target_user = member or interaction.user
+        if target_user.id == interaction.user.id:
+            if not await require_enrolled(interaction):
+                return
+        else:
+            if not db.is_user_enrolled(target_user.id):
+                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        streak = db.calculate_streak(target_user.id, today_str)
+        shield_status = db.get_user_shield_status(target_user.id)
+        stats = db.get_user_stats(target_user.id)
+
+        next_milestone = ((streak // 7) + 1) * 7
+        days_to_milestone = next_milestone - streak
+
+        desc = (
+            f"**{target_user.display_name}** • Streak Status\n\n"
+            f"🔥 **Current Streak**: **{streak} days**\n"
+            f"⭐ **Clean Days (100%)**: **{stats.get('perfect_days', 0)}**\n"
+            f"🛡️ **Frost Shields**: **{shield_status['inventory']}/2 available**\n"
+            f"⏳ **Next Shield Milestone**: **{days_to_milestone} day(s)** (at Day {next_milestone})\n\n"
+            + ("🛡️ *Protected by Frost Shield today!*" if shield_status["is_shielded_today"] else "⚡ *Maintain daily discipline to defend the flame.*")
+        )
+        embed = discord.Embed(
+            title="🔥 Winter Arc — Streak Status",
+            description=desc,
+            color=0xE67E22 if streak > 0 else 0x95A5A6
+        )
+        embed.set_footer(text="Consistency Beats Motivation • Defend your streak")
+        await interaction.response.send_message(embed=embed)
+        await safe_react(interaction, "🔥", "🐺")
 
     # ==========================================
     # Frost Shield & Streak Protection Commands
@@ -361,14 +401,30 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_shield_status_embed(interaction.user, status)
         await interaction.response.send_message(embed=embed)
 
-    @shield_group.command(name="use", description="Activate a Frost Shield to protect your streak today.")
-    @app_commands.describe(reason="Optional reason for recovery day (e.g. Muscle Recovery, Travel, Illness)")
-    async def shield_use_cmd(self, interaction: discord.Interaction, reason: Optional[str] = "Intentional active recovery"):
+    @shield_group.command(name="use", description="Activate a Frost Shield to protect your streak today or yesterday.")
+    @app_commands.describe(
+        target_date="Target day to protect: 'today' or 'yesterday'",
+        reason="Optional reason for recovery day (e.g. Muscle Recovery, Travel, Illness)"
+    )
+    @app_commands.choices(target_date=[
+        app_commands.Choice(name="Today", value="today"),
+        app_commands.Choice(name="Yesterday", value="yesterday"),
+    ])
+    async def shield_use_cmd(
+        self,
+        interaction: discord.Interaction,
+        target_date: Optional[app_commands.Choice[str]] = None,
+        reason: Optional[str] = "Intentional active recovery"
+    ):
         if not await require_enrolled(interaction):
             return
 
+        date_choice = target_date.value if target_date else "today"
+        today = datetime.now(BOT_TZ).date()
+        date_str = (today - timedelta(days=1)).isoformat() if date_choice == "yesterday" else today.isoformat()
+
         try:
-            result = db.activate_frost_shield(interaction.user.id, reason=reason)
+            result = db.activate_frost_shield(interaction.user.id, target_date=date_str, reason=reason)
             embed = build_shield_activated_embed(interaction.user, result)
             await interaction.response.send_message(embed=embed)
             await safe_react(interaction, "🛡️", "❄️")
@@ -484,6 +540,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             return
 
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        old_points = db.get_user_lifetime_points(interaction.user.id)
         log_results = []
         for m in matches:
             try:
@@ -502,14 +559,21 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             await interaction.followup.send("❌ An error occurred while logging entries.", ephemeral=True)
             return
 
+        new_points = db.get_user_lifetime_points(interaction.user.id)
+        level_up_info = check_level_up(old_points, new_points)
+
         embed = build_quicklog_embed(
             user=interaction.user,
             log_results=log_results,
             commentary=parsed.get("commentary", "Discipline logged."),
-            unrecognized=parsed.get("unrecognized", [])
+            unrecognized=parsed.get("unrecognized", []),
+            level_up_info=level_up_info
         )
         await interaction.followup.send(embed=embed)
-        await safe_react(interaction, "🐺", "⚡")
+        if level_up_info:
+            await safe_react(interaction, "🎉", "🐺")
+        else:
+            await safe_react(interaction, "🐺", "⚡")
 
 
 async def setup(bot: commands.Bot):

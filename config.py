@@ -19,15 +19,17 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 TIMEZONE_NAME = os.getenv("BOT_TIMEZONE", "Asia/Kolkata")
 BOT_TZ = ZoneInfo(TIMEZONE_NAME)
 
-# Default Winter Arc Role ID (Fallback when server has not explicitly configured another)
-DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "1550511682344845352"))
+# Default Winter Arc Role ID (0 means disabled until explicitly configured)
+DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "0"))
 
 # Database path
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
-# AI API Keys
+# AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Setup logger
 def setup_logging():

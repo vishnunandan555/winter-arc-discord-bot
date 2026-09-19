@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
 
-DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
+from config import DB_PATH
 
 DEFAULT_TASKS = [
     {"name": "Push-ups", "description": "Works chest, shoulders, and triceps (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
@@ -29,9 +29,11 @@ DEFAULT_TASKS = [
 
 @contextmanager
 def get_connection(db_path: str = DB_PATH):
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
     try:
         yield conn
     finally:
@@ -156,6 +158,15 @@ def init_db(db_path: str = DB_PATH):
             );
         """)
 
+        # 8. Bot State table (persists scheduler triggers and operational state across restarts)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bot_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
         # Indices
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_logs_user_date ON daily_logs(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_date ON daily_summaries(user_id, date);")
@@ -177,6 +188,33 @@ def init_db(db_path: str = DB_PATH):
                     active = 1;
             """, task)
 
+        conn.commit()
+
+
+# ==========================================
+# Bot State Persistence DAO
+# ==========================================
+
+def get_bot_state(key: str, default: Optional[str] = None, db_path: str = DB_PATH) -> Optional[str]:
+    """Retrieves a persistent key-value state for the bot (e.g. scheduler trigger dates)."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM bot_state WHERE key = ?;", (key,))
+        row = cursor.fetchone()
+        return str(row["value"]) if row else default
+
+
+def set_bot_state(key: str, value: str, db_path: str = DB_PATH) -> None:
+    """Sets a persistent key-value state for the bot."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO bot_state (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = CURRENT_TIMESTAMP;
+        """, (key, value))
         conn.commit()
 
 
@@ -579,58 +617,77 @@ def get_user_daily_progress(discord_id: int, target_date: Optional[str] = None, 
 
 
 def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path: str = DB_PATH) -> int:
+    """
+    Computes active consecutive day streak up to as_of_date using an in-memory batch lookup.
+    Fetches historical summaries and shield logs in 2 fast queries rather than 365 sequential DB calls.
+    """
     user = get_user_by_discord_id(discord_id, db_path)
     if not user or not user["enrolled"]:
         return 0
 
     ref_date = date.fromisoformat(as_of_date) if as_of_date else date.today()
     ref_date_str = ref_date.isoformat()
+    start_date_str = (ref_date - timedelta(days=365)).isoformat()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], ref_date_str))
-        today_shielded = cursor.fetchone() is not None
+        cursor.execute("""
+            SELECT date, perfect_day, completion_rate, is_shielded
+            FROM daily_summaries
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date_str, ref_date_str))
+        summaries = {
+            r["date"]: {
+                "perfect_day": bool(r["perfect_day"]),
+                "completion_rate": float(r["completion_rate"]),
+                "is_shielded": bool(r["is_shielded"])
+            }
+            for r in cursor.fetchall()
+        }
 
-    today_progress = get_user_daily_progress(discord_id, ref_date_str, db_path)
-    streak = 0
-    if today_progress["perfect_day"] or today_shielded:
-        streak += 1
-        current_check = ref_date - timedelta(days=1)
+        cursor.execute("""
+            SELECT date FROM shield_logs
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date_str, ref_date_str))
+        shielded_dates = {r["date"] for r in cursor.fetchall()}
+
+    # Check ref_date completion status
+    today_shielded = ref_date_str in shielded_dates
+    if ref_date_str in summaries:
+        s = summaries[ref_date_str]
+        ref_completed = s["perfect_day"] or s["completion_rate"] >= 0.999 or s["is_shielded"]
     else:
-        current_check = ref_date - timedelta(days=1)
+        today_prog = get_user_daily_progress(discord_id, ref_date_str, db_path)
+        ref_completed = today_prog["perfect_day"]
 
-    with get_connection(db_path) as conn:
-        cursor = conn.cursor()
-        for _ in range(365):
-            date_str = current_check.isoformat()
-            cursor.execute("""
-                SELECT perfect_day, completion_rate, is_shielded
-                FROM daily_summaries
-                WHERE user_id = ? AND date = ?;
-            """, (user["id"], date_str))
-            summary_row = cursor.fetchone()
+    streak = 0
+    if ref_completed or today_shielded:
+        streak += 1
 
-            cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], date_str))
-            is_log_shielded = cursor.fetchone() is not None
+    current_check = ref_date - timedelta(days=1)
+    for _ in range(365):
+        d_str = current_check.isoformat()
+        if d_str in shielded_dates:
+            streak += 1
+            current_check -= timedelta(days=1)
+            continue
 
-            if summary_row:
-                if summary_row["perfect_day"] or summary_row["completion_rate"] >= 0.999 or bool(summary_row["is_shielded"]) or is_log_shielded:
-                    streak += 1
-                    current_check -= timedelta(days=1)
-                    continue
-                else:
-                    break
+        if d_str in summaries:
+            s = summaries[d_str]
+            if s["perfect_day"] or s["completion_rate"] >= 0.999 or s["is_shielded"]:
+                streak += 1
+                current_check -= timedelta(days=1)
+                continue
             else:
-                if is_log_shielded:
-                    streak += 1
-                    current_check -= timedelta(days=1)
-                    continue
-                day_prog = get_user_daily_progress(discord_id, date_str, db_path)
-                if day_prog["perfect_day"] and day_prog["total_points"] > 0:
-                    streak += 1
-                    current_check -= timedelta(days=1)
-                else:
-                    break
+                break
+        else:
+            # Fallback for unfinalized day without summary
+            day_prog = get_user_daily_progress(discord_id, d_str, db_path)
+            if day_prog["perfect_day"] and day_prog["total_points"] > 0:
+                streak += 1
+                current_check -= timedelta(days=1)
+            else:
+                break
 
     return streak
 
@@ -640,38 +697,69 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
 # ==========================================
 
 def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """
+    Finalizes scores for target_date_str without holding nested SQLite locks.
+    Stage 1: Gather progress and determine auto-shield decisions.
+    Stage 2: Atomic write batch for summaries and shield logs.
+    Stage 3: Calculate streaks and milestone rewards.
+    """
     if not target_date_str:
         target_date_str = (date.today() - timedelta(days=1)).isoformat()
 
-    leaderboard = []
-
+    # Stage 1: Read-only data gathering
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, discord_id, username, frost_shields FROM users WHERE enrolled = 1")
+        cursor.execute("SELECT id, discord_id, username, frost_shields FROM users WHERE enrolled = 1;")
         users = cursor.fetchall()
 
-        for u in users:
-            progress = get_user_daily_progress(u["discord_id"], target_date_str, db_path)
-            points = progress["total_points"]
-            completion = progress["overall_completion_rate"]
-            perfect = 1 if progress["perfect_day"] else 0
+    user_plans = []
+    day_before = (date.fromisoformat(target_date_str) - timedelta(days=1)).isoformat()
 
-            # Check if this date was already manually shielded
-            cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?", (u["id"], target_date_str))
+    for u in users:
+        progress = get_user_daily_progress(u["discord_id"], target_date_str, db_path)
+        points = progress["total_points"]
+        completion = progress["overall_completion_rate"]
+        perfect = 1 if progress["perfect_day"] else 0
+
+        # Check if already manually shielded
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (u["id"], target_date_str))
             shielded = 1 if cursor.fetchone() is not None else 0
 
-            # Auto-shield logic: if not perfect, not already shielded, but user has shields and an active streak
-            if not perfect and not shielded and (u["frost_shields"] or 0) > 0:
-                day_before = (date.fromisoformat(target_date_str) - timedelta(days=1)).isoformat()
-                past_streak = calculate_streak(u["discord_id"], day_before, db_path)
-                if past_streak > 0:
-                    cursor.execute("UPDATE users SET frost_shields = frost_shields - 1 WHERE id = ?", (u["id"],))
-                    cursor.execute("""
-                        INSERT INTO shield_logs (user_id, date, reason)
-                        VALUES (?, ?, 'Auto-protection (Midnight Finalization)')
-                        ON CONFLICT(user_id, date) DO NOTHING;
-                    """, (u["id"], target_date_str))
-                    shielded = 1
+        # Auto-shield logic: if not perfect, not already shielded, has shields and past streak
+        shields_available = u["frost_shields"] or 0
+        auto_shield_applied = False
+        if not perfect and not shielded and shields_available > 0:
+            past_streak = calculate_streak(u["discord_id"], day_before, db_path)
+            if past_streak > 0:
+                auto_shield_applied = True
+                shielded = 1
+                shields_available -= 1
+
+        user_plans.append({
+            "id": u["id"],
+            "discord_id": u["discord_id"],
+            "username": u["username"],
+            "points": points,
+            "completion_rate": completion,
+            "perfect_day": bool(perfect),
+            "is_shielded": bool(shielded),
+            "auto_shield_applied": auto_shield_applied,
+            "frost_shields": shields_available,
+        })
+
+    # Stage 2: Single atomic write transaction
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        for p in user_plans:
+            if p["auto_shield_applied"]:
+                cursor.execute("UPDATE users SET frost_shields = ? WHERE id = ?;", (p["frost_shields"], p["id"]))
+                cursor.execute("""
+                    INSERT INTO shield_logs (user_id, date, reason)
+                    VALUES (?, ?, 'Auto-protection (Midnight Finalization)')
+                    ON CONFLICT(user_id, date) DO NOTHING;
+                """, (p["id"], target_date_str))
 
             cursor.execute("""
                 INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
@@ -681,42 +769,98 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
                     completion_rate = excluded.completion_rate,
                     perfect_day = excluded.perfect_day,
                     is_shielded = excluded.is_shielded;
-            """, (u["id"], target_date_str, points, completion, perfect, shielded))
-
-            current_streak = calculate_streak(u["discord_id"], target_date_str, db_path)
-            check_and_award_shield(u["discord_id"], current_streak, db_path)
-
-            leaderboard.append({
-                "discord_id": u["discord_id"],
-                "username": u["username"],
-                "points": points,
-                "completion_rate": completion,
-                "perfect_day": bool(perfect),
-                "is_shielded": bool(shielded),
-            })
+            """, (p["id"], target_date_str, p["points"], p["completion_rate"], 1 if p["perfect_day"] else 0, 1 if p["is_shielded"] else 0))
 
         conn.commit()
+
+    # Stage 3: Compute updated streaks & award milestones outside outer lock
+    leaderboard = []
+    for p in user_plans:
+        current_streak = calculate_streak(p["discord_id"], target_date_str, db_path)
+        check_and_award_shield(p["discord_id"], current_streak, db_path)
+        leaderboard.append({
+            "discord_id": p["discord_id"],
+            "username": p["username"],
+            "points": p["points"],
+            "completion_rate": p["completion_rate"],
+            "perfect_day": p["perfect_day"],
+            "is_shielded": p["is_shielded"],
+            "current_streak": current_streak,
+        })
 
     leaderboard.sort(key=lambda x: (x["points"], x["completion_rate"]), reverse=True)
     return leaderboard
 
 
 def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """
+    Computes daily standings for all enrolled users using single batched SQL queries.
+    """
     if not target_date_str:
         target_date_str = date.today().isoformat()
 
-    results = []
     users = get_enrolled_users(db_path)
+    if not users:
+        return []
 
+    active_tasks = get_active_tasks(db_path)
+    total_max_points = sum(t["max_points"] for t in active_tasks)
+
+    # 1 batch query for all users' daily logs on this date
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT user_id, task_id, COALESCE(SUM(amount), 0.0) as total_amount
+            FROM daily_logs
+            WHERE date = ?
+            GROUP BY user_id, task_id;
+        """, (target_date_str,))
+        log_rows = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT user_id, points_awarded
+            FROM grind_logs
+            WHERE date = ?;
+        """, (target_date_str,))
+        grind_rows = cursor.fetchall()
+
+    user_logs: Dict[int, Dict[int, float]] = {}
+    for r in log_rows:
+        u_id = r["user_id"]
+        if u_id not in user_logs:
+            user_logs[u_id] = {}
+        user_logs[u_id][r["task_id"]] = float(r["total_amount"])
+
+    user_grinds: Dict[int, int] = {r["user_id"]: int(r["points_awarded"]) for r in grind_rows}
+
+    results = []
     for u in users:
-        prog = get_user_daily_progress(u["discord_id"], target_date_str, db_path)
+        u_id = u["id"]
+        phys_pts = 0
+        all_completed = True
+        u_task_amounts = user_logs.get(u_id, {})
+
+        for t in active_tasks:
+            amt = u_task_amounts.get(t["id"], 0.0)
+            target = t["target"]
+            max_pts = t["max_points"]
+            ratio = amt / target if target > 0 else 0.0
+            task_pts = min(max_pts, math.floor(ratio * max_pts))
+            phys_pts += task_pts
+            if amt < target:
+                all_completed = False
+
+        grind_pts = user_grinds.get(u_id, 0)
+        total_pts = phys_pts + grind_pts
+        completion_rate = (phys_pts / total_max_points) if total_max_points > 0 else 0.0
+
         results.append({
             "discord_id": u["discord_id"],
             "username": u["username"],
-            "points": prog["total_points"],
-            "max_points": prog["max_possible_points"],
-            "completion_rate": prog["overall_completion_rate"],
-            "perfect_day": prog["perfect_day"],
+            "points": total_pts,
+            "max_points": total_max_points,
+            "completion_rate": round(completion_rate, 4),
+            "perfect_day": all_completed and len(active_tasks) > 0,
         })
 
     results.sort(key=lambda x: (x["points"], x["completion_rate"]), reverse=True)
@@ -724,33 +868,44 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
 
 
 def get_monthly_leaderboard(year: int, month: int, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Computes monthly standings for all enrolled users."""
     month_prefix = f"{year:04d}-{month:02d}%"
     today_str = date.today().isoformat()
     users = get_enrolled_users(db_path)
+    if not users:
+        return []
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                user_id,
+                COALESCE(SUM(points), 0) AS total_points,
+                COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                COUNT(DISTINCT date) AS recorded_days
+            FROM daily_summaries
+            WHERE date LIKE ? AND date != ?
+            GROUP BY user_id;
+        """, (month_prefix, today_str))
+        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+
+    today_standings = {}
+    if today_str.startswith(f"{year:04d}-{month:02d}"):
+        today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, db_path)}
 
     monthly_stats = []
     for u in users:
-        with get_connection(db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT
-                    COALESCE(SUM(points), 0) AS total_points,
-                    COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                    COUNT(DISTINCT date) AS recorded_days
-                FROM daily_summaries
-                WHERE user_id = ? AND date LIKE ? AND date != ?;
-            """, (u["id"], month_prefix, today_str))
-            row = cursor.fetchone()
-            past_points = int(row["total_points"]) if row else 0
-            perfect_days = int(row["perfect_days"]) if row else 0
-            recorded_days = int(row["recorded_days"]) if row else 0
+        past = past_map.get(u["id"])
+        past_points = int(past["total_points"]) if past else 0
+        perfect_days = int(past["perfect_days"]) if past else 0
+        recorded_days = int(past["recorded_days"]) if past else 0
 
-        if today_str.startswith(f"{year:04d}-{month:02d}"):
-            today_prog = get_user_daily_progress(u["discord_id"], today_str, db_path)
-            total_points = past_points + today_prog["total_points"]
+        if u["discord_id"] in today_standings:
+            today_prog = today_standings[u["discord_id"]]
+            total_points = past_points + today_prog["points"]
             if today_prog["perfect_day"]:
                 perfect_days += 1
-            if today_prog["total_points"] > 0:
+            if today_prog["points"] > 0:
                 recorded_days += 1
         else:
             total_points = past_points
@@ -774,29 +929,37 @@ def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     """
     today_str = date.today().isoformat()
     users = get_enrolled_users(db_path)
+    if not users:
+        return []
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                user_id,
+                COALESCE(SUM(points), 0) AS total_points,
+                COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                COUNT(DISTINCT date) AS recorded_days
+            FROM daily_summaries
+            WHERE date != ?
+            GROUP BY user_id;
+        """, (today_str,))
+        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+
+    today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, db_path)}
 
     overall_stats = []
     for u in users:
-        with get_connection(db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT
-                    COALESCE(SUM(points), 0) AS total_points,
-                    COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                    COUNT(DISTINCT date) AS recorded_days
-                FROM daily_summaries
-                WHERE user_id = ? AND date != ?;
-            """, (u["id"], today_str))
-            row = cursor.fetchone()
-            past_points = int(row["total_points"]) if row else 0
-            perfect_days = int(row["perfect_days"]) if row else 0
-            recorded_days = int(row["recorded_days"]) if row else 0
+        past = past_map.get(u["id"])
+        past_points = int(past["total_points"]) if past else 0
+        perfect_days = int(past["perfect_days"]) if past else 0
+        recorded_days = int(past["recorded_days"]) if past else 0
 
-        today_prog = get_user_daily_progress(u["discord_id"], today_str, db_path)
-        total_points = past_points + today_prog["total_points"]
+        today_prog = today_standings.get(u["discord_id"], {"points": 0, "perfect_day": False})
+        total_points = past_points + today_prog["points"]
         if today_prog["perfect_day"]:
             perfect_days += 1
-        if today_prog["total_points"] > 0:
+        if today_prog["points"] > 0:
             recorded_days += 1
 
         streak = calculate_streak(u["discord_id"], today_str, db_path)
@@ -1069,6 +1232,9 @@ def update_user_dm_settings(
         params.append(1 if dm_evening else 0)
 
     if updates:
+        allowed_clauses = {"dm_reminders = ?", "dm_morning = ?", "dm_evening = ?"}
+        if not all(clause in allowed_clauses for clause in updates):
+            raise ValueError("Unauthorized column modification attempt.")
         params.append(user["id"])
         with get_connection(db_path) as conn:
             cursor = conn.cursor()

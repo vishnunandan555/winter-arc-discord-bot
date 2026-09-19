@@ -94,6 +94,30 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
             "color": hex(r["color"]),
         })
 
+    # 6. Academic / Mental Grind Highlights
+    academic_highlights = []
+    try:
+        with db.get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.username, g.date, g.key_learning, g.points_awarded, g.commentary
+                FROM grind_logs g
+                JOIN users u ON g.user_id = u.id
+                WHERE g.verdict = 'ACCEPTED'
+                ORDER BY g.date DESC, g.points_awarded DESC
+                LIMIT 10;
+            """)
+            for r in cursor.fetchall():
+                academic_highlights.append({
+                    "username": r["username"],
+                    "date": r["date"],
+                    "key_learning": r["key_learning"],
+                    "points_awarded": r["points_awarded"],
+                    "commentary": r["commentary"],
+                })
+    except Exception as e:
+        logger.warning(f"Could not load academic grind highlights: {e}")
+
     payload = {
         "meta": {
             "generated_at": now.isoformat(),
@@ -114,6 +138,7 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
         "daily_standings": daily_standings,
         "overall_standings": overall_standings,
         "ranks": ranks_data,
+        "academic_highlights": academic_highlights,
     }
 
     with open(output_path, "w", encoding="utf-8") as f:
@@ -125,4 +150,4 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
 
 if __name__ == "__main__":
     export_stats_to_json()
-    print("Export complete: docs/stats.json updated successfully.")
+    logger.info("Export complete: docs/stats.json updated successfully.")

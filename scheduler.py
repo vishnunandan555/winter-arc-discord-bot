@@ -8,6 +8,7 @@ Runs background checks every 30 seconds for:
 """
 
 import logging
+import asyncio
 from datetime import datetime, date, timedelta
 import discord
 from discord.ext import tasks
@@ -34,13 +35,14 @@ def get_now_ist() -> datetime:
 class WinterArcScheduler:
     """Automated daily broadcast scheduler for dedicated server channels and personal DMs."""
 
-    def __init__(self, bot: discord.Client):
+    def __init__(self, bot: discord.Client, db_path: str = db.DB_PATH):
         self.bot = bot
-        self._last_morning_date = None
-        self._last_afternoon_date = None
-        self._last_evening_date = None
-        self._last_sunday_date = None
-        self._last_midnight_date = None
+        self.db_path = db_path
+        self._last_morning_date = db.get_bot_state("last_morning_date", db_path=self.db_path)
+        self._last_afternoon_date = db.get_bot_state("last_afternoon_date", db_path=self.db_path)
+        self._last_evening_date = db.get_bot_state("last_evening_date", db_path=self.db_path)
+        self._last_sunday_date = db.get_bot_state("last_sunday_date", db_path=self.db_path)
+        self._last_midnight_date = db.get_bot_state("last_midnight_date", db_path=self.db_path)
 
     def start(self):
         if not self.ticker_loop.is_running():
@@ -59,37 +61,41 @@ class WinterArcScheduler:
     @tasks.loop(seconds=30.0)
     async def ticker_loop(self):
         now = get_now_ist()
-        current_time_str = now.strftime("%H:%M")
         today_str = now.date().isoformat()
 
-        # 1. 05:00 IST - Morning Kickoff & Personal DMs
-        if current_time_str == "05:00" and self._last_morning_date != today_str:
+        # 1. 05:00 - 05:05 IST - Morning Kickoff & Personal DMs
+        if now.hour == 5 and now.minute < 5 and self._last_morning_date != today_str:
             self._last_morning_date = today_str
+            db.set_bot_state("last_morning_date", today_str, db_path=self.db_path)
             logger.info(f"Triggering Morning Kickoff for {today_str}...")
             await self.broadcast_morning_kickoff()
             await self.dispatch_morning_dms()
 
-        # 2. 16:30 IST - Afternoon Check-in
-        if current_time_str == "16:30" and self._last_afternoon_date != today_str:
+        # 2. 16:30 - 16:35 IST - Afternoon Check-in
+        if now.hour == 16 and 30 <= now.minute < 35 and self._last_afternoon_date != today_str:
             self._last_afternoon_date = today_str
+            db.set_bot_state("last_afternoon_date", today_str, db_path=self.db_path)
             logger.info(f"Triggering Afternoon Check-in for {today_str}...")
             await self.broadcast_afternoon_checkin()
 
-        # 3. 21:00 IST - Evening Streak Warning DMs (3h before midnight)
-        if current_time_str == "21:00" and self._last_evening_date != today_str:
+        # 3. 21:00 - 21:05 IST - Evening Streak Warning DMs (3h before midnight)
+        if now.hour == 21 and now.minute < 5 and self._last_evening_date != today_str:
             self._last_evening_date = today_str
+            db.set_bot_state("last_evening_date", today_str, db_path=self.db_path)
             logger.info(f"Triggering Evening Streak Warning DMs for {today_str}...")
             await self.dispatch_evening_dms()
 
-        # 3.5 Sunday 20:00 IST - Weekly State of the Pack
-        if now.weekday() == 6 and current_time_str == "20:00" and self._last_sunday_date != today_str:
+        # 3.5 Sunday 20:00 - 20:05 IST - Weekly State of the Pack
+        if now.weekday() == 6 and now.hour == 20 and now.minute < 5 and self._last_sunday_date != today_str:
             self._last_sunday_date = today_str
+            db.set_bot_state("last_sunday_date", today_str, db_path=self.db_path)
             logger.info(f"Triggering Sunday State of the Pack for {today_str}...")
             await self.broadcast_sunday_state_of_the_pack()
 
-        # 4. 00:00 IST - Midnight Finalization & Podium
-        if current_time_str == "00:00" and self._last_midnight_date != today_str:
+        # 4. 00:00 - 00:05 IST - Midnight Finalization & Podium
+        if now.hour == 0 and now.minute < 5 and self._last_midnight_date != today_str:
             self._last_midnight_date = today_str
+            db.set_bot_state("last_midnight_date", today_str, db_path=self.db_path)
             logger.info(f"Triggering Midnight Finalization at {today_str}...")
             await self.broadcast_midnight_finalization()
 
@@ -224,14 +230,14 @@ class WinterArcScheduler:
         end_date = now.date().isoformat()
         start_date = (now.date() - timedelta(days=6)).isoformat()
 
-        weekly_grinds = db.get_weekly_grind_highlights(start_date, end_date)
-        overall_data = db.get_overall_leaderboard()
-        enrolled_users = db.get_enrolled_users()
+        weekly_grinds = db.get_weekly_grind_highlights(start_date, end_date, db_path=self.db_path)
+        overall_data = db.get_overall_leaderboard(db_path=self.db_path)
+        enrolled_users = db.get_enrolled_users(db_path=self.db_path)
 
         # Compute weekly pack cumulative volume across all users
         weekly_volume = {"total_pushups": 0, "total_pullups": 0, "total_squats": 0, "total_situps": 0, "total_km": 0.0}
         try:
-            with db.get_connection() as conn:
+            with db.get_connection(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT t.name, COALESCE(SUM(l.amount), 0) as total_vol
@@ -291,64 +297,72 @@ class WinterArcScheduler:
         return embed
 
     # ==========================================
-    # Private Direct Messaging Dispatchers
+    # Private Direct Messaging Dispatchers (Concurrent Dispatch)
     # ==========================================
 
+    async def _send_single_morning_dm(self, user_record: Dict[str, Any], active_tasks: List[Dict[str, Any]], today_str: str, date_display: str) -> bool:
+        discord_id = user_record["discord_id"]
+        try:
+            discord_user = self.bot.get_user(discord_id)
+            if not discord_user:
+                discord_user = await self.bot.fetch_user(discord_id)
+            if discord_user:
+                streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
+                embed = build_dm_morning_embed(active_tasks, streak, date_display)
+                await discord_user.send(embed=embed)
+                return True
+        except discord.Forbidden:
+            logger.debug(f"Cannot send morning DM to user {discord_id} (DMs closed).")
+        except Exception as e:
+            logger.warning(f"Error sending morning DM to user {discord_id}: {e}")
+        return False
+
     async def dispatch_morning_dms(self):
-        """Dispatches personal morning briefing DMs to opted-in members."""
-        users = db.get_opted_in_dm_users(category="morning")
+        """Dispatches personal morning briefing DMs concurrently to opted-in members."""
+        users = db.get_opted_in_dm_users(category="morning", db_path=self.db_path)
         if not users:
             return
 
-        active_tasks = db.get_active_tasks()
+        active_tasks = db.get_active_tasks(db_path=self.db_path)
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
         date_display = now.strftime("%A, %B %d, %Y")
 
-        dispatched = 0
-        for u in users:
-            try:
-                discord_user = self.bot.get_user(u["discord_id"])
-                if not discord_user:
-                    discord_user = await self.bot.fetch_user(u["discord_id"])
-                if discord_user:
-                    streak = db.calculate_streak(u["discord_id"], today_str)
-                    embed = build_dm_morning_embed(active_tasks, streak, date_display)
-                    await discord_user.send(embed=embed)
-                    dispatched += 1
-            except discord.Forbidden:
-                logger.debug(f"Cannot send morning DM to user {u['discord_id']} (DMs closed).")
-            except Exception as e:
-                logger.warning(f"Error sending morning DM to user {u['discord_id']}: {e}")
+        tasks = [self._send_single_morning_dm(u, active_tasks, today_str, date_display) for u in users]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        dispatched = sum(1 for r in results if r is True)
+        logger.info(f"Morning briefing DMs dispatched to {dispatched}/{len(users)} member(s).")
 
-        logger.info(f"Morning briefing DMs dispatched to {dispatched} member(s).")
+    async def _send_single_evening_dm(self, user_record: Dict[str, Any], today_str: str) -> bool:
+        discord_id = user_record["discord_id"]
+        try:
+            discord_user = self.bot.get_user(discord_id)
+            if not discord_user:
+                discord_user = await self.bot.fetch_user(discord_id)
+            if discord_user:
+                progress = db.get_user_daily_progress(discord_id, today_str, db_path=self.db_path)
+                streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
+                shield_status = db.get_user_shield_status(discord_id, db_path=self.db_path)
+                embed = build_dm_evening_embed(discord_user, progress, streak, shield_status)
+                await discord_user.send(embed=embed)
+                return True
+        except discord.Forbidden:
+            logger.debug(f"Cannot send evening DM to user {discord_id} (DMs closed).")
+        except Exception as e:
+            logger.warning(f"Error sending evening DM to user {discord_id}: {e}")
+        return False
 
     async def dispatch_evening_dms(self):
-        """Dispatches personal evening streak warning DMs to opted-in members."""
-        users = db.get_opted_in_dm_users(category="evening")
+        """Dispatches personal evening streak warning DMs concurrently to opted-in members."""
+        users = db.get_opted_in_dm_users(category="evening", db_path=self.db_path)
         if not users:
             return
 
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
 
-        dispatched = 0
-        for u in users:
-            try:
-                discord_user = self.bot.get_user(u["discord_id"])
-                if not discord_user:
-                    discord_user = await self.bot.fetch_user(u["discord_id"])
-                if discord_user:
-                    progress = db.get_user_daily_progress(u["discord_id"], today_str)
-                    streak = db.calculate_streak(u["discord_id"], today_str)
-                    shield_status = db.get_user_shield_status(u["discord_id"])
-                    embed = build_dm_evening_embed(discord_user, progress, streak, shield_status)
-                    await discord_user.send(embed=embed)
-                    dispatched += 1
-            except discord.Forbidden:
-                logger.debug(f"Cannot send evening DM to user {u['discord_id']} (DMs closed).")
-            except Exception as e:
-                logger.warning(f"Error sending evening DM to user {u['discord_id']}: {e}")
-
-        logger.info(f"Evening streak alert DMs dispatched to {dispatched} member(s).")
+        tasks = [self._send_single_evening_dm(u, today_str) for u in users]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        dispatched = sum(1 for r in results if r is True)
+        logger.info(f"Evening streak alert DMs dispatched to {dispatched}/{len(users)} member(s).")
 
