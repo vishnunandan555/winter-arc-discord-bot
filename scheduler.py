@@ -20,7 +20,9 @@ from ui.embeds import (
     build_podium_embed,
     build_dm_morning_embed,
     build_dm_evening_embed,
+    build_weekly_state_of_the_pack_embed,
 )
+from ai import gemini_service
 
 logger = logging.getLogger("winter_arc.scheduler")
 
@@ -37,6 +39,7 @@ class WinterArcScheduler:
         self._last_morning_date = None
         self._last_afternoon_date = None
         self._last_evening_date = None
+        self._last_sunday_date = None
         self._last_midnight_date = None
 
     def start(self):
@@ -77,6 +80,12 @@ class WinterArcScheduler:
             self._last_evening_date = today_str
             logger.info(f"Triggering Evening Streak Warning DMs for {today_str}...")
             await self.dispatch_evening_dms()
+
+        # 3.5 Sunday 20:00 IST - Weekly State of the Pack
+        if now.weekday() == 6 and current_time_str == "20:00" and self._last_sunday_date != today_str:
+            self._last_sunday_date = today_str
+            logger.info(f"Triggering Sunday State of the Pack for {today_str}...")
+            await self.broadcast_sunday_state_of_the_pack()
 
         # 4. 00:00 IST - Midnight Finalization & Podium
         if current_time_str == "00:00" and self._last_midnight_date != today_str:
@@ -163,12 +172,30 @@ class WinterArcScheduler:
                     logger.warning(f"Could not send afternoon check-in to {channel.name} in {guild.name}: {e}")
 
     async def broadcast_midnight_finalization(self, target_channel: discord.TextChannel = None, role_ping: str = "") -> discord.Embed:
-        """Finalizes day's results, stores daily_summaries, and publishes podium to dedicated channel."""
+        """Finalizes day's results, stores daily_summaries, and publishes podium with AI Toast & Roast."""
         now = get_now_ist()
         yesterday = (now - timedelta(days=1)).date().isoformat()
 
         leaderboard = db.finalize_daily_summaries(yesterday)
         embed = build_podium_embed(yesterday, leaderboard)
+
+        # AI Daily Toast & Roast
+        try:
+            grind_highlights = db.get_daily_grind_highlights(yesterday)
+            enrolled_users = db.get_enrolled_users()
+            active_yesterday = {e["discord_id"] for e in leaderboard if e["points"] > 0}
+            slacker_count = len(enrolled_users) - len(active_yesterday)
+
+            ai_recap = await gemini_service.generate_daily_toast_and_roast(
+                podium_data=leaderboard,
+                grind_highlights=grind_highlights,
+                slacker_count=max(0, slacker_count),
+                total_enrolled=len(enrolled_users)
+            )
+            if ai_recap:
+                embed.description = f"🐺 **Amarok's Daily Toast & Roast**:\n> *\"{ai_recap}\"*\n\n" + embed.description
+        except Exception as e:
+            logger.debug(f"Could not append AI daily recap: {e}")
 
         # Update web dashboard statistics JSON
         try:
@@ -188,6 +215,78 @@ class WinterArcScheduler:
                     await channel.send(content=f"{ping}🌙 **Day Finalized!**", embed=embed)
                 except Exception as e:
                     logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
+
+        return embed
+
+    async def broadcast_sunday_state_of_the_pack(self, target_channel: discord.TextChannel = None, role_ping: str = "") -> discord.Embed:
+        """Broadcasts the weekly Sunday State of the Pack address to dedicated channels."""
+        now = get_now_ist()
+        end_date = now.date().isoformat()
+        start_date = (now.date() - timedelta(days=6)).isoformat()
+
+        weekly_grinds = db.get_weekly_grind_highlights(start_date, end_date)
+        overall_data = db.get_overall_leaderboard()
+        enrolled_users = db.get_enrolled_users()
+
+        # Compute weekly pack cumulative volume across all users
+        weekly_volume = {"total_pushups": 0, "total_pullups": 0, "total_squats": 0, "total_situps": 0, "total_km": 0.0}
+        try:
+            with db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT t.name, COALESCE(SUM(l.amount), 0) as total_vol
+                    FROM tasks t
+                    LEFT JOIN daily_logs l ON t.id = l.task_id AND l.date >= ? AND l.date <= ?
+                    GROUP BY t.id;
+                """, (start_date, end_date))
+                for r in cursor.fetchall():
+                    name_l = r["name"].lower()
+                    vol = float(r["total_vol"])
+                    if "push" in name_l:
+                        weekly_volume["total_pushups"] = int(vol)
+                    elif "pull" in name_l:
+                        weekly_volume["total_pullups"] = int(vol)
+                    elif "squat" in name_l:
+                        weekly_volume["total_squats"] = int(vol)
+                    elif "sit" in name_l:
+                        weekly_volume["total_situps"] = int(vol)
+                    elif "run" in name_l:
+                        weekly_volume["total_km"] = round(vol, 1)
+
+                # Count ghost members (enrolled users who logged 0 points all week)
+                cursor.execute("""
+                    SELECT COUNT(DISTINCT user_id) as active_count
+                    FROM daily_summaries
+                    WHERE date >= ? AND date <= ? AND points > 0;
+                """, (start_date, end_date))
+                active_wk = cursor.fetchone()["active_count"]
+                ghosts_count = max(0, len(enrolled_users) - active_wk)
+        except Exception as e:
+            logger.warning(f"Error aggregating weekly stats: {e}")
+            ghosts_count = 0
+
+        ai_speech = await gemini_service.generate_weekly_state_of_the_pack(
+            weekly_stats=weekly_volume,
+            top_warriors=overall_data[:3],
+            weekly_grinds=weekly_grinds,
+            ghosts_count=ghosts_count
+        )
+        if not ai_speech:
+            ai_speech = "The pack moves forward. Honor to the consistent, cold comfort to the idle. Monday 05:00 awaits."
+
+        embed = build_weekly_state_of_the_pack_embed(weekly_volume, overall_data[:3], ai_speech)
+
+        if target_channel:
+            await target_channel.send(content=f"{role_ping}🐺 **State of the Pack**", embed=embed)
+            return embed
+
+        for guild in self.bot.guilds:
+            channel, ping = self._get_target_channel_and_ping(guild)
+            if channel:
+                try:
+                    await channel.send(content=f"{ping}🐺 **State of the Pack**", embed=embed)
+                except Exception as e:
+                    logger.warning(f"Could not post State of the Pack to {channel.name} in {guild.name}: {e}")
 
         return embed
 

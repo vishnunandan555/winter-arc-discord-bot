@@ -352,8 +352,91 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         evening_users = db.get_opted_in_dm_users("evening", TEST_DB)
         self.assertFalse(any(u["discord_id"] == user_id for u in evening_users))
 
+    def test_15_grind_log_db_lifecycle(self):
+        user_id = 3001
+        db.enroll_user(user_id, "GrindMaster", TEST_DB)
+
+        today_str = "2026-09-18"
+        # 1. Record grind entry
+        entry = db.record_grind_entry(
+            discord_id=user_id,
+            date_str=today_str,
+            raw_input="Studied kernel memory and solved 2 Hard LeetCode",
+            verdict="ACCEPTED",
+            points=45,
+            key_learning="OS Memory Virtualization",
+            commentary="Real friction. Do not get complacent.",
+            db_path=TEST_DB
+        )
+        self.assertEqual(entry["points_awarded"], 45)
+        self.assertEqual(entry["verdict"], "ACCEPTED")
+
+        # 2. Strict 1 submission per day: second attempt must fail
+        with self.assertRaises(ValueError):
+            db.record_grind_entry(
+                discord_id=user_id,
+                date_str=today_str,
+                raw_input="Another submission on same day",
+                verdict="ACCEPTED",
+                points=30,
+                key_learning="Algorithms",
+                commentary="Extra",
+                db_path=TEST_DB
+            )
+
+        # 3. Retrieve user's daily grind
+        retrieved = db.get_user_daily_grind(user_id, today_str, TEST_DB)
+        self.assertIsNotNone(retrieved)
+        self.assertEqual(retrieved["points_awarded"], 45)
+
+        # 4. Daily progress includes grind points
+        prog = db.get_user_daily_progress(user_id, today_str, TEST_DB)
+        self.assertEqual(prog["grind_points"], 45)
+        self.assertEqual(prog["physical_points"], 0)
+        self.assertEqual(prog["total_points"], 45)
+
+        # 5. Highlights queries
+        daily_hl = db.get_daily_grind_highlights(today_str, TEST_DB)
+        self.assertEqual(len(daily_hl), 1)
+        self.assertEqual(daily_hl[0]["username"], "GrindMaster")
+
+        weekly_hl = db.get_weekly_grind_highlights("2026-09-15", "2026-09-20", TEST_DB)
+        self.assertEqual(len(weekly_hl), 1)
+
+    def test_16_groq_workout_parser(self):
+        from ai.groq_service import regex_fallback_parser
+        active_tasks = db.get_active_tasks(TEST_DB)
+
+        # Multi-task natural language workout
+        res = regex_fallback_parser("did 45 pushups, 15 pullups and ran 5.5k", active_tasks)
+        matches = {m["task_name"]: m["amount"] for m in res["matches"]}
+        self.assertIn("Push-ups", matches)
+        self.assertEqual(matches["Push-ups"], 45.0)
+        self.assertIn("Pull-ups", matches)
+        self.assertEqual(matches["Pull-ups"], 15.0)
+        self.assertIn("Running", matches)
+        self.assertEqual(matches["Running"], 5.5)
+
+        # Foreign exercise should not match active tasks
+        res_foreign = regex_fallback_parser("did 50 bicep curls and 20 bench presses", active_tasks)
+        self.assertEqual(len(res_foreign["matches"]), 0)
+
+    def test_17_gemini_grind_evaluator(self):
+        import asyncio
+        from ai.gemini_service import evaluate_grind
+
+        # Test evaluation structure (works with or without API key via fallback)
+        res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
+        self.assertIn("verdict", res)
+        self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
+        self.assertIn("points", res)
+        self.assertTrue(0 <= res["points"] <= 60)
+        self.assertIn("commentary", res)
+        self.assertTrue(len(res["commentary"]) > 5)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

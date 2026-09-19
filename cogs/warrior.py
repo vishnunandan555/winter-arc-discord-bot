@@ -41,8 +41,11 @@ from ui.embeds import (
     build_shield_status_embed,
     build_shield_activated_embed,
     build_settings_embed,
+    build_grind_embed,
+    build_quicklog_embed,
 )
 from ui.views import LeaderboardView, SettingsView
+from ai import gemini_service, groq_service
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
 
@@ -391,7 +394,125 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         view = SettingsView(interaction.user.id, settings)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+    # ==========================================
+    # AI Discipline & Quick-Logging Commands
+    # ==========================================
+
+    @app_commands.command(name="grind", description="Submit daily academic/engineering friction for Amarok's evaluation.")
+    @app_commands.describe(text="Your daily intellectual friction (academics, LeetCode, deep work, math, systems)")
+    async def grind_cmd(self, interaction: discord.Interaction, text: str):
+        if not await require_enrolled(interaction):
+            return
+
+        now = datetime.now(BOT_TZ)
+        today_str = now.strftime("%Y-%m-%d")
+
+        # Check if already submitted today
+        existing = db.get_user_daily_grind(interaction.user.id, today_str)
+        if existing:
+            await interaction.response.send_message(
+                "❌ You have already submitted your daily **/grind** evaluation for today. Next submission unlocks at 00:00 IST.",
+                ephemeral=True
+            )
+            return
+
+        if len(text.strip()) < 10:
+            await interaction.response.send_message(
+                "❌ Your reflection is too short. Describe what real friction or engineering/academic depth you tackled.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer()
+
+        # Evaluate via Gemini
+        evaluation = await gemini_service.evaluate_grind(text)
+
+        # Record in database
+        try:
+            db.record_grind_entry(
+                discord_id=interaction.user.id,
+                date_str=today_str,
+                raw_input=text,
+                verdict=evaluation["verdict"],
+                points=evaluation["points"],
+                key_learning=evaluation["key_learning"],
+                commentary=evaluation["commentary"]
+            )
+        except ValueError as e:
+            await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
+            return
+
+        prog = db.get_user_daily_progress(interaction.user.id, today_str)
+        embed = build_grind_embed(interaction.user, evaluation, prog["total_points"])
+        await interaction.followup.send(embed=embed)
+
+        if evaluation["verdict"] == "ACCEPTED":
+            await safe_react(interaction, "⚔️", "🧠")
+        elif evaluation["verdict"] == "ROASTED":
+            await safe_react(interaction, "🔥", "💀")
+
+    @app_commands.command(name="quick", description="Natural language workout logging (e.g. 'did 45 pushups and ran 5k').")
+    @app_commands.describe(text="Natural language workout text (e.g. '40 pushups, 12 pullups, ran 5k')")
+    async def quick_cmd(self, interaction: discord.Interaction, text: str):
+        if not await require_enrolled(interaction):
+            return
+
+        if len(text.strip()) < 3:
+            await interaction.response.send_message("❌ Please specify your completed exercises and amounts.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        active_tasks = db.get_active_tasks()
+        parsed = await groq_service.parse_quicklog(text, active_tasks)
+
+        if parsed.get("suspicious"):
+            await interaction.followup.send(
+                "❌ **Log Rejected**: Amarok detected unrealistic volume. Log your actual completed numbers.",
+                ephemeral=True
+            )
+            return
+
+        matches = parsed.get("matches", [])
+        if not matches:
+            task_names = ", ".join(t["name"] for t in active_tasks)
+            await interaction.followup.send(
+                f"❌ Could not detect any active disciplines. Active tasks: **{task_names}**.",
+                ephemeral=True
+            )
+            return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        log_results = []
+        for m in matches:
+            try:
+                res = db.log_activity(
+                    discord_id=interaction.user.id,
+                    username=interaction.user.name,
+                    task_name=m["task_name"],
+                    amount=m["amount"],
+                    log_date=today_str
+                )
+                log_results.append(res)
+            except Exception as e:
+                logger.warning(f"Error logging quick item {m}: {e}")
+
+        if not log_results:
+            await interaction.followup.send("❌ An error occurred while logging entries.", ephemeral=True)
+            return
+
+        embed = build_quicklog_embed(
+            user=interaction.user,
+            log_results=log_results,
+            commentary=parsed.get("commentary", "Discipline logged."),
+            unrecognized=parsed.get("unrecognized", [])
+        )
+        await interaction.followup.send(embed=embed)
+        await safe_react(interaction, "🐺", "⚡")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarriorCog(bot))
+
 

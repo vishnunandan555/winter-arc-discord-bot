@@ -139,11 +139,30 @@ def init_db(db_path: str = DB_PATH):
         except sqlite3.OperationalError:
             pass  # Column already exists
 
+        # 7. Grind logs table (daily academic / mental friction logs evaluated by Gemini)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS grind_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                raw_input TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                points_awarded INTEGER DEFAULT 0,
+                key_learning TEXT,
+                commentary TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, date),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+        """)
+
         # Indices
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_logs_user_date ON daily_logs(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_date ON daily_summaries(user_id, date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_date ON daily_summaries(date);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_shield_logs_user_date ON shield_logs(user_id, date);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_grind_logs_user_date ON grind_logs(user_id, date);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_grind_logs_date ON grind_logs(date);")
 
         # Seed default tasks (ensures all 5 tasks and targets are present)
         for task in DEFAULT_TASKS:
@@ -531,14 +550,28 @@ def get_user_daily_progress(discord_id: int, target_date: Optional[str] = None, 
                 "completed": total_amount >= target,
             })
 
-    overall_completion = (total_points / total_max_points) if total_max_points > 0 else 0.0
+        cursor.execute("""
+            SELECT points_awarded, verdict, key_learning, commentary, created_at
+            FROM grind_logs
+            WHERE user_id = ? AND date = ?;
+        """, (user["id"], target_date))
+        grind_row = cursor.fetchone()
+        grind_points = int(grind_row["points_awarded"]) if grind_row else 0
+        grind_entry = dict(grind_row) if grind_row else None
+
+    physical_points = total_points
+    total_combined_points = physical_points + grind_points
+    overall_completion = (physical_points / total_max_points) if total_max_points > 0 else 0.0
 
     return {
         "date": target_date,
         "user_id": user["id"],
         "username": user["username"],
         "tasks": task_summaries,
-        "total_points": total_points,
+        "physical_points": physical_points,
+        "grind_points": grind_points,
+        "grind_entry": grind_entry,
+        "total_points": total_combined_points,
         "max_possible_points": total_max_points,
         "overall_completion_rate": round(overall_completion, 4),
         "perfect_day": all_targets_met,
@@ -1057,4 +1090,85 @@ def get_opted_in_dm_users(category: str = "all", db_path: str = DB_PATH) -> List
         query += " ORDER BY id ASC;"
         cursor.execute(query)
         return [dict(r) for r in cursor.fetchall()]
+
+
+# ==========================================
+# Grind Logs & Academic Friction DAO
+# ==========================================
+
+def record_grind_entry(
+    discord_id: int,
+    date_str: str,
+    raw_input: str,
+    verdict: str,
+    points: int,
+    key_learning: str,
+    commentary: str,
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """Records an evaluated grind entry. Strictly enforces 1 submission per calendar day."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user or not user["enrolled"]:
+        raise ValueError("You must be enrolled in Winter Arc to submit daily grind evaluations.")
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM grind_logs WHERE user_id = ? AND date = ?;", (user["id"], date_str))
+        if cursor.fetchone():
+            raise ValueError("You have already submitted your daily /grind evaluation for today. Returns at 00:00 IST.")
+
+        cursor.execute("""
+            INSERT INTO grind_logs (user_id, date, raw_input, verdict, points_awarded, key_learning, commentary)
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+        """, (user["id"], date_str, raw_input, verdict, points, key_learning, commentary))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM grind_logs WHERE id = last_insert_rowid();")
+        return dict(cursor.fetchone())
+
+
+def get_user_daily_grind(discord_id: int, date_str: Optional[str] = None, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """Retrieves user's grind log entry for a specific date."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return None
+
+    target_date = date_str or date.today().isoformat()
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM grind_logs WHERE user_id = ? AND date = ?;
+        """, (user["id"], target_date))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_daily_grind_highlights(date_str: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Fetches accepted, non-zero grind achievements for a given date."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT g.*, u.username, u.discord_id
+            FROM grind_logs g
+            JOIN users u ON g.user_id = u.id
+            WHERE g.date = ? AND g.verdict = 'ACCEPTED' AND g.points_awarded > 0
+            ORDER BY g.points_awarded DESC;
+        """, (date_str,))
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def get_weekly_grind_highlights(start_date_str: str, end_date_str: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """Fetches accepted grind achievements within a date range."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT g.*, u.username, u.discord_id
+            FROM grind_logs g
+            JOIN users u ON g.user_id = u.id
+            WHERE g.date >= ? AND g.date <= ? AND g.verdict = 'ACCEPTED' AND g.points_awarded > 0
+            ORDER BY g.points_awarded DESC
+            LIMIT 10;
+        """, (start_date_str, end_date_str))
+        return [dict(r) for r in cursor.fetchall()]
+
 

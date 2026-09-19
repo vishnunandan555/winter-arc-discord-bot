@@ -552,3 +552,115 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
     embed.set_footer(text="Winter Arc • Discipline is Destiny")
     return embed
 
+
+def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_points: int) -> discord.Embed:
+    """Builds the confirmation embed for /grind evaluation."""
+    verdict = result["verdict"]
+    pts = result["points"]
+
+    if verdict == "ACCEPTED":
+        title = f"⚔️ Grind Accepted: +{pts} Points"
+        color = 0x00D2FF
+        icon = "🧠"
+    elif verdict == "ROASTED":
+        title = "🔥 Submission Roasted: 0 Points"
+        color = 0xE67E22
+        icon = "💀"
+    else:
+        title = "❌ Submission Rejected: 0 Points"
+        color = 0x95A5A6
+        icon = "⚪"
+
+    learning_line = f"• **Key Focus**: `{result['key_learning']}`\n" if result.get("key_learning") and result["key_learning"] != "None" else ""
+
+    desc = (
+        f"**{user.display_name}** • Daily Intellectual Friction\n\n"
+        f"{icon} **Verdict**: **{verdict}** (+{pts} bonus pts)\n"
+        f"{learning_line}"
+        f"📊 **Today's Total**: **{total_daily_points} pts**\n\n"
+        f"🐺 **Amarok's Assessment**:\n"
+        f"> *\"{result['commentary']}\"*"
+    )
+
+    embed = discord.Embed(
+        title=title,
+        description=desc,
+        color=color
+    )
+    embed.set_footer(text="Winter Arc • Only real friction counts • Returns tomorrow at 00:00 IST")
+    return embed
+
+
+def build_quicklog_embed(
+    user: discord.Member,
+    log_results: List[Dict[str, Any]],
+    commentary: str,
+    unrecognized: List[str] = None
+) -> discord.Embed:
+    """Builds the combined confirmation embed for natural language /quick logging."""
+    lines = []
+    total_delta = sum(r["points_earned_delta"] for r in log_results)
+    daily_total = log_results[-1]["daily_points_total"] if log_results else 0
+    daily_max = log_results[-1]["daily_points_max"] if log_results else 500
+
+    for r in log_results:
+        cur = int(r["new_total"]) if r["new_total"].is_integer() else r["new_total"]
+        tgt = int(r["target"]) if r["target"].is_integer() else r["target"]
+        amt = int(r["amount_logged"]) if r["amount_logged"].is_integer() else r["amount_logged"]
+        bar = make_progress_bar(r["new_total"], r["target"], length=8)
+        delta_tag = f"+{r['points_earned_delta']} pts" if r['points_earned_delta'] > 0 else "Capped"
+        lines.append(f"• **{r['task_name']}**: `+{amt} {r['unit']}` ➔ `{cur} / {tgt} {r['unit']}` ({delta_tag})\n  `{bar}`")
+
+    unrec_line = f"\n\n⚠️ *Ignored non-Arc disciplines*: `{', '.join(unrecognized)}`" if unrecognized else ""
+
+    desc = (
+        f"**{user.display_name}** • Fast Workout Log\n\n"
+        + "\n\n".join(lines)
+        + unrec_line
+        + f"\n\n📊 **Today's Points**: **{daily_total} / {daily_max} pts** (+{total_delta} pts earned)\n\n"
+        f"🐺 **Amarok**:\n> *\"{commentary}\"*"
+    )
+
+    embed = discord.Embed(
+        title="⚡ Quick-Log Processed",
+        description=desc,
+        color=0x2ECC71
+    )
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    return embed
+
+
+def build_weekly_state_of_the_pack_embed(
+    weekly_stats: Dict[str, Any],
+    top_warriors: List[Dict[str, Any]],
+    ai_speech: str
+) -> discord.Embed:
+    """Builds the Sunday 20:00 IST State of the Pack broadcast embed."""
+    apex = top_warriors[0] if top_warriors else {"username": "Nobody", "points": 0}
+    podium_lines = []
+    for idx, w in enumerate(top_warriors[:3]):
+        badge = ["👑", "⚔️", "🛡️"][idx] if idx < 3 else f"#{idx+1}"
+        podium_lines.append(f"{badge} **{w['username']}** — **{w['points']} pts**")
+
+    desc = (
+        f"🐺 **Amarok's Weekly Address**:\n"
+        f"> *\"{ai_speech}\"*\n\n"
+        "**🏆 Week's Podium**\n"
+        + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
+        + "\n\n**🌐 Pack Cumulative Volume**\n"
+        f"• 💪 **Push-ups**: `{weekly_stats.get('total_pushups', 0):,}`\n"
+        f"• 🧗 **Pull-ups**: `{weekly_stats.get('total_pullups', 0):,}`\n"
+        f"• 🦵 **Squats**: `{weekly_stats.get('total_squats', 0):,}`\n"
+        f"• 🧘 **Sit-ups**: `{weekly_stats.get('total_situps', 0):,}`\n"
+        f"• 🏃 **Running**: `{weekly_stats.get('total_km', 0):,.1f} km`"
+    )
+
+    embed = discord.Embed(
+        title="🐺 Winter Arc — Sunday State of the Pack",
+        description=desc,
+        color=0xF1C40F
+    )
+    embed.set_footer(text="A new week dawns tomorrow at 05:00 IST • Rest and steel your resolve")
+    return embed
+
+

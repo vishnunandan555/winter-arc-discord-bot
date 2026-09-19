@@ -124,7 +124,8 @@ Once you invite the bot into your server:
 | `/profile` | View member card, rank tier progress, streak, and joined date. |
 | `/ranks` | View full 12-level pack hierarchy and point milestones. |
 | `/leaderboard` | Interactive leaderboard with **Daily** and **Overall** tabs. |
-| `/stats [member]` | View lifetime points, perfect days, active days, and all-time volume. |
+| `/quick [text]` | Ultra-fast natural language workout logging powered by Groq. |
+| `/grind [text]` | Daily academic/engineering friction evaluation powered by Gemini (1x/day, +10–60 pts). |
 | `/shield status` | View Frost Shield inventory, protection status, and next unlock. |
 | `/shield use [reason]` | Activate a Frost Shield to protect your streak on a recovery day. |
 | `/settings [dms]` | Interactive private DM preferences (05:00 briefing & 21:00 streak alert). |

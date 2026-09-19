@@ -25,6 +25,10 @@ DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "1550511682344845352"))
 # Database path
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
+# AI API Keys
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
 # Setup logger
 def setup_logging():
     logging.basicConfig(
