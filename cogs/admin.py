@@ -152,7 +152,12 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             await interaction.response.send_message("❌ Target and max_points must be greater than 0.", ephemeral=True)
             return
 
-        task = db.add_task(name=name, target=target, unit=unit, max_points=max_points, description=description)
+        try:
+            task = db.add_task(name=name, target=target, unit=unit, max_points=max_points, description=description)
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            return
+
         embed = discord.Embed(
             title="✅ Task Registered / Updated",
             description=(
@@ -169,8 +174,10 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     @app_commands.describe(name="Task name to enable/disable")
     @app_commands.autocomplete(name=all_tasks_autocomplete)
     async def admin_task_toggle(self, interaction: discord.Interaction, name: str):
+        task_obj = db.get_task_by_name(name)
+        target_name = task_obj["name"] if task_obj else name
         try:
-            task = db.toggle_task(name)
+            task = db.toggle_task(target_name)
             status_str = "Enabled 🟢" if task["active"] else "Disabled 🔴"
             await interaction.response.send_message(f"Task **{task['name']}** is now **{status_str}**.")
         except ValueError as e:
@@ -312,7 +319,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
         elif reminder_type == "groq_nudge":
             from ai import groq_service
-            await interaction.followup.send("✅ Simulating reactive Groq observation nudge from Amarok...", ephemeral=True)
+            await interaction.followup.send("✅ Simulating reactive accountability nudge...", ephemeral=True)
             await groq_service.dispatch_channel_nudge(
                 channel=channel,
                 user_id=interaction.user.id,

@@ -9,6 +9,7 @@ Provides reusable functions across cogs and scheduler:
 """
 
 import logging
+import re
 from typing import List, Optional, Any
 import discord
 from discord import app_commands
@@ -40,8 +41,10 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
     icons = {"push-ups": "💪", "pull-ups": "🧗", "squats": "🦵", "sit-ups": "🧘", "running": "🏃"}
     tasks = db.get_active_tasks()
     choices = []
+    curr_clean = re.sub(r'[^a-z0-9]', '', (current or "").lower())
     for t in tasks:
-        if current.lower() in t["name"].lower():
+        t_clean = re.sub(r'[^a-z0-9]', '', t["name"].lower())
+        if not curr_clean or curr_clean in t_clean or (current or "").lower() in t["name"].lower():
             target_disp = int(t["target"]) if t["target"].is_integer() else t["target"]
             icon = icons.get(t["name"].lower(), "🎯")
             choices.append(app_commands.Choice(
@@ -55,8 +58,10 @@ async def all_tasks_autocomplete(interaction: discord.Interaction, current: str)
     """Provides autocomplete for all tasks (active & disabled) so admins can toggle them on/off."""
     tasks = db.get_all_tasks()
     choices = []
+    curr_clean = re.sub(r'[^a-z0-9]', '', (current or "").lower())
     for t in tasks:
-        if current.lower() in t["name"].lower():
+        t_clean = re.sub(r'[^a-z0-9]', '', t["name"].lower())
+        if not curr_clean or curr_clean in t_clean or (current or "").lower() in t["name"].lower():
             status_icon = "🟢" if t["active"] else "🔴"
             status_label = "Active" if t["active"] else "Disabled"
             choices.append(app_commands.Choice(

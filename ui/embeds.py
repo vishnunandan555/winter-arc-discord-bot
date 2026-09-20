@@ -386,15 +386,16 @@ def build_stats_embed(target_user: discord.Member, data: Dict[str, Any]) -> disc
 
 
 def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> discord.Embed:
-    """Builds the 7-day point history card."""
+    """Builds the point and completion history card."""
     lines = []
     for d in reversed(hist):
         pct = int(d["completion_rate"] * 100)
         star = " ⭐" if d["perfect_day"] else ""
         lines.append(f"• `{d['date']}` — **{d['points']} pts** ({pct}%){star}")
 
+    days_label = f"{len(hist)}-Day " if hist else ""
     embed = discord.Embed(
-        title="📜 Winter Arc — 7-Day History",
+        title=f"📜 Winter Arc — {days_label}History",
         description=f"**{user.display_name}**\n\n" + ("\n\n".join(lines) if lines else "_No history recorded yet._"),
         color=0x34495E
     )
@@ -552,7 +553,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             title="⚡ Workout & AI Logging Manual",
             description=(
                 "Log your physical and mental friction every single day.\n"
-                "Amarok supports natural language parsing, rigid slash commands, and dedicated channel logging."
+                "Supports natural language parsing, rigid slash commands, and dedicated channel logging."
             ),
             color=0x3498DB
         )
@@ -562,7 +563,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
                 "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
                 "• **Example**: `/quick text: 40 squats, 30 situps then 20 more squats`\n"
-                "🛡️ *Safeguard*: Unrealistic volume will be rejected by Amarok."
+                "🛡️ *Safeguard*: Unrealistic volume will be rejected automatically."
             ),
             inline=False
         )
@@ -570,7 +571,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="💬 Dedicated `#quick-log` Channel",
             value=(
                 "Type your workout directly in `#quick-log` or `#fast-log` without any slash command prefix!\n"
-                "Amarok will automatically parse the message, award your points, and react with 🐺."
+                "The bot will automatically parse the message, award your points, and react with 🐺."
             ),
             inline=False
         )
@@ -593,10 +594,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="🐺 Amarok's Reactive Observations",
+            name="⚡ Reactive Accountability",
             value=(
                 "When you log workouts or check progress (`/today`, `/tasks`, `/log`, `/quick`, `/streak`, `/profile`), "
-                "Amarok occasionally whispers a terse, razor-sharp stoic observation from the shadows. "
+                "the bot directly reacts with high-energy motivation or calls you out if you're slacking. "
                 "These run asynchronously in the background so commands never experience any lag."
             ),
             inline=False
@@ -740,7 +741,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             title="❄️ Winter Arc — Master Command Manual",
             description=(
                 "**Welcome to the Winter Arc.**\n"
-                "A 90-day crucible of physical and mental discipline governed by **Amarok**.\n"
+                "A 90-day crucible of physical and mental discipline.\n"
                 "Use the interactive menu below to deep-dive into each subsystem."
             ),
             color=0x2B2D31
@@ -792,7 +793,7 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
         task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
 
     disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
-    quote_section = f"\n\n🐺 **Amarok's Edict**:\n> *\"{quote}\"*" if quote else ""
+    quote_section = f"\n\n**Daily Focus**:\n> {quote}" if quote else ""
 
     embed = discord.Embed(
         title=f"🌅 Winter Arc — Daily Kickoff • {date_display}",
@@ -820,7 +821,7 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
             f"• **{u['username']}** — **{prog['total_points']} / {prog['max_possible_points']} pts** ({pct}%){star}"
         )
 
-    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
+    quote_section = f"\n\n**Midday Note**:\n> {quote}" if quote else ""
 
     embed = discord.Embed(
         title="⏰ Winter Arc — Afternoon Check-in",
@@ -870,7 +871,7 @@ def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str:
     if not completed_lines and not pending_lines:
         desc += "_No enrolled warriors yet. Use `/enroll` to join!_\n\n"
 
-    quote_section = f"\n\n🐺 **Amarok's Final Call**:\n> *\"{quote}\"*" if quote else ""
+    quote_section = f"\n\n**Evening Note**:\n> {quote}" if quote else ""
 
     embed = discord.Embed(
         title="🌙 Winter Arc — Evening Streak Alert",
@@ -1004,7 +1005,7 @@ def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_displa
         for t in tasks
     ]
 
-    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
+    quote_section = f"\n\n**Focus**:\n> {quote}" if quote else ""
 
     desc = (
         f"📅 **{date_display}**\n\n"
@@ -1029,7 +1030,7 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
     pts = progress["total_points"]
     max_pts = progress["max_possible_points"]
     pct = int(progress["overall_completion_rate"] * 100)
-    quote_section = f"\n\n🐺 **Amarok**:\n> *\"{quote}\"*" if quote else ""
+    quote_section = f"\n\n**Evening Note**:\n> {quote}" if quote else ""
 
     if progress["perfect_day"]:
         title = "⭐ Winter Arc — Perfect Day Secured!"
@@ -1104,8 +1105,8 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
         f"{icon} **Verdict**: **{verdict}** (+{pts} bonus pts)\n"
         f"{learning_line}"
         f"📊 **Today's Total**: **{total_daily_points} pts**\n\n"
-        f"🐺 **Amarok's Assessment**:\n"
-        f"> *\"{result['commentary']}\"*"
+        f"**Assessment**:\n"
+        f"{result['commentary']}"
     )
 
     embed = discord.Embed(
@@ -1180,8 +1181,8 @@ def build_weekly_state_of_the_pack_embed(
         podium_lines.append(f"{badge} **{w['username']}** — **{w['points']} pts**")
 
     desc = (
-        f"🐺 **Amarok's Weekly Address**:\n"
-        f"> *\"{ai_speech}\"*\n\n"
+        f"**Weekly Reflection**:\n"
+        f"> {ai_speech}\n\n"
         "**🏆 Week's Podium**\n"
         + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
         + "\n\n**🌐 Pack Cumulative Volume**\n"

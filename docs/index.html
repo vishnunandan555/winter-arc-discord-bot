@@ -3,288 +3,1070 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Winter Arc — Live Challenge Dashboard & Standings</title>
-  <meta name="description" content="Official live web dashboard for Winter Arc: track daily workouts, overall podium standings, 12-level pack progression, and discipline targets.">
+  <title>Winter Arc — Self-Hosted Fitness & Discipline Discord Bot</title>
+  <meta name="description" content="Open-source, self-hosted Discord bot built for intense fitness accountability, daily capped volume tracking, 12-level pack hierarchy, AI workout parsing, and streak defense.">
   
-  <!-- Open Graph / Discord Embed Meta -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Winter Arc — Live Standings & Statistics">
-  <meta property="og:description" content="Track daily workout points, streaks, 12-level pack progression, and leaderboards.">
-  <meta property="og:image" content="https://raw.githubusercontent.com/vishnunandan555/winter-arc-discord-bot/main/assets/winter_arc_wolf_black_bg.png">
+  <meta property="og:title" content="Winter Arc — Fitness & Discipline Discord Bot">
+  <meta property="og:description" content="Open-source, self-hosted Discord bot built for daily fitness accountability, AI workout parsing, and pack progression.">
+  <meta property="og:image" content="assets/winter_arc_wolf_black_bg.png">
 
-  <!-- Google Fonts: Outfit & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="dark-theme">
 
-  <!-- Ambient Glow Elements -->
-  <div class="glow-sphere glow-top-left"></div>
-  <div class="glow-sphere glow-bottom-right"></div>
+  <!-- Ambient Backdrop Lights -->
+  <div class="ambient-light ambient-top-left" aria-hidden="true"></div>
+  <div class="ambient-light ambient-mid-right" aria-hidden="true"></div>
+  <div class="ambient-light ambient-bottom" aria-hidden="true"></div>
 
-  <!-- Main Container -->
-  <div class="app-container">
-
-    <!-- Header Navigation -->
-    <header class="site-header" id="site-header">
-      <div class="brand-group">
-        <span class="mascot-badge" id="mascot-badge">🐺</span>
-        <div>
-          <h1 class="brand-title">WINTER ARC</h1>
-          <p class="brand-subtitle">Fitness Accountability & Standings</p>
+  <!-- Top Navigation -->
+  <header class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="#hero" class="brand">
+        <img src="assets/winter_arc_wolf_crest_badge.png" alt="Winter Arc Wolf Crest" class="brand-logo" width="38" height="38">
+        <div class="brand-text">
+          <span class="brand-name">WINTER ARC</span>
+          <span class="brand-tagline">Discipline Protocol</span>
         </div>
-      </div>
-      <div class="header-status">
-        <span class="pulse-indicator"></span>
-        <span class="status-label" id="status-label">Live • Asia/Kolkata (IST)</span>
-      </div>
-    </header>
+      </a>
 
-    <!-- Hero Stat Banner -->
-    <section class="hero-section" id="hero-section">
-      <div class="hero-grid">
-        <div class="hero-card" id="hero-card-warriors">
-          <span class="hero-icon">👥</span>
-          <div class="hero-data">
-            <span class="hero-val" id="val-total-warriors">--</span>
-            <span class="hero-label">Enrolled Warriors</span>
+      <nav class="nav-links" id="navLinks">
+        <a href="#philosophy" class="nav-link">Philosophy</a>
+        <a href="#journey" class="nav-link">Journey</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#hierarchy" class="nav-link">Ranks</a>
+        <a href="#commands" class="nav-link">Commands</a>
+        <a href="#hosting" class="nav-btn-highlight">Self-Host Guide</a>
+      </nav>
+
+      <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle Navigation Menu">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero-section" id="hero">
+      <div class="hero-container">
+        <div class="hero-badge">
+          <span class="pulse-dot"></span>
+          <span class="badge-text">Open-Source Discord Fitness Bot</span>
+        </div>
+
+        <h1 class="hero-title">
+          Forge Relentless Discipline<br>
+          <span class="cyan-gradient">With Your Pack</span>
+        </h1>
+
+        <p class="hero-description">
+          A dedicated, anti-cheat fitness and habit tracking bot engineered for private Discord communities. Track 5 core calisthenics disciplines, parse workouts with AI, protect streaks with Frost Shields, and climb a 12-level pack hierarchy.
+        </p>
+
+        <div class="hero-actions">
+          <a href="#hosting" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+            Host on Wispbyte or VPS
+          </a>
+          <a href="#features" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polygon points="10 8 16 12 10 16 10 8"></polygon>
+            </svg>
+            Explore Capabilities
+          </a>
+        </div>
+
+        <!-- Banner Visual Display -->
+        <div class="hero-banner-frame">
+          <img src="assets/winter_arc_banner_vector_clean_1360x480.png" alt="Winter Arc Wolf Banner" class="hero-banner-img" width="1360" height="480">
+        </div>
+
+        <!-- Winter Arc Seasonal Countdown Widget -->
+        <div class="countdown-widget" id="countdownWidget">
+          <div class="countdown-topbar">
+            <div class="countdown-badge">
+              <span class="pulse-dot"></span>
+              <span id="countdownStatusBadge">Phase 0: September Warmup Active</span>
+            </div>
+            <span class="countdown-tagline">Season 2026</span>
+          </div>
+
+          <h3 class="countdown-title" id="countdownTargetTitle">
+            Official Winter Arc Kickoff in
+          </h3>
+
+          <div class="countdown-clock-grid">
+            <div class="time-card">
+              <span class="time-digit" id="timerDays">00</span>
+              <span class="time-label">Days</span>
+            </div>
+            <div class="time-separator">:</div>
+            <div class="time-card">
+              <span class="time-digit" id="timerHours">00</span>
+              <span class="time-label">Hours</span>
+            </div>
+            <div class="time-separator">:</div>
+            <div class="time-card">
+              <span class="time-digit" id="timerMinutes">00</span>
+              <span class="time-label">Minutes</span>
+            </div>
+            <div class="time-separator">:</div>
+            <div class="time-card">
+              <span class="time-digit" id="timerSeconds">00</span>
+              <span class="time-label">Seconds</span>
+            </div>
+          </div>
+
+          <p class="countdown-subtext" id="countdownSubtext">
+            October 1st at 00:00 IST &bull; All discipline logs and streak counters officially activate.
+          </p>
+
+          <!-- Phase Navigation Timeline -->
+          <div class="countdown-phases-bar" aria-label="Winter Arc Phases">
+            <button class="phase-btn active" data-phase="0" data-target="2026-10-01T00:00:00" data-title="Official Winter Arc Kickoff in" data-badge="Phase 0: September Warmup Active" data-sub="October 1st at 00:00 IST &bull; All discipline logs and streak counters officially activate.">
+              <span class="phase-id">P0</span>
+              <span class="phase-details"><strong>Sep</strong> Warmup</span>
+            </button>
+            <button class="phase-btn" data-phase="1" data-target="2026-11-01T00:00:00" data-title="Phase 2 (November Tunnel) in" data-badge="Phase 1: October Ignition" data-sub="November 1st at 00:00 IST &bull; Initial habit lock-in; consistency takes over.">
+              <span class="phase-id">P1</span>
+              <span class="phase-details"><strong>Oct</strong> Ignition</span>
+            </button>
+            <button class="phase-btn" data-phase="2" data-target="2026-12-01T00:00:00" data-title="Phase 3 (The Real Winter Arc) in" data-badge="Phase 2: November Tunnel" data-sub="December 1st at 00:00 IST &bull; Peak frost crucible; holiday discipline test.">
+              <span class="phase-id">P2</span>
+              <span class="phase-details"><strong>Nov</strong> Tunnel</span>
+            </button>
+            <button class="phase-btn" data-phase="3" data-target="2027-01-01T00:00:00" data-title="Phase 4 (January Cooldown) in" data-badge="Phase 3: Real Winter Arc" data-sub="January 1st at 00:00 IST &bull; The real winter arc concludes; cooldown begins.">
+              <span class="phase-id">P3</span>
+              <span class="phase-details"><strong>Dec</strong> Real Arc</span>
+            </button>
+            <button class="phase-btn" data-phase="4" data-target="2027-02-01T00:00:00" data-title="Winter Arc Mastery Achieved in" data-badge="Phase 4: January Cooldown" data-sub="February 1st at 00:00 IST &bull; 90-day monastic cycle complete; transformation permanent.">
+              <span class="phase-id">P4</span>
+              <span class="phase-details"><strong>Jan</strong> Cooldown</span>
+            </button>
           </div>
         </div>
 
-        <div class="hero-card" id="hero-card-points">
-          <span class="hero-icon">💎</span>
-          <div class="hero-data">
-            <span class="hero-val" id="val-total-points">--</span>
-            <span class="hero-label">Collective Lifetime Points</span>
+        <!-- Quick Spec Counters -->
+        <div class="hero-metrics">
+          <div class="metric-card">
+            <span class="metric-value">500</span>
+            <span class="metric-label">Daily Point<br>Ceiling</span>
           </div>
-        </div>
-
-        <div class="hero-card" id="hero-card-cap">
-          <span class="hero-icon">🎯</span>
-          <div class="hero-data">
-            <span class="hero-val" id="val-daily-cap">500 PTS</span>
-            <span class="hero-label">Daily Point Ceiling</span>
+          <div class="metric-card">
+            <span class="metric-value">5</span>
+            <span class="metric-label">Foundation<br>Disciplines</span>
           </div>
-        </div>
-
-        <div class="hero-card countdown-card" id="hero-card-countdown">
-          <span class="hero-icon">⏰</span>
-          <div class="hero-data">
-            <span class="hero-val countdown-text" id="countdown-clock">--:--:--</span>
-            <span class="hero-label" id="countdown-label">Next Scheduled Check-in</span>
+          <div class="metric-card">
+            <span class="metric-value">12</span>
+            <span class="metric-label">Pack Hierarchy<br>Ranks</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-value">100%</span>
+            <span class="metric-label">Self-Hosted<br>&amp; Private</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Navigation Tabs -->
-    <nav class="nav-tabs" id="nav-tabs" aria-label="Dashboard views">
-      <button class="tab-btn active" id="tab-btn-standings" onclick="switchTab('standings')">
-        🏆 Standings
-      </button>
-      <button class="tab-btn" id="tab-btn-levels" onclick="switchTab('levels')">
-        🐺 12-Level Hierarchy
-      </button>
-      <button class="tab-btn" id="tab-btn-disciplines" onclick="switchTab('disciplines')">
-        📋 Disciplines
-      </button>
-      <button class="tab-btn" id="tab-btn-warriors" onclick="switchTab('warriors')">
-        🔍 Warrior Search
-      </button>
-      <button class="tab-btn" id="tab-btn-schedule" onclick="switchTab('schedule')">
-        ⏰ Schedule & Rules
-      </button>
-    </nav>
-
-    <!-- TAB 1: STANDINGS -->
-    <section class="tab-content active" id="tab-pane-standings">
-      <div class="subtab-container">
-        <div class="segmented-control" id="standings-segment">
-          <button class="subtab-btn active" id="subtab-overall" onclick="toggleStandingsView('overall')">🌐 All-Time Overall</button>
-          <button class="subtab-btn" id="subtab-daily" onclick="toggleStandingsView('daily')">📅 Today's Live Standings</button>
+    <!-- Why It Was Built (Philosophy) -->
+    <section class="section philosophy-section" id="philosophy">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">Origin &amp; Purpose</span>
+          <h2 class="section-title">Why Winter Arc Was Built</h2>
+          <p class="section-subtitle">
+            Most fitness trackers fail because they rely on solitary motivation or bloated apps that sell subscriptions. Winter Arc was engineered for a completely different reality.
+          </p>
         </div>
-        <span class="last-sync-tag" id="last-sync-time">Synced: Just now</span>
-      </div>
 
-      <!-- Overall Standings Board -->
-      <div class="card-container" id="board-overall">
-        <div class="table-responsive">
-          <table class="data-table" id="table-overall">
+        <div class="philosophy-grid">
+          <div class="feature-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Tribal Group Accountability</h3>
+            <p class="card-text">
+              Real discipline thrives when witnessed by peers. Winter Arc lives inside your private Discord server where your closest friends or training partners see every completed rep, every missed day, and every clean streak.
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Anti-Cheat Daily Ceiling</h3>
+            <p class="card-text">
+              To stop toxic binging and impossible vanity logging, daily points are capped strictly at 500. Consistency over 90 days matters infinitely more than doing 800 pushups in one erratic burst.
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 16 14"></polyline>
+              </svg>
+            </div>
+            <h3 class="card-title">Zero Friction Logging</h3>
+            <p class="card-text">
+              No slow apps, accounts, or complex interfaces. Type a slash command or drop a sentence in Discord using Groq natural language parsing, and your workout volume is logged in milliseconds.
+            </p>
+          </div>
+
+          <div class="feature-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <h3 class="card-title">Data Sovereignty &amp; Privacy</h3>
+            <p class="card-text">
+              Your server owns its data. SQLite stores everything locally on your server or hosting instance. No third-party data collection, analytics trackers, or external database lock-in.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Winter Arc Journey & Seasonal Phases -->
+    <section class="section journey-section" id="journey">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">The 5 Seasonal Phases</span>
+          <h2 class="section-title">The Winter Arc Journey &amp; Philosophy</h2>
+          <p class="section-subtitle">
+            While the world slows down, embraces comfort food, and postpones discipline to New Year resolutions, the pack enters monk mode in the freezing dark.
+          </p>
+        </div>
+
+        <!-- Visual Hero Card with Wolf Front Asset -->
+        <div class="journey-spotlight-card">
+          <div class="spotlight-image-col">
+            <img src="assets/winter_arc_wolf_front.jpg" alt="Winter Arc Arctic Wolf Vanguard" class="spotlight-img">
+          </div>
+          <div class="spotlight-content-col">
+            <span class="spotlight-badge">The Monastic Ethos</span>
+            <h3 class="spotlight-title">Disappear in Silence. Emerge Undeniable.</h3>
+            <p class="spotlight-text">
+              The Winter Arc is not a 7-day fitness trend. It is an intentional seasonal lockdown spanning October through January. When mornings are pitch black and temperatures drop below freezing, the psychological friction of training skyrockets.
+            </p>
+            <p class="spotlight-text">
+              That friction is your leverage. By eliminating dopamine traps, stacking 500 points of daily calisthenic volume, and letting your Discord peers witness your daily output, you forge an unshakeable standard of mental resilience.
+            </p>
+            <div class="spotlight-quote-box">
+              <p class="spotlight-quote">
+                &ldquo;When the freeze sets in, excuses multiply. That is the exact moment the pack pulls away.&rdquo;
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- The 5 Phases Timeline Cards -->
+        <div class="phases-timeline-grid">
+          <!-- Phase 0 -->
+          <div class="phase-card">
+            <div class="phase-card-top">
+              <span class="phase-tag">Phase 0 &bull; September</span>
+              <span class="phase-duration">Warmup &amp; Trial</span>
+            </div>
+            <h3 class="phase-heading">The Trial &amp; Calibration</h3>
+            <p class="phase-desc">
+              Test-drive the 5 disciplines, establish your sleep schedule, configure the Discord bot, and eliminate logistical excuses before the official season starts.
+            </p>
+            <div class="phase-footer-stat">Target: Dial in daily routine</div>
+          </div>
+
+          <!-- Phase 1 -->
+          <div class="phase-card">
+            <div class="phase-card-top">
+              <span class="phase-tag">Phase 1 &bull; October</span>
+              <span class="phase-duration">Month 1 Ignition</span>
+            </div>
+            <h3 class="phase-heading">The Shock &amp; Lock-in</h3>
+            <p class="phase-desc">
+              The official kickoff. Shock the nervous system into daily volume, power through initial DOMS and muscle soreness, cut mindless doomscrolling, and lock in your first Clean Day streak.
+            </p>
+            <div class="phase-footer-stat">Target: Build streak momentum</div>
+          </div>
+
+          <!-- Phase 2 -->
+          <div class="phase-card">
+            <div class="phase-card-top">
+              <span class="phase-tag">Phase 2 &bull; November</span>
+              <span class="phase-duration">Month 2 Grind</span>
+            </div>
+            <h3 class="phase-heading">The Dark Tunnel</h3>
+            <p class="phase-desc">
+              Initial excitement vanishes. Days shorten and the weather turns bitter. Motivation is replaced by cold, mechanical discipline. You log reps simply because it is non-negotiable.
+            </p>
+            <div class="phase-footer-stat">Target: Mechanical consistency</div>
+          </div>
+
+          <!-- Phase 3 -->
+          <div class="phase-card phase-card-highlight">
+            <div class="phase-card-top">
+              <span class="phase-tag phase-tag-highlight">Phase 3 &bull; December</span>
+              <span class="phase-duration">The Real Winter Arc</span>
+            </div>
+            <h3 class="phase-heading">The Crucible</h3>
+            <p class="phase-desc">
+              The true test of the Winter Arc. Heavy holiday temptations, brutal cold, and end-of-year distractions everywhere. While the rest of the world quits, the pack locks shields and ascends to Apex rank.
+            </p>
+            <div class="phase-footer-stat">Target: Apex Rank &amp; Mastery</div>
+          </div>
+
+          <!-- Phase 4 -->
+          <div class="phase-card">
+            <div class="phase-card-top">
+              <span class="phase-tag">Phase 4 &bull; January</span>
+              <span class="phase-duration">Cooldown &amp; Standard</span>
+            </div>
+            <h3 class="phase-heading">The New Standard</h3>
+            <p class="phase-desc">
+              While the masses scramble to write fragile New Year resolutions, you are already transformed. The 90-day crucible concludes, but your discipline has become your permanent baseline.
+            </p>
+            <div class="phase-footer-stat">Target: Permanent transformation</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Core Capabilities -->
+    <section class="section features-section" id="features">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">Bot Capabilities</span>
+          <h2 class="section-title">Engineered For Relentless Performance</h2>
+          <p class="section-subtitle">
+            Every feature is calibrated to foster consistency, eliminate excuses, and build athletic endurance.
+          </p>
+        </div>
+
+        <div class="features-showcase-grid">
+          <!-- Feature 1: The 5 Disciplines -->
+          <div class="showcase-card showcase-featured">
+            <div class="showcase-content">
+              <div class="badge-pill">The Winter Protocol &bull; Saitama Inspired</div>
+              <h3 class="showcase-title">The Five Core Disciplines</h3>
+              <p class="showcase-desc">
+                Modelled after the legendary Saitama challenge &mdash; 100 push-ups, 100 sit-ups, 100 squats, and a 10 km run &mdash; amplified with 100 pull-ups to forge complete calisthenic power.
+              </p>
+
+              <div class="discipline-callout-box">
+                <h4 class="callout-heading">High Ceiling. Zero Barrier. Every Rep Counts.</h4>
+                <p class="callout-text">
+                  500 points a day is a brutal mountain &mdash; and that is the point. You are not expected to hit peak volume on day one. Whether you can only grind out 10 push-ups, 2 pull-ups, or jog a single kilometer today, <strong>log it</strong>. Every single repetition earns points toward your pack rank. The Winter Arc is about locking in, embracing the cold, and stacking volume in silence until you become undeniable.
+                </p>
+              </div>
+
+              <div class="discipline-list">
+                <div class="discipline-item">
+                  <span class="discipline-name">Push-ups</span>
+                  <span class="discipline-target">100 reps ceiling</span>
+                  <span class="discipline-pts">100 pts max (1 pt / rep)</span>
+                </div>
+                <div class="discipline-item">
+                  <span class="discipline-name">Pull-ups</span>
+                  <span class="discipline-target">100 reps ceiling</span>
+                  <span class="discipline-pts">100 pts max (1 pt / rep)</span>
+                </div>
+                <div class="discipline-item">
+                  <span class="discipline-name">Squats</span>
+                  <span class="discipline-target">100 reps ceiling</span>
+                  <span class="discipline-pts">100 pts max (1 pt / rep)</span>
+                </div>
+                <div class="discipline-item">
+                  <span class="discipline-name">Sit-ups</span>
+                  <span class="discipline-target">100 reps ceiling</span>
+                  <span class="discipline-pts">100 pts max (1 pt / rep)</span>
+                </div>
+                <div class="discipline-item">
+                  <span class="discipline-name">Running</span>
+                  <span class="discipline-target">10 km ceiling</span>
+                  <span class="discipline-pts">100 pts max (10 pts / km)</span>
+                </div>
+              </div>
+              <p class="discipline-clean-note">
+                Maxing out all 500 daily points earns <strong>Clean Day</strong> status and fuels your active streak.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 Sub-Feature Cards: Row 1 has 3 cards, Row 2 has 2 centered cards -->
+        <div class="features-subgrid">
+          <!-- Feature 2: Dual Logging -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Dual Logging Engine</h3>
+            <p class="showcase-desc">
+              Log progress incrementally across multiple workouts throughout the day with <code>/log</code>, or override your daily total directly with <code>/set</code> to fix typos or adjust totals.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/log task:pushups amount:25</code>
+              <code>/set task:running amount:5.0</code>
+            </div>
+          </div>
+
+          <!-- Feature 3: AI Intelligence -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </div>
+            <h3 class="showcase-title">AI Natural Language Logging</h3>
+            <p class="showcase-desc">
+              Integrated with Groq LLM for instantaneous natural language parsing via <code>/quick</code>, and Google Gemini via <code>/grind</code> to evaluate academic or engineering friction for supplemental focus points.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/quick "knocked out 40 squats and ran 3.5km"</code>
+              <code>/grind "spent 5 hours fixing kernel memory leaks"</code>
+            </div>
+          </div>
+
+          <!-- Feature 4: Frost Shield & Streaks -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Frost Shield Streak Defense</h3>
+            <p class="showcase-desc">
+              Rest and illness are real. Rather than punishing legitimate recovery days with a hard reset, warriors earn Frost Shields by reaching streak milestones, protecting their streak for a day with <code>/shield use</code>.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/shield status</code>
+              <code>/shield use reason:"High fever recovery"</code>
+            </div>
+          </div>
+
+          <!-- Feature 5: Cadence -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 16 14"></polyline>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Automated Scheduled Cadence</h3>
+            <p class="showcase-desc">
+              Precision cron schedules keep the pack aligned. Three daily checkpoints are broadcast strictly into the designated channel:
+            </p>
+            <ul class="schedule-list">
+              <li><strong>05:00</strong> &mdash; Morning Wakeup & Challenge Announcement</li>
+              <li><strong>16:30</strong> &mdash; Midday Accountability Pulse</li>
+              <li><strong>00:00</strong> &mdash; Midnight Podium Finalization & Streak Calculation</li>
+            </ul>
+          </div>
+
+          <!-- Feature 6: Dynamic Admin Engine -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Dynamic Discipline Administration</h3>
+            <p class="showcase-desc">
+              Server admins can add custom exercises (such as Planks, Cold Showers, or Reading) on the fly with <code>/admin task_add</code>, toggle existing tasks on or off, and manage dedicated channels without modifying any code.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/admin task_add name:"Plank" goal:300 unit:"sec"</code>
+              <code>/admin task_toggle task_id:3</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12-Level Hierarchy -->
+    <section class="section hierarchy-section" id="hierarchy">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">Progression Ladder</span>
+          <h2 class="section-title">The 12-Level Pack Hierarchy</h2>
+          <p class="section-subtitle">
+            Calibrated for a grueling 90-day Winter Arc. Apex rank requires 12,000 lifetime points, demanding an average of 133+ points every single day.
+          </p>
+        </div>
+
+        <div class="hierarchy-apex-banner">
+          <div class="hierarchy-apex-avatar-wrap">
+            <img src="assets/winter_arc_wolf_profile.jpg" alt="Winter Arc Apex Profile" class="hierarchy-apex-img" width="90" height="90">
+          </div>
+          <div class="hierarchy-apex-info">
+            <div class="hierarchy-apex-badge">Tier 12 Pinnacle &bull; 12,000 Lifetime Points</div>
+            <h3 class="hierarchy-apex-title">The Apex Rank Standard</h3>
+            <p class="hierarchy-apex-text">
+              Reaching Apex requires stacking an average of 133+ daily points across all 90 days of the season. It is reserved for warriors who refuse to break cadence through the darkest December cold.
+            </p>
+          </div>
+        </div>
+
+        <div class="hierarchy-table-wrapper">
+          <table class="hierarchy-table">
             <thead>
               <tr>
-                <th class="th-rank">Rank</th>
-                <th class="th-user">Warrior</th>
-                <th class="th-level">Pack Rank</th>
-                <th class="th-points">Points</th>
-                <th class="th-progress">Tier Progress</th>
-                <th class="th-stats">Consistency</th>
+                <th>Level</th>
+                <th>Rank Title</th>
+                <th>Point Range</th>
+                <th>Daily Avg Target</th>
+                <th>Status</th>
               </tr>
             </thead>
-            <tbody id="tbody-overall">
-              <!-- Dynamically Populated -->
+            <tbody>
+              <tr>
+                <td><span class="rank-badge">01</span></td>
+                <td class="rank-name">Lone Stray</td>
+                <td class="rank-pts">0 &ndash; 499 pts</td>
+                <td>Day 1 &ndash; 3</td>
+                <td>Initiation</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">02</span></td>
+                <td class="rank-name">Stray</td>
+                <td class="rank-pts">500 &ndash; 1,199 pts</td>
+                <td>Day 4 &ndash; 8</td>
+                <td>Habit Forming</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">03</span></td>
+                <td class="rank-name">Scout</td>
+                <td class="rank-pts">1,200 &ndash; 1,999 pts</td>
+                <td>Day 9 &ndash; 15</td>
+                <td>Building Momentum</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">04</span></td>
+                <td class="rank-name">Prowler</td>
+                <td class="rank-pts">2,000 &ndash; 2,999 pts</td>
+                <td>Day 16 &ndash; 22</td>
+                <td>Routine Locked</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">05</span></td>
+                <td class="rank-name">Tracker</td>
+                <td class="rank-pts">3,000 &ndash; 4,199 pts</td>
+                <td>Day 23 &ndash; 31</td>
+                <td>Reliable Volume</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">06</span></td>
+                <td class="rank-name">Hunter</td>
+                <td class="rank-pts">4,200 &ndash; 5,499 pts</td>
+                <td>Day 32 &ndash; 41</td>
+                <td>Halfway Milestone</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">07</span></td>
+                <td class="rank-name">Savage</td>
+                <td class="rank-pts">5,500 &ndash; 6,999 pts</td>
+                <td>Day 42 &ndash; 52</td>
+                <td>High Endurance</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">08</span></td>
+                <td class="rank-name">Vanguard</td>
+                <td class="rank-pts">7,000 &ndash; 8,499 pts</td>
+                <td>Day 53 &ndash; 63</td>
+                <td>Elite Discipline</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">09</span></td>
+                <td class="rank-name">Frostborn</td>
+                <td class="rank-pts">8,500 &ndash; 9,799 pts</td>
+                <td>Day 64 &ndash; 73</td>
+                <td>Winter Hardened</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">10</span></td>
+                <td class="rank-name">Predator</td>
+                <td class="rank-pts">9,800 &ndash; 10,799 pts</td>
+                <td>Day 74 &ndash; 81</td>
+                <td>Relentless Output</td>
+              </tr>
+              <tr>
+                <td><span class="rank-badge">11</span></td>
+                <td class="rank-name">Alpha</td>
+                <td class="rank-pts">10,800 &ndash; 11,999 pts</td>
+                <td>Day 82 &ndash; 89</td>
+                <td>Final Ascent</td>
+              </tr>
+              <tr class="apex-row">
+                <td><span class="rank-badge apex-badge">12</span></td>
+                <td class="rank-name apex-name">Apex</td>
+                <td class="rank-pts apex-pts">12,000+ pts</td>
+                <td>Day 90+</td>
+                <td><span class="status-pill-apex">Peak Mastery</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
+    </section>
 
-      <!-- Daily Standings Board -->
-      <div class="card-container hidden" id="board-daily">
-        <div class="table-responsive">
-          <table class="data-table" id="table-daily">
-            <thead>
-              <tr>
-                <th class="th-rank">Rank</th>
-                <th class="th-user">Warrior</th>
-                <th class="th-points">Today's Points</th>
-                <th class="th-progress">Daily Target</th>
-                <th class="th-status">Status</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-daily">
-              <!-- Dynamically Populated -->
-            </tbody>
-          </table>
+    <!-- Slash Command Reference -->
+    <section class="section commands-section" id="commands">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">Command Directory</span>
+          <h2 class="section-title">Slash Commands</h2>
+          <p class="section-subtitle">
+            All interactions use Discord native slash commands with parameter autocompletion and instant visual feedback.
+          </p>
         </div>
-      </div>
-    </section>
 
-    <!-- TAB 2: 12-LEVEL PROGRESSION -->
-    <section class="tab-content hidden" id="tab-pane-levels">
-      <div class="section-intro">
-        <h2>The 12-Level Winter Pack Hierarchy</h2>
-        <p>A linear 90-day progression ladder calibrated for consistency. Reach <strong>Apex</strong> at 12,000 lifetime points (~133 pts/day).</p>
-      </div>
+        <div class="command-tabs">
+          <button class="cmd-tab-btn active" data-tab="warrior-commands">Warrior Commands</button>
+          <button class="cmd-tab-btn" data-tab="admin-commands">Admin Commands</button>
+        </div>
 
-      <div class="ladder-grid" id="ladder-grid">
-        <!-- Dynamically Populated -->
-      </div>
-    </section>
-
-    <!-- TAB 3: THE 5 DISCIPLINES -->
-    <section class="tab-content hidden" id="tab-pane-disciplines">
-      <div class="section-intro">
-        <h2>The 5 Daily Disciplines</h2>
-        <p>Maximum 500 points available each day. 100% completion in all 5 triggers a <strong>Clean Day ⭐</strong> and advances your streak.</p>
-      </div>
-
-      <div class="disciplines-grid" id="disciplines-grid">
-        <!-- Dynamically Populated -->
-      </div>
-    </section>
-
-    <!-- TAB 4: WARRIOR SEARCH & PROFILE INSPECTOR -->
-    <section class="tab-content hidden" id="tab-pane-warriors">
-      <div class="section-intro">
-        <h2>Warrior Directory & Card Inspector</h2>
-        <p>Search any enrolled participant to inspect their live streak, current rank, and progress to Apex.</p>
-      </div>
-
-      <div class="search-bar-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="warrior-search-input" class="search-input" placeholder="Search warrior name..." oninput="filterWarriors(this.value)">
-      </div>
-
-      <div class="warrior-cards-grid" id="warrior-cards-grid">
-        <!-- Dynamically Populated -->
-      </div>
-    </section>
-
-    <!-- TAB 5: SCHEDULE & RULES -->
-    <section class="tab-content hidden" id="tab-pane-schedule">
-      <div class="section-intro">
-        <h2>Automated Schedule & Bot Rules</h2>
-        <p>Winter Arc runs on <strong>Asia/Kolkata (IST)</strong> timezone with automated broadcasts in the server's dedicated channel.</p>
-      </div>
-
-      <div class="rules-layout">
-        <div class="schedule-column">
-          <h3 class="column-title">⏰ Daily Broadcast Schedule</h3>
-          <div class="timeline" id="timeline-list">
-            <div class="timeline-item">
-              <span class="time-badge">05:00 IST</span>
-              <div class="timeline-body">
-                <h4>🌅 Morning Kickoff</h4>
-                <p>New day begins. 500 fresh points available across the 5 daily disciplines with prompt role ping.</p>
-              </div>
+        <div class="cmd-tab-content active" id="warrior-commands">
+          <div class="commands-grid">
+            <div class="cmd-card">
+              <div class="cmd-syntax">/today [member]</div>
+              <div class="cmd-desc">Inspect your or a peer's daily volume, earned points, completion rate, and streak.</div>
             </div>
-            <div class="timeline-item">
-              <span class="time-badge">16:30 IST</span>
-              <div class="timeline-body">
-                <h4>⏰ Afternoon Check-in</h4>
-                <p>Midday pack standings broadcast showing individual progress bars before the evening workout block.</p>
-              </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/log [task] [amount]</div>
+              <div class="cmd-desc">Increment today's workout reps or kilometers with autocomplete.</div>
             </div>
-            <div class="timeline-item">
-              <span class="time-badge">00:00 IST</span>
-              <div class="timeline-body">
-                <h4>🌙 Midnight Finalization & Podium</h4>
-                <p>Scores locked. Streaks calculated, clean sweeps tallied, and daily podium crowned.</p>
-              </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/set [task] [amount]</div>
+              <div class="cmd-desc">Directly set or correct today's exact count, or set to 0 to reset an error.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/profile</div>
+              <div class="cmd-desc">View your rank card, progress towards next tier, lifetime points, and streak.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/ranks</div>
+              <div class="cmd-desc">Display the full 12-tier pack hierarchy, point targets, and requirements.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/leaderboard</div>
+              <div class="cmd-desc">Interactive leaderboard with Daily and All-Time overall standings.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/quick [text]</div>
+              <div class="cmd-desc">Log natural language workout descriptions via Groq LLM parsing.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/grind [text]</div>
+              <div class="cmd-desc">Log academic or engineering friction evaluated by Gemini (1x/day, +10 to +60 pts).</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/shield status</div>
+              <div class="cmd-desc">Check your Frost Shield inventory and protection state.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/shield use [reason]</div>
+              <div class="cmd-desc">Activate a Frost Shield on a recovery day to prevent breaking your streak.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/enroll</div>
+              <div class="cmd-desc">Join the Winter Arc challenge and receive the server role.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/leave_arc</div>
+              <div class="cmd-desc">Unenroll from the challenge and leave the pack.</div>
             </div>
           </div>
         </div>
 
-        <div class="rules-column">
-          <h3 class="column-title">📜 Core Bot Commands</h3>
-          <div class="commands-table-card">
-            <table class="commands-table">
-              <tbody>
-                <tr>
-                  <td><code>/today</code></td>
-                  <td>View today's progress bar, targets, earned points, and active streak.</td>
-                </tr>
-                <tr>
-                  <td><code>/log [task] [amount]</code></td>
-                  <td>Add completed reps or km to today's count with instant autocomplete.</td>
-                </tr>
-                <tr>
-                  <td><code>/set [task] [amount]</code></td>
-                  <td>Directly set or override today's total (or set 0 to reset typos).</td>
-                </tr>
-                <tr>
-                  <td><code>/profile</code></td>
-                  <td>View your rank card, tier progress bar, streak, and joined date.</td>
-                </tr>
-                <tr>
-                  <td><code>/ranks</code></td>
-                  <td>View full 12-level pack hierarchy and point milestones.</td>
-                </tr>
-                <tr>
-                  <td><code>/leaderboard</code></td>
-                  <td>View daily podium and all-time overall standings.</td>
-                </tr>
-                <tr>
-                  <td><code>/stats</code></td>
-                  <td>View lifetime volume and total reps completed per discipline.</td>
-                </tr>
-                <tr>
-                  <td><code>/history</code></td>
-                  <td>View 7-day point history and completion rates.</td>
-                </tr>
-                <tr>
-                  <td><code>/enroll</code></td>
-                  <td>Join the Winter Arc challenge and receive the server role.</td>
-                </tr>
-              </tbody>
-            </table>
+        <div class="cmd-tab-content" id="admin-commands">
+          <div class="commands-grid">
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin overview</div>
+              <div class="cmd-desc">View server configuration: broadcast channel, ping role, enrolled member count.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin set_channel [channel]</div>
+              <div class="cmd-desc">Assign the dedicated text channel for automated daily broadcasts.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin set_role [role]</div>
+              <div class="cmd-desc">Assign the Discord role mentioned in morning and evening announcements.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin task_add [name] [goal] [pts]</div>
+              <div class="cmd-desc">Add a custom exercise discipline dynamically to the database.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin task_toggle [task_id]</div>
+              <div class="cmd-desc">Enable or disable an existing discipline without code edits.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/admin tasks_list</div>
+              <div class="cmd-desc">Inspect all active and inactive disciplines in the system.</div>
+            </div>
+            <div class="cmd-card">
+              <div class="cmd-syntax">/test_reminder [type]</div>
+              <div class="cmd-desc">Preview morning kickoff, afternoon pulse, or midnight broadcast layouts.</div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="site-footer">
-      <div class="footer-content">
-        <p class="footer-brand">❄️ <strong>Winter Arc Discord Bot</strong> • Mascot: Amarok the Arctic Wolf</p>
-        <p class="footer-note">Built with Python 3.14, discord.py 2.x & SQLite • Powered by Vanilla HTML, CSS & JS</p>
-        <p class="footer-quote">"Consistency Beats Motivation"</p>
-      </div>
-    </footer>
+    <!-- Self-Hosting & Deployment Guide -->
+    <section class="section hosting-section" id="hosting">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="section-tag">Deployment Manual</span>
+          <h2 class="section-title">Self-Host Your Winter Arc Instance</h2>
+          <p class="section-subtitle">
+            This bot is self-hosted and private to your community. Fork the repository, plug in your Discord bot credentials, and deploy on Wispbyte, a Linux VPS, or cloud container.
+          </p>
+        </div>
 
-  </div>
+        <!-- Hosting Steps Overview -->
+        <div class="steps-flow">
+          <div class="step-badge-item">
+            <span class="step-num">1</span>
+            <span class="step-title">Fork Repository</span>
+          </div>
+          <div class="step-arrow">&rarr;</div>
+          <div class="step-badge-item">
+            <span class="step-num">2</span>
+            <span class="step-title">Discord Portal Token</span>
+          </div>
+          <div class="step-arrow">&rarr;</div>
+          <div class="step-badge-item">
+            <span class="step-num">3</span>
+            <span class="step-title">Environment Variables</span>
+          </div>
+          <div class="step-arrow">&rarr;</div>
+          <div class="step-badge-item">
+            <span class="step-num">4</span>
+            <span class="step-title">Launch 24/7 Service</span>
+          </div>
+        </div>
+
+        <!-- Step 1 & 2 Cards -->
+        <div class="guide-cards-grid">
+          <div class="guide-card">
+            <div class="guide-card-header">
+              <span class="guide-step-tag">Step 1</span>
+              <h3 class="guide-title">Fork the Repository</h3>
+            </div>
+            <p class="guide-text">
+              Begin by forking the official repository to your own GitHub account:
+            </p>
+            <div class="code-block">
+              <button class="copy-btn" data-copy="git clone https://github.com/vishnunandan555/winter-arc-discord-bot.git">Copy</button>
+              <pre><code>git clone https://github.com/vishnunandan555/winter-arc-discord-bot.git
+cd winter-arc-discord-bot</code></pre>
+            </div>
+          </div>
+
+          <div class="guide-card">
+            <div class="guide-card-header">
+              <span class="guide-step-tag">Step 2</span>
+              <h3 class="guide-title">Discord Developer Portal Setup</h3>
+            </div>
+            <p class="guide-text">
+              Create your bot credentials in the Discord Developer Portal:
+            </p>
+            <ol class="guide-ordered-list">
+              <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and click <strong>New Application</strong>.</li>
+              <li>Navigate to the <strong>Bot</strong> tab and click <strong>Reset Token</strong> to copy your bot token.</li>
+              <li>Scroll to <strong>Privileged Gateway Intents</strong> and enable both:
+                <ul>
+                  <li><strong>Server Members Intent</strong></li>
+                  <li><strong>Message Content Intent</strong></li>
+                </ul>
+              </li>
+              <li>Save changes.</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Step 3: Environment Variables -->
+        <div class="guide-full-card">
+          <div class="guide-card-header">
+            <span class="guide-step-tag">Step 3</span>
+            <h3 class="guide-title">Configure Environment Variables (.env)</h3>
+          </div>
+          <p class="guide-text">
+            Copy <code>.env.example</code> to <code>.env</code> and define your variables:
+          </p>
+          <div class="code-block">
+            <button class="copy-btn" data-copy="DISCORD_TOKEN=your_bot_token_here
+BOT_TIMEZONE=Asia/Kolkata
+WINTER_ARC_ROLE_ID=
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here">Copy</button>
+            <pre><code># Required: Discord Bot Token from Developer Portal
+DISCORD_TOKEN=your_bot_token_here
+
+# Timezone for scheduled broadcasts (Default: Asia/Kolkata)
+BOT_TIMEZONE=Asia/Kolkata
+
+# Optional: Default role ID to mention on announcements
+WINTER_ARC_ROLE_ID=
+
+# Optional: AI capabilities for /quick and /grind commands
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here</code></pre>
+          </div>
+        </div>
+
+        <!-- Step 4: Host Platforms Tabs -->
+        <div class="platform-tabs-container">
+          <h3 class="platform-tabs-title">Choose Your Hosting Environment</h3>
+          
+          <div class="platform-tabs">
+            <button class="plat-tab-btn active" data-target="host-wispbyte">Wispbyte / Pterodactyl</button>
+            <button class="plat-tab-btn" data-target="host-vps">Linux VPS (Systemd)</button>
+            <button class="plat-tab-btn" data-target="host-cloud">Render / Railway</button>
+          </div>
+
+          <!-- Wispbyte Hosting -->
+          <div class="plat-content active" id="host-wispbyte">
+            <div class="plat-inner">
+              <h4 class="plat-heading">Deploying on Wispbyte (or any Pterodactyl Panel)</h4>
+              <p class="plat-desc">
+                Wispbyte provides Discord bot server instances running Python in Docker containers with 24/7 uptime and built-in auto-restart.
+              </p>
+              
+              <div class="guide-steps-list">
+                <div class="guide-step-row">
+                  <div class="row-num">1</div>
+                  <div class="row-content">
+                    <strong>Create a Python Server</strong>
+                    <p>In the Wispbyte panel, select <strong>Create Server</strong> and choose the <strong>Python / Generic Bot</strong> egg or image (Python 3.11+ recommended).</p>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">2</div>
+                  <div class="row-content">
+                    <strong>Upload or Pull Code</strong>
+                    <p>Under <strong>File Manager</strong> or <strong>Git Repository</strong>, clone your forked repository or upload the files including <code>requirements.txt</code>, <code>bot.py</code>, and subdirectories.</p>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">3</div>
+                  <div class="row-content">
+                    <strong>Install Dependencies</strong>
+                    <p>Ensure the startup script runs pip installation or execute the following in the server terminal console:</p>
+                    <div class="code-block">
+                      <button class="copy-btn" data-copy="pip install -r requirements.txt">Copy</button>
+                      <pre><code>pip install -r requirements.txt</code></pre>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">4</div>
+                  <div class="row-content">
+                    <strong>Configure Environment & Startup</strong>
+                    <p>In the <strong>Startup</strong> or <strong>Variables</strong> tab on the Wispbyte panel:</p>
+                    <ul>
+                      <li>Set <strong>Startup Command</strong> to: <code>python bot.py</code></li>
+                      <li>In <strong>File Manager</strong>, create a <code>.env</code> file and paste your <code>DISCORD_TOKEN</code> and other variables.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">5</div>
+                  <div class="row-content">
+                    <strong>Start the Bot</strong>
+                    <p>Click <strong>Start</strong> on the console. The bot will connect to Discord, register slash commands, and initialize the SQLite database automatically.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Linux VPS Hosting -->
+          <div class="plat-content" id="host-vps">
+            <div class="plat-inner">
+              <h4 class="plat-heading">Deploying on Linux VPS (Ubuntu / Debian Systemd)</h4>
+              <p class="plat-desc">
+                Recommended for full control on DigitalOcean, Hetzner, AWS EC2, or Linode servers.
+              </p>
+
+              <div class="code-block">
+                <div class="code-block-header">1. Clone & Setup Virtual Environment</div>
+                <button class="copy-btn" data-copy="git clone https://github.com/your-username/winter-arc-discord-bot.git
+cd winter-arc-discord-bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env">Copy</button>
+                <pre><code>git clone https://github.com/your-username/winter-arc-discord-bot.git
+cd winter-arc-discord-bot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+nano .env # Paste your DISCORD_TOKEN</code></pre>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">2. Create Systemd Service File (/etc/systemd/system/winter-arc.service)</div>
+                <button class="copy-btn" data-copy="[Unit]
+Description=Winter Arc Discord Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/winter-arc-discord-bot
+ExecStart=/home/ubuntu/winter-arc-discord-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target">Copy</button>
+                <pre><code>[Unit]
+Description=Winter Arc Discord Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/winter-arc-discord-bot
+ExecStart=/home/ubuntu/winter-arc-discord-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+              </div>
+
+              <div class="code-block">
+                <div class="code-block-header">3. Enable & Start Daemon</div>
+                <button class="copy-btn" data-copy="sudo systemctl daemon-reload
+sudo systemctl enable winter-arc
+sudo systemctl start winter-arc
+sudo journalctl -u winter-arc -f">Copy</button>
+                <pre><code>sudo systemctl daemon-reload
+sudo systemctl enable winter-arc
+sudo systemctl start winter-arc
+sudo journalctl -u winter-arc -f</code></pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cloud Hosting (Render / Railway) -->
+          <div class="plat-content" id="host-cloud">
+            <div class="plat-inner">
+              <h4 class="plat-heading">Deploying on Cloud (Render Background Worker / Railway)</h4>
+              <p class="plat-desc">
+                Discord bots require a persistent background worker process that maintains a live WebSocket gateway connection.
+              </p>
+
+              <div class="guide-steps-list">
+                <div class="guide-step-row">
+                  <div class="row-num">1</div>
+                  <div class="row-content">
+                    <strong>Select Background Worker</strong>
+                    <p>On Render or Railway, create a new <strong>Background Worker</strong> (not a Web Service, as Discord bots do not open an HTTP listening port).</p>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">2</div>
+                  <div class="row-content">
+                    <strong>Specify Commands</strong>
+                    <ul>
+                      <li><strong>Build Command:</strong> <code>pip install -r requirements.txt</code></li>
+                      <li><strong>Start Command:</strong> <code>python bot.py</code></li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="guide-step-row">
+                  <div class="row-num">3</div>
+                  <div class="row-content">
+                    <strong>Set Environment Variables</strong>
+                    <p>Add <code>DISCORD_TOKEN</code> and <code>BOT_TIMEZONE</code> in the dashboard settings, then trigger deployment.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Post-Setup Server Configuration -->
+        <div class="guide-full-card config-summary-card">
+          <h3 class="guide-title">Initial Server Configuration</h3>
+          <p class="guide-text">
+            Once your instance is online, run these setup commands inside your Discord server:
+          </p>
+          <div class="config-cmd-list">
+            <div class="config-cmd-row">
+              <code>/admin set_channel channel:#winter-arc</code>
+              <span>Designates the text channel where daily reminders and podiums are announced.</span>
+            </div>
+            <div class="config-cmd-row">
+              <code>/admin set_role role:@Winter Arc</code>
+              <span>Sets the notification role pinged during morning and evening broadcasts.</span>
+            </div>
+            <div class="config-cmd-row">
+              <code>/enroll</code>
+              <span>Enrolls members into the challenge and grants them the configured role.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- Site Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <img src="assets/winter_arc_wolf_crest_badge.png" alt="Winter Arc Crest" width="28" height="28">
+        <span class="footer-title">WINTER ARC DISCORD BOT</span>
+      </div>
+      <p class="footer-copy">
+        Self-hosted, open-source discipline protocol. Built for private training circles.
+      </p>
+      <div class="footer-links">
+        <a href="https://github.com/vishnunandan555/winter-arc-discord-bot" target="_blank" rel="noopener">GitHub Repository</a>
+        <span class="separator">&bull;</span>
+        <a href="#hero">Back to Top</a>
+      </div>
+    </div>
+  </footer>
 
   <script src="app.js"></script>
 </body>

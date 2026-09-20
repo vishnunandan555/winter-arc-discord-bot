@@ -129,7 +129,7 @@ class WinterArcScheduler:
             count = len(enrolled_users)
 
             statuses = [
-                discord.Activity(type=discord.ActivityType.listening, name="Amarok | /help"),
+                discord.Activity(type=discord.ActivityType.listening, name="/help • Winter Arc"),
                 discord.Activity(type=discord.ActivityType.watching, name=f"{count} Enrolled Warriors"),
                 discord.Activity(type=discord.ActivityType.competing, name="Winter Arc (500 pts daily)"),
                 discord.Activity(type=discord.ActivityType.playing, name="Defend the Flame | /streak"),
@@ -339,7 +339,7 @@ class WinterArcScheduler:
                 total_enrolled=len(enrolled_users)
             )
             if ai_recap:
-                embed.description = f"🐺 **Amarok's Daily Toast & Roast**:\n> *\"{ai_recap}\"*\n\n" + embed.description
+                embed.description = f"**Daily Toast & Roast**:\n> {ai_recap}\n\n" + embed.description
         except Exception as e:
             logger.debug(f"Could not append AI daily recap: {e}")
 
@@ -486,7 +486,15 @@ class WinterArcScheduler:
         today_str = now.strftime("%Y-%m-%d")
         date_display = now.strftime("%A, %B %d, %Y")
 
-        tasks = [self._send_single_morning_dm(u, active_tasks, today_str, date_display) for u in users]
+        sem = asyncio.Semaphore(2)
+
+        async def _bounded_morning_dm(u):
+            async with sem:
+                res = await self._send_single_morning_dm(u, active_tasks, today_str, date_display)
+                await asyncio.sleep(0.1)
+                return res
+
+        tasks = [_bounded_morning_dm(u) for u in users]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         dispatched = sum(1 for r in results if r is True)
         logger.info(f"Morning briefing DMs dispatched to {dispatched}/{len(users)} member(s).")
@@ -538,7 +546,15 @@ class WinterArcScheduler:
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
 
-        tasks = [self._send_single_evening_dm(u, today_str) for u in users]
+        sem = asyncio.Semaphore(2)
+
+        async def _bounded_evening_dm(u):
+            async with sem:
+                res = await self._send_single_evening_dm(u, today_str)
+                await asyncio.sleep(0.1)
+                return res
+
+        tasks = [_bounded_evening_dm(u) for u in users]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         dispatched = sum(1 for r in results if r is True)
         logger.info(f"Evening streak alert DMs dispatched to {dispatched}/{len(users)} member(s).")

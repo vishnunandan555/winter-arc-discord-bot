@@ -33,48 +33,81 @@ def get_groq_client():
     return _groq_client
 
 
-def regex_fallback_parser(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Lightweight regex parser used as a safety fallback when Groq is unavailable."""
-    matches = []
-    text = raw_text.lower()
+def extract_disciplines_fallback(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Robust pure-Python text and number extractor used as a fallback.
+    Extracts numbers and exercises whether formatted as '25 pushups' or 'pushups 25',
+    supporting commas, lists, and common exercise aliases.
+    """
+    text = raw_text.lower().strip()
+    matches_dict: Dict[str, float] = {}
 
+    discipline_map = {
+        "Push-ups": [r"push[\s-]?ups?", r"pushies", r"\bpush\b"],
+        "Pull-ups": [r"pull[\s-]?ups?", r"pullies", r"chin[\s-]?ups?", r"\bchins?\b", r"\bpull\b"],
+        "Squats": [r"squats?", r"\bsquat\b"],
+        "Sit-ups": [r"sit[\s-]?ups?", r"crunches", r"\bcrunch\b", r"\babs\b"],
+        "Running": [r"running", r"\bruns?\b", r"\bran\b", r"jog(?:ged)?", r"kilometers?", r"\bkm\b", r"\bk\b", r"miles?"],
+    }
+
+    # Identify which active tasks correspond to standard disciplines
     for t in active_tasks:
-        name = t["name"].lower()
-        patterns = []
-        if "push" in name:
-            patterns = [r'(\d+)\s*(?:push[\s-]?ups?|pushies)']
-        elif "pull" in name:
-            patterns = [r'(\d+)\s*(?:pull[\s-]?ups?|pullies|chins?)']
-        elif "squat" in name:
-            patterns = [r'(\d+)\s*squats?']
-        elif "sit" in name:
-            patterns = [r'(\d+)\s*(?:sit[\s-]?ups?|crunches)']
-        elif "run" in name:
-            patterns = [
-                r'(\d+(?:\.\d+)?)\s*(?:km|k|kilometers?)',
-                r'ran\s*(\d+(?:\.\d+)?)',
-                r'(\d+(?:\.\d+)?)\s*miles?',
-            ]
-
-        for pat in patterns:
-            found = re.search(pat, text)
-            if found:
-                val = float(found.group(1))
-                if "miles" in pat:
-                    val = round(val * 1.60934, 1)
-                matches.append({"task_name": t["name"], "amount": val})
+        t_name = t["name"]
+        keywords = []
+        for d_key, kw_list in discipline_map.items():
+            if d_key.lower() in t_name.lower():
+                keywords = kw_list
                 break
+        if not keywords:
+            keywords = [re.escape(t_name.lower())]
 
+        kw_pattern = "(?:" + "|".join(keywords) + ")"
+
+        # Pattern 1: Number before keyword (e.g. '25 pushups', '5km run', '25 reps of pushups')
+        pat1 = rf"(?:^|[\s,;+&])(\d+(?:\.\d+)?)\s*(?:reps?\s*(?:of\s*)?|km\s*|k\s*)?{kw_pattern}(?:[\s,;+&]|$)"
+        # Pattern 2: Keyword before number (e.g. 'pushups: 25', 'pushups 25', 'squats = 50', 'run 5km')
+        pat2 = rf"(?:^|[\s,;+&]){kw_pattern}\s*[:=–-]?\s*(\d+(?:\.\d+)?)(?:\s*(?:reps?|km|k|miles?))?(?:[\s,;+&]|$)"
+
+        m1 = re.search(pat1, text)
+        m2 = re.search(pat2, text)
+
+        val = None
+        matched_str = ""
+        if m1:
+            val = float(m1.group(1))
+            matched_str = m1.group(0)
+        elif m2:
+            val = float(m2.group(1))
+            matched_str = m2.group(0)
+        elif "run" in t_name.lower():
+            # Special standalone running distance patterns (e.g. '5km', '5.2 km', '3 miles')
+            m_dist = re.search(r"(?:^|[\s,;+&])(\d+(?:\.\d+)?)\s*(km|k|miles?|kilometers?)(?:[\s,;+&]|$)", text)
+            if m_dist:
+                val = float(m_dist.group(1))
+                matched_str = m_dist.group(0)
+
+        if val is not None and val > 0:
+            if "mile" in matched_str:
+                val = round(val * 1.60934, 1)
+            matches_dict[t_name] = round(val, 2)
+
+    matches = [{"task_name": k, "amount": v} for k, v in matches_dict.items()]
     is_suspicious = any(
         m["amount"] > MAX_SINGLE_SET_LIMITS.get(m["task_name"].lower(), 50.0)
         for m in matches
     )
+
     return {
         "matches": matches,
         "unrecognized": [],
         "suspicious": is_suspicious,
         "commentary": "Exercises parsed via local parser." if matches else "Could not recognize any active disciplines.",
     }
+
+
+def regex_fallback_parser(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Compatibility wrapper redirecting to extract_disciplines_fallback."""
+    return extract_disciplines_fallback(raw_text, active_tasks)
 
 
 async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -108,7 +141,7 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         "   - If ANY single exercise amount exceeds these limits: IMMEDIATELY set 'suspicious': true.\n"
         "   - Set 'low_effort': true if reps are trivially tiny (e.g. <= 5 reps of calisthenics or < 0.5 km run).\n"
         "5. COMMENTARY:\n"
-        "   - EXACTLY 1 short, razor-sharp sentence in Amarok's stoic wolf tone.\n"
+        "   - EXACTLY 1 short, razor-sharp sentence of direct, disciplined coaching.\n"
         "   - If suspicious: 'Unrealistic single-set volume. Log sets individually.'\n"
         "   - If low_effort: 'X reps? The ground barely felt you. Finish the rest.'\n"
         "   - If solid: 'Discipline logged. Keep moving.'\n\n"
@@ -157,6 +190,13 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
                 if amt > limit:
                     is_suspicious = True
 
+        if not validated_matches:
+            logger.info(f"Groq returned 0 matches for '{raw_text}'. Attempting pure-Python extractor fallback...")
+            fallback_res = extract_disciplines_fallback(raw_text, active_tasks)
+            if fallback_res.get("matches"):
+                logger.info(f"Pure-Python fallback rescued {len(fallback_res['matches'])} match(es)")
+                return fallback_res
+
         return {
             "matches": validated_matches,
             "unrecognized": data.get("unrecognized", []),
@@ -164,17 +204,20 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
             "commentary": str(data.get("commentary", "Discipline logged.")),
         }
     except Exception as e:
-        logger.warning(f"Groq API call failed: {e}. Falling back to regex parser.")
-        return regex_fallback_parser(raw_text, active_tasks)
+        logger.warning(f"Groq API call failed: {e}. Falling back to pure-Python extractor.")
+        return extract_disciplines_fallback(raw_text, active_tasks)
 
 
 REACTIVE_STOIC_FALLBACKS = [
-    "The scoreboard doesn't lie. Finish what you started.",
-    "Every rep counts. Put the work on the board.",
-    "Words build nothing. Log the discipline.",
-    "Consistency beats intensity. Defend the streak today.",
-    "Momentum is earned daily. Keep moving.",
-    "Discipline is doing what needs to be done, regardless of how you feel.",
+    "Zero points on the board won't defend your streak. Drop and get moving.",
+    "You could be good today, but instead you choose tomorrow. Drop and begin.",
+    "Decent set, but the rest of the board is still waiting for you.",
+    "We suffer more often in imagination than in reality. Finish the reps.",
+    "Stop checking your numbers and go put more work on the board.",
+    "The day is slipping away. Finish your remaining disciplines before midnight.",
+    "Think of how long you have put this off. Put the work on the board.",
+    "Good pace so far, but don't get comfortable until you hit clean day.",
+    "No man is more unhappy than he who never faces adversity. Keep pushing.",
 ]
 
 
@@ -184,9 +227,10 @@ async def generate_reactive_nudge(
     progression: Dict[str, Any],
 ) -> Optional[str]:
     """
-    Generates an ultra-fast, contextual 1-sentence stoic observation/nudge
+    Generates an ultra-fast, contextual 1-2 sentence high-energy reaction
     based on the user's live progression snapshot using Groq.
-    Strictly 1 short sentence (under 18 words total). Zero AI slop, zero fantasy melodrama.
+    Direct, motivating or roasting, grounded in actual numbers, with occasional
+    familiar stoic discipline wisdom woven in. Zero AI slop, zero fantasy melodrama.
     """
     import random
     client = get_groq_client()
@@ -194,19 +238,26 @@ async def generate_reactive_nudge(
         return random.choice(REACTIVE_STOIC_FALLBACKS)
 
     system_prompt = (
-        "You are Amarok, an uncompromising, no-nonsense accountability coach for the Winter Arc challenge.\n"
-        "A user just ran a bot command. Give a single, razor-sharp, realistic observation based strictly on their actual numbers.\n\n"
-        "CRITICAL RULES - NO CLICHES OR ROLEPLAY SLOP:\n"
-        "1. STRICTLY FORBIDDEN: NEVER use dramatic roleplay or fantasy metaphors like 'howling dark', 'blizzard', 'lone wolf', 'shadows', 'frost', 'prowling', or gothic melodrama.\n"
-        "2. Ground your observation in their REAL PROGRESS: Mention their remaining points, pending exercises, streak, or current completion rate realistically.\n"
-        "3. Tone: Direct, blunt, pragmatic, and grounded. No hype, no cheerleading ('great job', 'keep it up' are forbidden).\n"
-        "4. Examples of good observations:\n"
-        "   - '18% logged. 410 points left on the board—finish the job.'\n"
-        "   - 'Push-ups are done, but pull-ups and running are still untouched.'\n"
-        "   - 'A 7-day streak only counts if you log the rest before midnight.'\n"
-        "   - 'Solid set, but 350 points are still pending.'\n"
-        "5. LENGTH: EXACTLY 1 SHORT SENTENCE (strictly under 18 words total).\n"
-        "6. Output ONLY the plain text sentence. Do not wrap in quotes and do not include any prefix or emoji."
+        "You are Amarok, an uncompromising, high-energy accountability coach for the Winter Arc challenge.\n"
+        "A user just ran a bot command. Speak directly to them in 1 to 2 punchy, realistic sentences with real personality and bite.\n\n"
+        "RULES FOR DYNAMIC ENERGY AND TONE:\n"
+        "1. NO ROBOTIC DATABASE READOUTS: NEVER output dry, lifeless statistics like 'Zero points logged with all three exercises still pending' or '40 points logged'.\n"
+        "2. ROAST OR MOTIVATE BASED ON REAL NUMBERS:\n"
+        "   - IF USER HAS 0 POINTS OR IS SLACKING: Roast them ruthlessly but realistically for opening Discord to stare at a flat zero, making excuses, or wasting daylight.\n"
+        "     * Examples: 'You opened Discord just to stare at a flat zero? Drop and start with push-ups.'\n"
+        "     * 'Zero points on the board and you're checking your stats like you accomplished something. Go earn it.'\n"
+        "     * 'Day is slipping away and you haven't touched a single rep. Stop scrolling and move.'\n"
+        "   - IF USER JUST LOGGED OR HAS SOLID MOMENTUM: Push them with relentless intensity to close out the remaining volume.\n"
+        "     * Examples: 'Decent set, but don't start celebrating yet—pull-ups and squats are still waiting.'\n"
+        "     * '400 points down. You are too close to a clean day to leave those last 100 points on the table.'\n"
+        "     * '12-day streak on the line. Do not let today be the day you get soft and break it.'\n"
+        "3. OCCASIONAL FAMILIAR STOIC WISDOM: Roughly 20% of the time, or when a warrior is hesitating, weave in or adapt a famous, sharp stoic quote (e.g. Marcus Aurelius, Seneca, Epictetus, Musashi) to cut through excuses.\n"
+        "   - Examples: 'You could be good today, but instead you choose tomorrow. Drop and begin.'\n"
+        "   - 'We suffer more in imagination than reality. Knock out the remaining set.'\n"
+        "   - 'Think of how long you have put this off. Put the reps on the board.'\n"
+        "4. NO FANTASY ROLEPLAY: Do NOT use dramatic medieval wolf roleplay ('the moon calls', 'the pack prowls', 'shadows'). Speak like a real, relentless training coach.\n"
+        "5. LENGTH: 1 TO 2 PUNCHY SENTENCES (under 25 words total).\n"
+        "6. Output ONLY the plain text sentence speaking directly to the user. Do not wrap in quotes, do not include any prefix, and do not use emojis."
     )
 
     pts = progression.get("points", 0)
@@ -239,8 +290,8 @@ async def generate_reactive_nudge(
                 {"role": "user", "content": user_prompt},
             ],
             model=GROQ_MODEL,
-            temperature=0.7,
-            max_tokens=50,
+            temperature=0.8,
+            max_tokens=60,
         )
         latency = time.time() - start_t
 
@@ -250,7 +301,7 @@ async def generate_reactive_nudge(
         txt = txt.strip("*").strip("_").strip('"').strip("'")
         logger.info(f"Groq reactive observation generated in {latency:.2f}s: '{txt}'")
 
-        if txt and len(txt.split()) <= 25:
+        if txt and len(txt.split()) <= 30:
             return txt
         return random.choice(REACTIVE_STOIC_FALLBACKS)
     except Exception as e:
@@ -278,14 +329,14 @@ def should_trigger_nudge(user_id: int, force: bool = False, roll_chance: float =
         return False
     roll = random.random()
     if roll <= roll_chance:
-        logger.info(f"Nudge check for user {user_id}: triggered (roll {roll:.2f} <= {roll_chance:.2f}).")
+        logger.info(f"Nudge check for user {user_id}: triggered (roll {roll:.2f} <= {roll_chance}).")
         return True
-    logger.info(f"Nudge check for user {user_id}: skipped (roll {roll:.2f} > {roll_chance:.2f}).")
+    logger.info(f"Nudge check for user {user_id}: skipped (roll {roll:.2f} > {roll_chance}).")
     return False
 
 
-def record_nudge_triggered(user_id: int):
-    """Updates the last nudge timestamp for a user."""
+def record_nudge_triggered(user_id: int) -> None:
+    """Records the timestamp when a nudge is dispatched for cooldown tracking."""
     import time
     _last_nudge_timestamps[user_id] = time.time()
 
@@ -300,7 +351,7 @@ async def dispatch_interaction_nudge(
     force: bool = False,
 ):
     """
-    Non-blocking background dispatcher that sends a separate follow-up message
+    Non-blocking background dispatcher that sends a separate direct reaction
     from Amarok after an interaction response.
     """
     if not should_trigger_nudge(user_id, force=force):
@@ -335,7 +386,7 @@ async def dispatch_interaction_nudge(
             progression=progression,
         )
         if nudge:
-            content = f"<@{user_id}> 🐺 **Amarok observes**:\n> *\"{nudge}\"*"
+            content = f"<@{user_id}> {nudge}"
             channel = getattr(interaction, "channel", None)
             if not channel and hasattr(interaction, "client") and hasattr(interaction, "channel_id"):
                 channel = interaction.client.get_channel(interaction.channel_id)
@@ -345,19 +396,19 @@ async def dispatch_interaction_nudge(
                 try:
                     await channel.send(content)
                     sent = True
-                    logger.info(f"Dispatched Amarok reactive observation to #{getattr(channel, 'name', 'chat')} for {user_name}: '{nudge}'")
+                    logger.info(f"Dispatched direct reaction to #{getattr(channel, 'name', 'chat')} for {user_name}: '{nudge}'")
                 except Exception as send_err:
-                    logger.warning(f"Could not send nudge via channel.send: {send_err}")
+                    logger.warning(f"Could not send reaction via channel.send: {send_err}")
 
             if not sent:
                 try:
                     await interaction.followup.send(content)
                     sent = True
-                    logger.info(f"Dispatched Amarok reactive observation via followup for {user_name}: '{nudge}'")
+                    logger.info(f"Dispatched direct reaction via followup for {user_name}: '{nudge}'")
                 except Exception as followup_err:
-                    logger.warning(f"Could not send nudge via interaction.followup: {followup_err}")
+                    logger.warning(f"Could not send reaction via interaction.followup: {followup_err}")
     except Exception as e:
-        logger.warning(f"Could not dispatch interaction nudge for {user_name}: {e}")
+        logger.warning(f"Could not dispatch interaction reaction for {user_name}: {e}")
 
 
 async def dispatch_channel_nudge(
@@ -368,9 +419,10 @@ async def dispatch_channel_nudge(
     progression: Optional[Dict[str, Any]] = None,
     extra_info: str = "",
     force: bool = False,
+    message: Optional[Any] = None,
 ):
     """
-    Non-blocking background dispatcher that sends a separate channel message
+    Non-blocking background dispatcher that sends a direct reaction message
     from Amarok in message-based logging contexts (e.g. #quick-log).
     """
     if not should_trigger_nudge(user_id, force=force):
@@ -405,7 +457,16 @@ async def dispatch_channel_nudge(
             progression=progression,
         )
         if nudge:
-            content = f"<@{user_id}> 🐺 **Amarok observes**:\n> *\"{nudge}\"*"
+            if message and hasattr(message, "reply"):
+                try:
+                    await message.reply(nudge, mention_author=True)
+                    logger.info(f"Replied directly to message in #{getattr(channel, 'name', 'chat')} for {user_name}: '{nudge}'")
+                    return
+                except Exception as reply_err:
+                    logger.warning(f"Could not reply directly to message: {reply_err}")
+
+            content = f"<@{user_id}> {nudge}"
             await channel.send(content)
+            logger.info(f"Dispatched direct reaction to #{getattr(channel, 'name', 'chat')} for {user_name}: '{nudge}'")
     except Exception as e:
-        logger.debug(f"Could not dispatch channel nudge for {user_name}: {e}")
+        logger.debug(f"Could not dispatch channel reaction for {user_name}: {e}")

@@ -186,9 +186,9 @@ class WinterArcBot(commands.Bot):
 
                 if target_channel:
                     embed = discord.Embed(
-                        title="🐺 Amarok • Pack Systems Active",
+                        title="🐺 Winter Arc • Systems Active",
                         description=(
-                            "The flame burns against the cold. **Amarok is online and active.**\n\n"
+                            "The flame burns against the cold. **Winter Arc systems are online and active.**\n\n"
                             "• All 12-rank leveling & streak trackers are armed.\n"
                             "• AI Grind & Workout logging active (`/quick`, `/grind`).\n"
                             "• Run `/help` or `/today` to inspect your daily disciplines."
@@ -230,7 +230,7 @@ class WinterArcBot(commands.Bot):
                 if parsed.get("suspicious"):
                     logger.warning(f"#{channel_name} entry from {message.author} rejected as suspicious: '{text}'")
                     await message.reply(
-                        "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
+                        "❌ **Unrealistic Volume Rejected**: Unrealistic volume detected for a single set (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
                         "Log your completed sets individually."
                     )
                     return
@@ -271,7 +271,8 @@ class WinterArcBot(commands.Bot):
                                 user_id=message.author.id,
                                 user_name=message.author.display_name,
                                 command_name="quick-log",
-                                extra_info=f"Quick logged: {text}"
+                                extra_info=f"Quick logged: {text}",
+                                message=message
                             )
                         )
                         try:

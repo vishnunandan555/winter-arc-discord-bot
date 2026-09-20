@@ -12,11 +12,22 @@ Handles:
 import os
 import sqlite3
 import math
+import re
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
-from config import DB_PATH, MIN_STREAK_POINTS
+from config import DB_PATH, MIN_STREAK_POINTS, BOT_TZ
+
+
+def get_today_date() -> date:
+    """Returns today's date in BOT_TZ (Asia/Kolkata / IST)."""
+    return datetime.now(BOT_TZ).date()
+
+
+def get_today_str() -> str:
+    """Returns today's ISO date string in BOT_TZ."""
+    return get_today_date().isoformat()
 
 DEFAULT_TASKS = [
     {"name": "Push-ups", "description": "Works chest, shoulders, and triceps (1 pt / rep)", "target": 100.0, "unit": "reps", "max_points": 100},
@@ -345,14 +356,112 @@ def get_all_tasks(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
 
 
 def get_task_by_name(name: str, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """
+    Intelligently retrieves a task by name, resolving:
+    - Exact match (e.g. 'Push-ups')
+    - Autocomplete labels with emojis & targets (e.g. '💪 Push-ups (100 reps)')
+    - Admin autocomplete labels (e.g. '🟢 Push-ups (Active)')
+    - Casual aliases & singular/plural forms (e.g. 'pushups', 'pushup', 'squat', 'situps', 'jog', 'chin-ups')
+    """
+    if not name or not str(name).strip():
+        return None
+    raw = str(name).strip()
+
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tasks WHERE name = ? COLLATE NOCASE", (name.strip(),))
+
+        # 1. Exact case-insensitive match
+        cursor.execute("SELECT * FROM tasks WHERE name = ? COLLATE NOCASE;", (raw,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+
+        # Retrieve all tasks to match against normalized labels & aliases
+        cursor.execute("SELECT * FROM tasks;")
+        all_tasks = [dict(r) for r in cursor.fetchall()]
+        if not all_tasks:
+            return None
+
+        # 2. Clean display label: remove leading symbols/emojis and trailing parentheticals
+        # E.g.: "💪 Push-ups (100 reps)" -> "Push-ups", "🟢 Push-ups (Active)" -> "Push-ups"
+        cleaned = re.sub(r'^[^\w\s]+', '', raw).strip()
+        cleaned = re.sub(r'\s*\([^)]*\)\s*$', '', cleaned).strip()
+        if cleaned:
+            for t in all_tasks:
+                if t["name"].lower() == cleaned.lower():
+                    return t
+
+        # Helper for alphanumeric canonical form
+        def to_alphanumeric(s: str) -> str:
+            return re.sub(r'[^a-z0-9]', '', s.lower())
+
+        raw_alpha = to_alphanumeric(cleaned if cleaned else raw)
+        if raw_alpha:
+            # 3. Direct alphanumeric match (ignoring hyphens, spaces, underscores)
+            # E.g.: "pushups" <-> "Push-ups", "pullups" <-> "Pull-ups"
+            for t in all_tasks:
+                if to_alphanumeric(t["name"]) == raw_alpha:
+                    return t
+
+            # Singular / plural normalization (e.g. "squat" vs "squats", "pushup" vs "pushups")
+            raw_singular = raw_alpha[:-1] if raw_alpha.endswith('s') and len(raw_alpha) > 3 else raw_alpha
+            for t in all_tasks:
+                t_alpha = to_alphanumeric(t["name"])
+                t_singular = t_alpha[:-1] if t_alpha.endswith('s') and len(t_alpha) > 3 else t_alpha
+                if raw_singular == t_singular:
+                    return t
+
+        # 4. Standard workout aliases mapping
+        alias_map = {
+            "pushup": "Push-ups",
+            "pushups": "Push-ups",
+            "pushie": "Push-ups",
+            "pushies": "Push-ups",
+            "pullup": "Pull-ups",
+            "pullups": "Pull-ups",
+            "chinup": "Pull-ups",
+            "chinups": "Pull-ups",
+            "chin": "Pull-ups",
+            "chins": "Pull-ups",
+            "squat": "Squats",
+            "squats": "Squats",
+            "situp": "Sit-ups",
+            "situps": "Sit-ups",
+            "crunch": "Sit-ups",
+            "crunches": "Sit-ups",
+            "ab": "Sit-ups",
+            "abs": "Sit-ups",
+            "run": "Running",
+            "running": "Running",
+            "jog": "Running",
+            "jogging": "Running",
+            "cardio": "Running",
+        }
+        for alias, target_name in alias_map.items():
+            if raw_alpha == alias or alias in raw_alpha:
+                for t in all_tasks:
+                    if t["name"].lower() == target_name.lower():
+                        return t
+
+        # 5. Substring matching as final fallback
+        for t in all_tasks:
+            t_alpha = to_alphanumeric(t["name"])
+            if t_alpha and raw_alpha and (t_alpha in raw_alpha or raw_alpha in t_alpha):
+                return t
+
+        return None
 
 
 def add_task(name: str, target: float, unit: str, max_points: int, description: str = "", db_path: str = DB_PATH) -> Dict[str, Any]:
+    if not name or not str(name).strip():
+        raise ValueError("Task name cannot be empty.")
+    if float(target) <= 0:
+        raise ValueError("Task target must be greater than 0.")
+    if int(max_points) <= 0:
+        raise ValueError("Task max points must be greater than 0.")
+    if not unit or not str(unit).strip():
+        raise ValueError("Task unit cannot be empty.")
+
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -404,7 +513,7 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
         raise ValueError(f"Task '{task_name}' is currently inactive.")
 
     if not log_date:
-        log_date = date.today().isoformat()
+        log_date = get_today_str()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -425,13 +534,13 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
     target = float(task["target"])
     max_pts = int(task["max_points"])
 
-    pts_before = math.floor(min(total_before / target, 1.0) * max_pts)
-    pts_after = math.floor(min(total_after / target, 1.0) * max_pts)
+    pts_before = math.floor(min(total_before / target, 1.0) * max_pts) if target > 0 else 0
+    pts_after = math.floor(min(total_after / target, 1.0) * max_pts) if target > 0 else 0
     pts_delta = pts_after - pts_before
 
     daily_progress = get_user_daily_progress(discord_id, log_date, db_path)
     shield_awarded = False
-    if daily_progress["perfect_day"]:
+    if daily_progress["perfect_day"] or daily_progress["total_points"] >= MIN_STREAK_POINTS:
         streak = calculate_streak(discord_id, log_date, db_path)
         shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
@@ -446,10 +555,12 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
         "previous_total": total_before,
         "new_total": total_after,
         "points_earned_delta": pts_delta,
+        "points_added": pts_delta,
         "task_points_total": pts_after,
         "task_max_points": max_pts,
         "is_target_reached": total_after >= target,
         "daily_points_total": daily_progress["total_points"],
+        "new_points": daily_progress["total_points"],
         "daily_points_max": daily_progress["max_possible_points"],
         "daily_completion_rate": daily_progress["overall_completion_rate"],
         "date": log_date,
@@ -478,7 +589,7 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
         raise ValueError(f"Task '{task_name}' is currently inactive.")
 
     if not log_date:
-        log_date = date.today().isoformat()
+        log_date = get_today_str()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -513,12 +624,13 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
 
     daily_progress = get_user_daily_progress(discord_id, log_date, db_path)
     shield_awarded = False
-    if daily_progress["perfect_day"]:
+    if daily_progress["perfect_day"] or daily_progress["total_points"] >= MIN_STREAK_POINTS:
         streak = calculate_streak(discord_id, log_date, db_path)
         shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
     return {
         "user_id": user["id"],
+        "discord_id": discord_id,
         "username": user["username"],
         "task_name": task["name"],
         "target": target,
@@ -527,6 +639,9 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
         "previous_total": total_before,
         "new_total": total_after,
         "points_earned_delta": pts_delta,
+        "points_added": pts_delta,
+        "old_points": pts_before,
+        "new_points": pts_after,
         "task_points_total": pts_after,
         "task_max_points": max_pts,
         "is_target_reached": total_after >= target,
@@ -540,7 +655,7 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
 
 def get_user_daily_progress(discord_id: int, target_date: Optional[str] = None, db_path: str = DB_PATH) -> Dict[str, Any]:
     if not target_date:
-        target_date = date.today().isoformat()
+        target_date = get_today_str()
 
     user = get_user_by_discord_id(discord_id, db_path)
     active_tasks = get_active_tasks(db_path)
@@ -629,7 +744,7 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
     if not user or not user["enrolled"]:
         return 0
 
-    ref_date = date.fromisoformat(as_of_date) if as_of_date else date.today()
+    ref_date = date.fromisoformat(as_of_date) if as_of_date else get_today_date()
     ref_date_str = ref_date.isoformat()
     start_date_str = (ref_date - timedelta(days=365)).isoformat()
 
@@ -709,7 +824,7 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
     Stage 3: Calculate streaks and milestone rewards.
     """
     if not target_date_str:
-        target_date_str = (date.today() - timedelta(days=1)).isoformat()
+        target_date_str = (get_today_date() - timedelta(days=1)).isoformat()
 
     # Stage 1: Read-only data gathering
     with get_connection(db_path) as conn:
@@ -803,7 +918,7 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
     Computes daily standings for all enrolled users using single batched SQL queries.
     """
     if not target_date_str:
-        target_date_str = date.today().isoformat()
+        target_date_str = get_today_str()
 
     users = get_enrolled_users(db_path)
     if not users:
@@ -875,7 +990,7 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
 
 def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     """Computes weekly standings for all enrolled users for a specific week (Monday to Sunday)."""
-    today = date.today()
+    today = get_today_date()
     if not start_date_str or not end_date_str:
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
@@ -939,7 +1054,7 @@ def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: O
 def get_monthly_leaderboard(year: int, month: int, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     """Computes monthly standings for all enrolled users."""
     month_prefix = f"{year:04d}-{month:02d}%"
-    today_str = date.today().isoformat()
+    today_str = get_today_str()
     users = get_enrolled_users(db_path)
     if not users:
         return []
@@ -996,7 +1111,7 @@ def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     Computes all-time overall standings for all enrolled users:
     Sums all past finalized days from daily_summaries + today's live activity from daily_logs.
     """
-    today_str = date.today().isoformat()
+    today_str = get_today_str()
     users = get_enrolled_users(db_path)
     if not users:
         return []
@@ -1065,7 +1180,7 @@ def get_user_lifetime_points(discord_id: int, db_path: str = DB_PATH) -> int:
     if not user:
         return 0
 
-    today_str = date.today().isoformat()
+    today_str = get_today_str()
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -1089,7 +1204,7 @@ def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
     if not user:
         return {}
 
-    today_str = date.today().isoformat()
+    today_str = get_today_str()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -1144,7 +1259,7 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
         return []
 
     history = []
-    today = date.today()
+    today = get_today_date()
     for i in range(days):
         d_str = (today - timedelta(days=i)).isoformat()
         prog = get_user_daily_progress(discord_id, d_str, db_path)
@@ -1178,7 +1293,7 @@ def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str,
             "recent_uses": [],
         }
 
-    today_str = date.today().isoformat()
+    today_str = get_today_str()
     streak = calculate_streak(discord_id, today_str, db_path)
 
     with get_connection(db_path) as conn:
@@ -1220,7 +1335,7 @@ def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, re
     if shields <= 0:
         raise ValueError("You have 0 Frost Shields available. Maintain a 7-day streak to earn a shield.")
 
-    target_date_str = target_date or date.today().isoformat()
+    target_date_str = target_date or get_today_str()
 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -1247,17 +1362,29 @@ def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, re
 
 def check_and_award_shield(discord_id: int, streak: int, db_path: str = DB_PATH) -> bool:
     """Awards +1 Frost Shield (up to 2) if streak reaches a new 7-day milestone."""
-    if streak < 7:
-        return False
-
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return False
 
-    milestone = (streak // 7) * 7
     last_milestone = user.get("last_shield_milestone", 0) or 0
     current_shields = user.get("frost_shields", 0) or 0
 
+    # If the user's streak fell below their previous milestone (streak broken), reset the tracked milestone
+    if streak < last_milestone:
+        last_milestone = (streak // 7) * 7
+        with get_connection(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users
+                SET last_shield_milestone = ?
+                WHERE id = ?;
+            """, (last_milestone, user["id"]))
+            conn.commit()
+
+    if streak < 7:
+        return False
+
+    milestone = (streak // 7) * 7
     if milestone > last_milestone:
         new_shields = min(2, current_shields + 1)
         with get_connection(db_path) as conn:
@@ -1389,7 +1516,7 @@ def get_user_daily_grind(discord_id: int, date_str: Optional[str] = None, db_pat
     if not user:
         return None
 
-    target_date = date_str or date.today().isoformat()
+    target_date = date_str or get_today_str()
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""

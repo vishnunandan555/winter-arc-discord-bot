@@ -21,7 +21,7 @@ class GrindEvaluation(BaseModel):
     verdict: str = Field(description="'ACCEPTED', 'REJECTED', or 'ROASTED'")
     points: int = Field(description="Points between 0 and 60. 0 if rejected or roasted.")
     key_learning: str = Field(description="Short tag of verified learning (e.g. 'Virtual Memory', 'DP Knapsack') or 'None'")
-    commentary: str = Field(description="Exactly 2 to 3 sentences in Amarok's stoic, razor-sharp voice.")
+    commentary: str = Field(description="Exactly 2 to 3 sentences of sharp, direct engineering mentor feedback.")
 
 
 _gemini_client = None
@@ -58,10 +58,10 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         }
 
     system_prompt = (
-        "You are Amarok, the stoic, unyielding wolf mascot and supreme discipline judge of the Winter Arc.\n"
+        "You are an uncompromising engineering mentor and technical discipline evaluator for the Winter Arc challenge.\n"
         "Your task is to evaluate a user's daily academic, engineering, and mental friction submission.\n"
         "Physical fitness is tracked separately. Here, we ONLY honor intellectual grit, deep focus, and rigorous mastery "
-        "in computer science, engineering, mathematics, low-level systems, algorithms, and dense study.\n\n"
+        "in computer science, engineering, mathematics, low-level systems, algorithms, and dense technical study.\n\n"
         "STRICT EVALUATION RULES:\n"
         "1. WHAT COUNTS AS REAL FRICTION (10 to 60 points max):\n"
         "   - 3+ hours of uninterrupted deep study or technical focus.\n"
@@ -76,8 +76,9 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         "   - Diet or food diaries ('I drank water and ate chicken'). Remind them this isn't a food blog.\n"
         "   - Low-effort or nonsense entries ('I coded a bit', 'I read 2 pages').\n\n"
         "3. TONE & CONSTRAINTS:\n"
-        "   - NO AI SLOP: No corporate cheerleading, no 'Great job!', no generic motivational quotes.\n"
-        "   - Commentary must be EXACTLY 2 TO 3 SHORT, RAZOR-SHARP SENTENCES in Amarok's dark, stoic tone.\n"
+        "   - NO FANTASY ROLEPLAY: NEVER use melodramatic wolf tropes like 'the pack respects this', 'solitary victory', 'crucible', 'shadows', 'wolves'.\n"
+        "   - Speak directly to the user about their actual work. Be grounded, sharp, and honest.\n"
+        "   - Commentary must be EXACTLY 2 TO 3 SHORT, PUNCHY SENTENCES.\n"
         "   - Return pure JSON conforming strictly to the requested schema."
     )
 
@@ -134,7 +135,7 @@ async def generate_daily_toast_and_roast(
     grind_notes = [f"{g['username']}: {g.get('key_learning', 'grind')}" for g in grind_highlights[:3]]
 
     prompt = (
-        f"Generate a compact midnight Winter Arc recap in Amarok's stoic, gritty voice.\n"
+        f"Generate a compact midnight Winter Arc recap with direct, gritty accountability.\n"
         f"Data:\n"
         f"- Top 3 Podium: {', '.join(top_names) if top_names else 'None'}\n"
         f"- Legit Academic/Grind Highlights: {', '.join(grind_notes) if grind_notes else 'None'}\n"
@@ -176,7 +177,7 @@ async def generate_weekly_state_of_the_pack(
     grind_summaries = [f"{g['username']} ({g.get('key_learning', 'study')})" for g in weekly_grinds[:4]]
 
     prompt = (
-        f"Generate the Sunday 'State of the Pack' address for Winter Arc in Amarok's stoic wolf leader persona.\n"
+        f"Generate the Sunday 'State of the Pack' address for Winter Arc with sharp, grounded leadership.\n"
         f"Weekly Data:\n"
         f"- Apex of the Week: {apex['username']} with {apex['points']} points.\n"
         f"- Total Pack Volume: {weekly_stats.get('total_pushups', 0)} push-ups, {weekly_stats.get('total_km', 0)} km run.\n"

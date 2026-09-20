@@ -856,28 +856,28 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         active_tasks = db.get_active_tasks(TEST_DB)
         
         m_embed = build_morning_kickoff_embed(active_tasks, "Saturday, Sep 19", quote=test_quote)
-        self.assertIn("🐺 **Amarok's Edict**:", m_embed.description)
+        self.assertIn("**Daily Focus**:", m_embed.description)
         self.assertIn(test_quote, m_embed.description)
 
         enrolled = db.get_enrolled_users(TEST_DB)
         a_embed = build_afternoon_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
-        self.assertIn("🐺 **Amarok**:", a_embed.description)
+        self.assertIn("**Midday Note**:", a_embed.description)
         self.assertIn(test_quote, a_embed.description)
 
         e_embed = build_evening_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
-        self.assertIn("🐺 **Amarok's Final Call**:", e_embed.description)
+        self.assertIn("**Evening Note**:", e_embed.description)
         self.assertIn(test_quote, e_embed.description)
 
         mock_user = MagicMock()
         mock_user.display_name = "Fenrir"
         dm_m_embed = build_dm_morning_embed(active_tasks, streak=5, date_display="Saturday, Sep 19", quote=test_quote)
-        self.assertIn("🐺 **Amarok**:", dm_m_embed.description)
+        self.assertIn("**Focus**:", dm_m_embed.description)
         self.assertIn(test_quote, dm_m_embed.description)
 
         prog = {"total_points": 50, "max_possible_points": 500, "overall_completion_rate": 0.1, "perfect_day": False}
         shield_status = {"frost_shields": 1}
         dm_e_embed = build_dm_evening_embed(mock_user, prog, streak=5, shield_status=shield_status, quote=test_quote)
-        self.assertIn("🐺 **Amarok**:", dm_e_embed.description)
+        self.assertIn("**Evening Note**:", dm_e_embed.description)
         self.assertIn(test_quote, dm_e_embed.description)
 
     def test_32_user_recent_logs_and_grinds(self):
@@ -951,6 +951,274 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         
         # Normal check right after should return False due to 1-hour cooldown
         self.assertFalse(groq_service.should_trigger_nudge(test_uid, force=False))
+
+    def test_34_task_name_resolution(self):
+        """Verifies that get_task_by_name correctly resolves autocomplete labels, emojis, parens, and aliases."""
+        user_id = 998877
+        db.enroll_user(user_id, "FuzzyWarrior", TEST_DB)
+        today = date.today().isoformat()
+
+        # Autocomplete labels
+        labels = [
+            ("💪 Push-ups (100 reps)", "Push-ups"),
+            ("🧗 Pull-ups (100 reps)", "Pull-ups"),
+            ("🦵 Squats (100 reps)", "Squats"),
+            ("🧘 Sit-ups (100 reps)", "Sit-ups"),
+            ("🏃 Running (10 km)", "Running"),
+            ("🟢 Push-ups (Active)", "Push-ups"),
+            ("🔴 Running (Disabled)", "Running"),
+            ("pushups", "Push-ups"),
+            ("pushup", "Push-ups"),
+            ("chins", "Pull-ups"),
+            ("chinups", "Pull-ups"),
+            ("squat", "Squats"),
+            ("situps", "Sit-ups"),
+            ("crunches", "Sit-ups"),
+            ("abs", "Sit-ups"),
+            ("run", "Running"),
+            ("jog", "Running"),
+        ]
+
+        for input_label, expected_canonical in labels:
+            task = db.get_task_by_name(input_label, TEST_DB)
+            self.assertIsNotNone(task, f"Failed to resolve task for '{input_label}'")
+            self.assertEqual(task["name"], expected_canonical, f"Mismatch for '{input_label}'")
+
+        # Test set_activity directly with autocomplete string
+        res = db.set_activity(
+            discord_id=user_id,
+            username="FuzzyWarrior",
+            task_name="💪 Push-ups (100 reps)",
+            target_amount=40.0,
+            log_date=today,
+            db_path=TEST_DB
+        )
+        self.assertEqual(res["new_total"], 40.0)
+        self.assertEqual(res["task_name"], "Push-ups")
+
+        # Test log_activity directly with alias string
+        res_log = db.log_activity(
+            discord_id=user_id,
+            username="FuzzyWarrior",
+            task_name="pushups",
+            amount=15.0,
+            log_date=today,
+            db_path=TEST_DB
+        )
+        self.assertEqual(res_log["new_total"], 55.0)
+        self.assertEqual(res_log["task_name"], "Push-ups")
+
+    def test_35_streak_year_rollover_and_month_boundaries(self):
+        """Verifies streak calculation across Dec 31 -> Jan 1 year rollovers and month boundaries."""
+        user_id = 991101
+        db.enroll_user(user_id, "YearRolloverWarrior", TEST_DB)
+
+        # 4 consecutive days crossing year boundary: 2025-12-30, 2025-12-31, 2026-01-01, 2026-01-02
+        dates = ["2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02"]
+        for d in dates:
+            db.log_activity(user_id, "YearRolloverWarrior", "Push-ups", 100, log_date=d, db_path=TEST_DB)
+            db.log_activity(user_id, "YearRolloverWarrior", "Pull-ups", 100, log_date=d, db_path=TEST_DB)
+            db.log_activity(user_id, "YearRolloverWarrior", "Squats", 100, log_date=d, db_path=TEST_DB)
+            db.log_activity(user_id, "YearRolloverWarrior", "Sit-ups", 100, log_date=d, db_path=TEST_DB)
+            db.log_activity(user_id, "YearRolloverWarrior", "Running", 10.0, log_date=d, db_path=TEST_DB)
+            db.finalize_daily_summaries(d, TEST_DB)
+
+        # As of Jan 2, streak must be 4
+        streak = db.calculate_streak(user_id, as_of_date="2026-01-02", db_path=TEST_DB)
+        self.assertEqual(streak, 4)
+
+        # Now test Feb 28 to Mar 1 boundary
+        feb_dates = ["2026-02-27", "2026-02-28", "2026-03-01"]
+        user_id_feb = 991102
+        db.enroll_user(user_id_feb, "FebWarrior", TEST_DB)
+        for d in feb_dates:
+            db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date=d, db_path=TEST_DB)
+            db.finalize_daily_summaries(d, TEST_DB)
+
+        streak_feb = db.calculate_streak(user_id_feb, as_of_date="2026-03-01", db_path=TEST_DB)
+        self.assertEqual(streak_feb, 3)
+
+        # Miss a day (2026-03-02 not logged), then log on 2026-03-03
+        db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date="2026-03-03", db_path=TEST_DB)
+        # As of March 3, streak should reset to 1 because March 2 was missed
+        broken_streak = db.calculate_streak(user_id_feb, as_of_date="2026-03-03", db_path=TEST_DB)
+        self.assertEqual(broken_streak, 1)
+
+    def test_36_shield_milestone_break_and_rebuild(self):
+        """Verifies that when a streak is broken, last_shield_milestone resets so the warrior can earn shields again."""
+        user_id = 991103
+        db.enroll_user(user_id, "ShieldHero", TEST_DB)
+
+        # 1. Earn milestone at 7 days
+        self.assertTrue(db.check_and_award_shield(user_id, 7, TEST_DB))
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 1)
+
+        # 2. Earn milestone at 14 days
+        self.assertTrue(db.check_and_award_shield(user_id, 14, TEST_DB))
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 2)
+
+        # 3. Cannot exceed max capacity of 2
+        self.assertFalse(db.check_and_award_shield(user_id, 21, TEST_DB))
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 2)
+
+        # 4. Use 1 shield
+        today_str = db.get_today_str()
+        db.activate_frost_shield(user_id, target_date=today_str, reason="Active rest", db_path=TEST_DB)
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 1)
+
+        # 5. Streak breaks (drops to 0)
+        # check_and_award_shield should recognize streak broke below last_milestone (14) and reset tracked milestone
+        self.assertFalse(db.check_and_award_shield(user_id, 0, TEST_DB))
+
+        # 6. Warrior starts over and hits 7-day streak again!
+        # With our fix, this MUST award a shield instead of permanently blocking them!
+        awarded_rebuild = db.check_and_award_shield(user_id, 7, TEST_DB)
+        self.assertTrue(awarded_rebuild, "Failed to re-award shield after rebuilding a broken streak")
+        status = db.get_user_shield_status(user_id, TEST_DB)
+        self.assertEqual(status["frost_shields"], 2)
+
+    def test_37_quicklog_fallback_parsing_robustness(self):
+        """Tests pure-Python fallback NLP extraction against varied grammar, aliases, formats, and limits."""
+        from ai.groq_service import extract_disciplines_fallback
+        active_tasks = db.get_active_tasks(TEST_DB)
+
+        # Case 1: Number before keyword
+        res1 = extract_disciplines_fallback("did 25 pushups and ran 5.5 km", active_tasks)
+        matches1 = {m["task_name"]: m["amount"] for m in res1["matches"]}
+        self.assertEqual(matches1.get("Push-ups"), 25.0)
+        self.assertEqual(matches1.get("Running"), 5.5)
+        self.assertFalse(res1["suspicious"])
+
+        # Case 2: Keyword before number with colons and equals
+        res2 = extract_disciplines_fallback("pushups: 40, pullups: 15, squats = 50", active_tasks)
+        matches2 = {m["task_name"]: m["amount"] for m in res2["matches"]}
+        self.assertEqual(matches2.get("Push-ups"), 40.0)
+        self.assertEqual(matches2.get("Pull-ups"), 15.0)
+        self.assertEqual(matches2.get("Squats"), 50.0)
+        self.assertFalse(res2["suspicious"])
+
+        # Case 3: Aliases (chins, crunches, jog)
+        res3 = extract_disciplines_fallback("12 chins, 45 crunches, 4km jog", active_tasks)
+        matches3 = {m["task_name"]: m["amount"] for m in res3["matches"]}
+        self.assertEqual(matches3.get("Pull-ups"), 12.0)
+        self.assertEqual(matches3.get("Sit-ups"), 45.0)
+        self.assertEqual(matches3.get("Running"), 4.0)
+
+        # Case 4: Single-set suspicious rejection
+        res4 = extract_disciplines_fallback("did 75 pushups in one go", active_tasks)
+        self.assertTrue(res4["suspicious"], "Should flag >50 push-ups as suspicious single-set volume")
+
+        res5 = extract_disciplines_fallback("ran 15 km this morning", active_tasks)
+        self.assertTrue(res5["suspicious"], "Should flag >10 km run as suspicious single-set volume")
+
+        # Case 5: Unrelated non-discipline text
+        res6 = extract_disciplines_fallback("just had coffee and studied chemistry", active_tasks)
+        self.assertEqual(len(res6["matches"]), 0)
+
+    def test_38_set_and_log_return_schema_and_zero_division(self):
+        """Verifies schema consistency between log and set return dictionaries and zero-division protection."""
+        user_id = 991104
+        db.enroll_user(user_id, "SchemaWarrior", TEST_DB)
+        today = db.get_today_str()
+
+        # Test log_activity return keys
+        log_res = db.log_activity(user_id, "SchemaWarrior", "Push-ups", 30, today, TEST_DB)
+        required_keys = [
+            "points_added", "new_points", "points_earned_delta",
+            "previous_total", "new_total", "task_points_total",
+            "task_max_points", "is_target_reached", "daily_points_total",
+            "daily_points_max", "daily_completion_rate", "shield_awarded"
+        ]
+        for key in required_keys:
+            self.assertIn(key, log_res, f"log_activity missing key: {key}")
+
+        # Test set_activity return keys
+        set_res = db.set_activity(user_id, "SchemaWarrior", "Push-ups", 50, today, TEST_DB)
+        set_required_keys = [
+            "old_points", "new_points", "points_added", "points_earned_delta",
+            "previous_total", "new_total", "task_points_total",
+            "task_max_points", "is_target_reached", "daily_points_total"
+        ]
+        for key in set_required_keys:
+            self.assertIn(key, set_res, f"set_activity missing key: {key}")
+
+        # Test validation guards
+        with self.assertRaises(ValueError):
+            db.log_activity(user_id, "SchemaWarrior", "Push-ups", -10, today, TEST_DB)
+
+        with self.assertRaises(ValueError):
+            db.set_activity(user_id, "SchemaWarrior", "Push-ups", -5, today, TEST_DB)
+
+        with self.assertRaises(ValueError):
+            db.log_activity(user_id, "SchemaWarrior", "Push-ups", 6000, today, TEST_DB)
+
+        with self.assertRaises(ValueError):
+            db.add_task(name="InvalidZero", target=0, unit="reps", max_points=100, db_path=TEST_DB)
+
+        with self.assertRaises(ValueError):
+            db.add_task(name="InvalidNegPts", target=10, unit="reps", max_points=-50, db_path=TEST_DB)
+
+    def test_39_database_timezone_consistency(self):
+        """Verifies that all database date helpers strictly return BOT_TZ dates."""
+        from config import BOT_TZ
+        from datetime import datetime
+        expected_today = datetime.now(BOT_TZ).date().isoformat()
+
+        self.assertEqual(db.get_today_str(), expected_today)
+        self.assertEqual(db.get_today_date().isoformat(), expected_today)
+
+        user_id = 991105
+        db.enroll_user(user_id, "TzWarrior", TEST_DB)
+
+        # Calling calculate_streak without as_of_date must default cleanly to BOT_TZ
+        streak = db.calculate_streak(user_id, db_path=TEST_DB)
+        self.assertEqual(streak, 0)
+
+        # Calling get_user_stats without date must resolve without error
+        stats = db.get_user_stats(user_id, TEST_DB)
+        self.assertIn("current_streak", stats)
+        self.assertIn("lifetime_points", stats)
+
+    def test_40_weekly_and_monthly_leaderboard_standings(self):
+        """Verifies that weekly and monthly leaderboards aggregate past finalized summaries and today's live activity correctly."""
+        u1 = 991106
+        u2 = 991107
+        db.enroll_user(u1, "LeaderOne", TEST_DB)
+        db.enroll_user(u2, "LeaderTwo", TEST_DB)
+
+        today = db.get_today_date()
+        yesterday = (today - timedelta(days=1)).isoformat()
+        today_str = today.isoformat()
+
+        # Finalized day yesterday: u1 got 500 pts, u2 got 200 pts
+        db.log_activity(u1, "LeaderOne", "Push-ups", 100, yesterday, TEST_DB)
+        db.log_activity(u1, "LeaderOne", "Pull-ups", 100, yesterday, TEST_DB)
+        db.log_activity(u1, "LeaderOne", "Squats", 100, yesterday, TEST_DB)
+        db.log_activity(u1, "LeaderOne", "Sit-ups", 100, yesterday, TEST_DB)
+        db.log_activity(u1, "LeaderOne", "Running", 10.0, yesterday, TEST_DB)
+
+        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, yesterday, TEST_DB)
+        db.log_activity(u2, "LeaderTwo", "Pull-ups", 100, yesterday, TEST_DB)
+        db.finalize_daily_summaries(yesterday, TEST_DB)
+
+        # Live day today: u1 got 100 pts, u2 got 300 pts
+        db.log_activity(u1, "LeaderOne", "Push-ups", 100, today_str, TEST_DB)
+        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, today_str, TEST_DB)
+        db.log_activity(u2, "LeaderTwo", "Squats", 100, today_str, TEST_DB)
+        db.log_activity(u2, "LeaderTwo", "Sit-ups", 100, today_str, TEST_DB)
+
+        # Overall leaderboard: u1 (500 + 100 = 600) vs u2 (200 + 300 = 500)
+        overall = db.get_overall_leaderboard(TEST_DB)
+        u1_entry = next((entry for entry in overall if entry["discord_id"] == u1), None)
+        u2_entry = next((entry for entry in overall if entry["discord_id"] == u2), None)
+        self.assertIsNotNone(u1_entry)
+        self.assertIsNotNone(u2_entry)
+        self.assertEqual(u1_entry["total_points"], 600)
+        self.assertEqual(u2_entry["total_points"], 500)
 
 
 if __name__ == "__main__":

@@ -1,91 +1,75 @@
-# 🌐 Hosting & Deployment Guide: Winter Arc Bot & Web Dashboard
+# Hosting & Deployment Guide: Winter Arc Bot & Showcase
 
 This guide covers deployment instructions for:
-1. **The Web Statistics Dashboard** (GitHub Pages, Vercel, or Render)
-2. **The 24/7 Discord Bot Process** (Render Background Worker, Railway, or VPS / Systemd)
+1. **The Showcase & Documentation Website** (GitHub Pages or Vercel)
+2. **The 24/7 Discord Bot Process** (Wispbyte / Pterodactyl, Linux VPS with Systemd, or Render / Railway)
 
 ---
 
-## Part 1: Hosting the Web Dashboard
+## Part 1: Hosting the Showcase Website
 
-The web dashboard is a lightweight, responsive static web application located in the `docs/` folder.
+The website is a static, responsive web application located in the `docs/` directory.
 
-### Option A: GitHub Pages (Recommended — 100% Free, Zero Config)
-Since the web application is inside `docs/`, GitHub Pages can host it natively for free:
-
-1. Push your code to your GitHub repository:
+### Option A: GitHub Pages (Free, Zero Configuration)
+1. Push your repository to GitHub:
    ```bash
    git push origin main
    ```
-2. Open your repository on GitHub:
-   - Go to **Settings** > **Pages** (in the left sidebar).
-3. Under **Build and deployment** > **Branch**:
-   - Select branch: `main`
-   - Select folder: `/docs`
-   - Click **Save**.
-4. Within 1–2 minutes, GitHub will publish your site at:
+2. In your GitHub repository:
+   - Go to **Settings** > **Pages**
+   - Under **Build and deployment** > **Branch**, select `main` and folder `/docs`
+   - Click **Save**
+3. Your site will be live at:
    ```
    https://<your-username>.github.io/<your-repo-name>/
    ```
 
----
-
 ### Option B: Vercel (1-Click Deployment)
-The repository includes a pre-configured `vercel.json` pointing to `docs/`:
-
-1. Go to [vercel.com](https://vercel.com) and click **Add New Project**.
-2. Import `winter-arc-discord-bot` from your GitHub account.
-3. Vercel will automatically detect `vercel.json` with output directory `docs`.
-4. Click **Deploy**. Your dashboard will be live at `https://your-project.vercel.app`.
-
----
-
-### Option C: Render (Static Site)
-1. Go to [dashboard.render.com](https://dashboard.render.com) and click **New +** > **Static Site**.
-2. Connect your GitHub repository.
-3. Configure:
-   - **Publish directory**: `docs`
-   - **Build command**: `python export_web_stats.py` (optional, or leave blank)
-4. Click **Create Static Site**.
+The repository includes a pre-configured `vercel.json` pointing to `docs`:
+1. In [vercel.com](https://vercel.com), import your forked repository.
+2. Vercel detects `outputDirectory: "docs"`.
+3. Click **Deploy**.
 
 ---
 
 ## Part 2: Hosting the Discord Bot Process (24/7)
 
-The Discord bot needs a continuous Python runtime to maintain a WebSocket gateway connection to Discord.
+Discord bots require a continuous Python process maintaining an active WebSocket gateway connection to Discord.
 
-### Option A: Background Worker on Render (Free / Cheap)
-1. Go to [dashboard.render.com](https://dashboard.render.com) and click **New +** > **Background Worker**.
-2. Connect your GitHub repository.
-3. Configure settings:
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python bot.py`
-4. Add **Environment Variables**:
-   - `DISCORD_TOKEN`: Your Discord Bot Token from the Developer Portal
-   - `BOT_TIMEZONE`: `Asia/Kolkata`
-   - `WINTER_ARC_ROLE_ID`: `1550511682344845352`
-5. Click **Create Background Worker**.
+### Option A: Wispbyte / Pterodactyl Panel
+1. In the **Wispbyte Game/Bot Panel**, select **Create Server**.
+2. Choose the **Python / Generic Discord Bot** egg (Python 3.11+).
+3. Under **File Manager** or **Git Integration**, upload or clone your repository.
+4. Run dependency installation:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Configure startup and environment:
+   - **Startup Command**: `python bot.py`
+   - In **File Manager**, create `.env` and set `DISCORD_TOKEN`, `BOT_TIMEZONE`, etc.
+6. Click **Start** on the console. The bot will automatically connect to Discord, synchronize slash commands, and initialize `winter_arc.db`.
 
 ---
 
 ### Option B: Linux VPS / Ubuntu Server (Systemd Service)
-For maximum control on a VPS (DigitalOcean, Hetzner, AWS EC2, Linode):
+For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 
 1. **Clone and setup virtual environment**:
    ```bash
-   git clone git@github.com:vishnunandan555/winter-arc-discord-bot.git
+   git clone https://github.com/your-username/winter-arc-discord-bot.git
    cd winter-arc-discord-bot
    python3 -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
+
 2. **Configure `.env`**:
    ```bash
    cp .env.example .env
    nano .env
-   # Add your DISCORD_TOKEN
+   # Add your DISCORD_TOKEN and BOT_TIMEZONE
    ```
+
 3. **Create a Systemd Service**:
    ```bash
    sudo nano /etc/systemd/system/winter-arc.service
@@ -107,6 +91,7 @@ For maximum control on a VPS (DigitalOcean, Hetzner, AWS EC2, Linode):
    [Install]
    WantedBy=multi-user.target
    ```
+
 4. **Enable and start the service**:
    ```bash
    sudo systemctl daemon-reload
@@ -114,6 +99,7 @@ For maximum control on a VPS (DigitalOcean, Hetzner, AWS EC2, Linode):
    sudo systemctl start winter-arc
    sudo systemctl status winter-arc
    ```
+
 5. **View live bot logs**:
    ```bash
    journalctl -u winter-arc -f
@@ -121,10 +107,14 @@ For maximum control on a VPS (DigitalOcean, Hetzner, AWS EC2, Linode):
 
 ---
 
-## Part 3: Synchronizing Web Stats
-
-- **Automatic**: `scheduler.py` calls `export_stats_to_json()` every night at 00:00 IST during midnight finalization.
-- **Manual**: You can manually update `docs/stats.json` at any time by running:
-  ```bash
-  python export_web_stats.py
-  ```
+### Option C: Cloud Background Worker (Render / Railway)
+1. In Render or Railway, create a new **Background Worker** (not a Web Service).
+2. Connect your GitHub repository.
+3. Configure settings:
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python bot.py`
+4. Add environment variables:
+   - `DISCORD_TOKEN`
+   - `BOT_TIMEZONE` (e.g. `Asia/Kolkata`)
+5. Deploy the worker.

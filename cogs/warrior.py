@@ -273,11 +273,20 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if amount <= 0:
             await interaction.response.send_message("❌ Amount must be greater than 0.", ephemeral=True)
             return
-        task_key = task.lower().strip()
+        task_obj = db.get_task_by_name(task)
+        if not task_obj:
+            await interaction.response.send_message(
+                f"❌ Task '{task}' not found. Available tasks: Push-ups, Pull-ups, Squats, Sit-ups, Running.",
+                ephemeral=True
+            )
+            return
+
+        task_canonical = task_obj["name"]
+        task_key = task_canonical.lower().strip()
         max_allowed = MAX_SINGLE_SET_LIMITS.get(task_key, 50.0)
         if amount > max_allowed:
             unit_display = "km" if "run" in task_key else "reps"
-            logger.warning(f"/log rejected for {interaction.user}: {amount} {unit_display} for {task} exceeds limit {max_allowed}")
+            logger.warning(f"/log rejected for {interaction.user}: {amount} {unit_display} for {task_canonical} exceeds limit {max_allowed}")
             await interaction.response.send_message(
                 f"❌ **Unrealistic Volume Rejected**: `{int(amount) if amount.is_integer() else amount} {unit_display}` in a single go exceeds the realistic single-set limit (max `{int(max_allowed)} {unit_display}`). "
                 f"Log your completed sets individually as you finish them.",
@@ -292,7 +301,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             result = db.log_activity(
                 discord_id=interaction.user.id,
                 username=interaction.user.name,
-                task_name=task,
+                task_name=task_canonical,
                 amount=amount,
                 log_date=today_str
             )
@@ -303,7 +312,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
         level_up_info = check_level_up(old_points, new_points)
-        logger.info(f"/log successful for {interaction.user}: {task} +{amount} (+{result['points_added']} pts, daily total: {result['new_points']} pts)")
+        pts_added = result.get('points_added', result.get('points_earned_delta', 0))
+        daily_total = result.get('new_points', result.get('daily_points_total', 0))
+        logger.info(f"/log successful for {interaction.user}: {task_canonical} +{amount} (+{pts_added} pts, daily total: {daily_total} pts)")
 
         embed = build_log_embed(result, amount, level_up_info=level_up_info)
         await interaction.response.send_message(embed=embed)
@@ -314,7 +325,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 user_id=interaction.user.id,
                 user_name=interaction.user.display_name,
                 command_name="log",
-                extra_info=f"Logged {amount} {task}"
+                extra_info=f"Logged {amount} {task_canonical}"
             )
         )
 
@@ -341,6 +352,15 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             await interaction.response.send_message("❌ Amount exceeds reasonable single entry limit (5,000).", ephemeral=True)
             return
 
+        task_obj = db.get_task_by_name(task)
+        if not task_obj:
+            await interaction.response.send_message(
+                f"❌ Task '{task}' not found. Available tasks: Push-ups, Pull-ups, Squats, Sit-ups, Running.",
+                ephemeral=True
+            )
+            return
+
+        task_canonical = task_obj["name"]
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         old_points = db.get_user_lifetime_points(interaction.user.id)
 
@@ -348,7 +368,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             result = db.set_activity(
                 discord_id=interaction.user.id,
                 username=interaction.user.name,
-                task_name=task,
+                task_name=task_canonical,
                 target_amount=amount,
                 log_date=today_str
             )
@@ -359,7 +379,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
         level_up_info = check_level_up(old_points, new_points)
-        logger.info(f"/set successful for {interaction.user}: {task} set to {amount} (points: {result['old_points']} -> {result['new_points']})")
+        pts_old = result.get('old_points', 0)
+        pts_new = result.get('new_points', result.get('task_points_total', 0))
+        logger.info(f"/set successful for {interaction.user}: {task_canonical} set to {amount} (points: {pts_old} -> {pts_new})")
 
         embed = build_set_embed(result, amount, level_up_info=level_up_info)
         await interaction.response.send_message(embed=embed)
@@ -388,10 +410,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
 
         user = db.get_user_by_discord_id(target_user.id)
-        streak = db.calculate_streak(target_user.id)
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        streak = db.calculate_streak(target_user.id, today_str)
         stats_data = db.get_user_stats(target_user.id)
         all_time_rank, total_warriors = db.get_user_all_time_rank(target_user.id)
-        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         today_progress = db.get_user_daily_progress(target_user.id, today_str)
 
         embed = build_profile_embed(
@@ -584,8 +606,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # AI Discipline & Quick-Logging Commands
     # ==========================================
 
-    @app_commands.command(name="grind", description="Submit daily academic/engineering friction for Amarok's evaluation.")
-    @app_commands.describe(text="Your daily intellectual friction (academics, LeetCode, deep work, math, systems)")
+    @app_commands.command(name="grind", description="Submit daily academic or engineering deep work for evaluation.")
+    @app_commands.describe(
+        text="Describe the academic/engineering problem, hours spent, or conceptual breakthrough"
+    )
     async def grind_cmd(self, interaction: discord.Interaction, text: str):
         logger.info(f"Slash command '/grind' invoked by {interaction.user}: '{text[:60]}...'")
         if not await require_enrolled(interaction):
@@ -659,7 +683,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if parsed.get("suspicious"):
             logger.warning(f"/quick rejected for {interaction.user} as suspicious single-set volume: '{text}'")
             await interaction.followup.send(
-                "❌ **Unrealistic Volume Rejected**: Amarok detected unrealistic volume for a single go (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
+                "❌ **Unrealistic Volume Rejected**: Unrealistic volume detected for a single set (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
                 "Log your completed sets individually as you finish them (e.g. '30 pushups, 30 pushups, 30 pushups').",
                 ephemeral=True
             )
