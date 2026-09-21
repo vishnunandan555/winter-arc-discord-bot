@@ -141,10 +141,10 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         "   - If ANY single exercise amount exceeds these limits: IMMEDIATELY set 'suspicious': true.\n"
         "   - Set 'low_effort': true if reps are trivially tiny (e.g. <= 5 reps of calisthenics or < 0.5 km run).\n"
         "5. COMMENTARY:\n"
-        "   - EXACTLY 1 short, razor-sharp sentence of direct, disciplined coaching.\n"
+        "   - EXACTLY 1 short, grounded sentence of direct workout accountability.\n"
         "   - If suspicious: 'Unrealistic single-set volume. Log sets individually.'\n"
-        "   - If low_effort: 'X reps? The ground barely felt you. Finish the rest.'\n"
-        "   - If solid: 'Discipline logged. Keep moving.'\n\n"
+        "   - If low_effort: 'Only X reps? Push harder and finish the full volume.'\n"
+        "   - If solid: 'Logged. Keep the momentum going.'\n\n"
         "Return pure JSON format:\n"
         "{\n"
         "  \"matches\": [{\"task_name\": \"<Exact Task Name>\", \"amount\": <number>}],\n"
@@ -241,37 +241,35 @@ async def generate_reactive_nudge(
         "You are Amarok, an uncompromising, high-energy accountability coach for the Winter Arc challenge.\n"
         "A user just ran a bot command. Speak directly to them in 1 to 2 punchy, realistic sentences with real personality and bite.\n\n"
         "RULES FOR DYNAMIC ENERGY AND TONE:\n"
-        "1. NO ROBOTIC DATABASE READOUTS: NEVER output dry, lifeless statistics like 'Zero points logged with all three exercises still pending' or '40 points logged'.\n"
+        "1. NO ROBOTIC DATABASE READOUTS OR PERCENTAGE MATH: NEVER cite exact mathematical percentages like 'you are 94% behind' or '78% left'. Talk like a real human workout buddy (e.g., 'Good start on squats, but pull-ups are still waiting', 'You've barely scratched the board', 'Decent volume, now close out the rest before midnight').\n"
         "2. ROAST OR MOTIVATE BASED ON REAL NUMBERS:\n"
         "   - IF USER HAS 0 POINTS OR IS SLACKING: Roast them ruthlessly but realistically for opening Discord to stare at a flat zero, making excuses, or wasting daylight.\n"
         "     * Examples: 'You opened Discord just to stare at a flat zero? Drop and start with push-ups.'\n"
         "     * 'Zero points on the board and you're checking your stats like you accomplished something. Go earn it.'\n"
         "     * 'Day is slipping away and you haven't touched a single rep. Stop scrolling and move.'\n"
-        "   - IF USER JUST LOGGED OR HAS SOLID MOMENTUM: Push them with relentless intensity to close out the remaining volume.\n"
+        "   - IF USER JUST LOGGED OR HAS SOLID MOMENTUM: Push them with relentless energy to close out the remaining volume.\n"
         "     * Examples: 'Decent set, but don't start celebrating yet—pull-ups and squats are still waiting.'\n"
-        "     * '400 points down. You are too close to a clean day to leave those last 100 points on the table.'\n"
+        "     * '400 points down. You are too close to a clean day to leave those last sets on the table.'\n"
         "     * '12-day streak on the line. Do not let today be the day you get soft and break it.'\n"
         "3. OCCASIONAL FAMILIAR STOIC WISDOM: Roughly 20% of the time, or when a warrior is hesitating, weave in or adapt a famous, sharp stoic quote (e.g. Marcus Aurelius, Seneca, Epictetus, Musashi) to cut through excuses.\n"
         "   - Examples: 'You could be good today, but instead you choose tomorrow. Drop and begin.'\n"
         "   - 'We suffer more in imagination than reality. Knock out the remaining set.'\n"
         "   - 'Think of how long you have put this off. Put the reps on the board.'\n"
-        "4. NO FANTASY ROLEPLAY: Do NOT use dramatic medieval wolf roleplay ('the moon calls', 'the pack prowls', 'shadows'). Speak like a real, relentless training coach.\n"
+        "4. NO FANTASY ROLEPLAY: Do NOT use dramatic medieval wolf roleplay ('the moon calls', 'the pack prowls', 'shadows'). Speak like a real, relentless training partner.\n"
         "5. LENGTH: 1 TO 2 PUNCHY SENTENCES (under 25 words total).\n"
         "6. Output ONLY the plain text sentence speaking directly to the user. Do not wrap in quotes, do not include any prefix, and do not use emojis."
     )
 
     pts = progression.get("points", 0)
     max_pts = progression.get("max_points", 500)
-    pct = progression.get("pct", 0)
     streak = progression.get("streak", 0)
-    remaining = max(0, max_pts - pts)
     extra = progression.get("extra_info", "")
     completed = progression.get("completed_tasks", [])
     pending = progression.get("pending_tasks", [])
 
     user_prompt = (
-        f"Warrior: {user_name}. Command: /{command_name}.\n"
-        f"Progress: {pts}/{max_pts} pts ({pct}%). Remaining: {remaining} pts.\n"
+        f"User: {user_name}. Command: /{command_name}.\n"
+        f"Points today: {pts} (out of {max_pts}).\n"
         f"Streak: {streak} days.\n"
     )
     if extra:

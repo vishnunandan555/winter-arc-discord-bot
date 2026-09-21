@@ -140,15 +140,16 @@ async def generate_daily_toast_and_roast(
     grind_notes = [f"{g['username']}: {g.get('key_learning', 'grind')}" for g in grind_highlights[:3]]
 
     prompt = (
-        f"Generate a compact midnight Winter Arc recap with direct, gritty accountability.\n"
+        f"Generate a compact, natural midnight Winter Arc recap for the Discord community.\n"
         f"Data:\n"
         f"- Top 3 Podium: {', '.join(top_names) if top_names else 'None'}\n"
-        f"- Legit Academic/Grind Highlights: {', '.join(grind_notes) if grind_notes else 'None'}\n"
-        f"- Slackers with 0 logs today: {slacker_count} out of {total_enrolled} enrolled warriors.\n\n"
+        f"- Genuine Study / Deep Work Highlights: {', '.join(grind_notes) if grind_notes else 'None'}\n"
+        f"- Inactive members with 0 points: {slacker_count} out of {total_enrolled} enrolled.\n\n"
         "Requirements:\n"
-        "1. Honor the top 3 and legitimate deep work.\n"
-        "2. Witty, biting 1-sentence roast aimed at the slackers.\n"
-        "3. EXACTLY 3 TO 4 SHORT SENTENCES TOTAL (under 120 words). No AI slop."
+        "1. Give straightforward props to the podium leaders and honest study sessions.\n"
+        "2. A quick, grounded 1-sentence reality check for anyone who stayed at zero (keep it blunt and direct, not theatrical or cruel).\n"
+        "3. TONE: Human, authentic server mod voice. No corporate clichés, no AI slop, no melodramatic fantasy roles.\n"
+        "4. EXACTLY 2 TO 3 SHORT SENTENCES TOTAL (under 80 words)."
     )
 
     try:
@@ -173,7 +174,7 @@ async def generate_weekly_state_of_the_pack(
     weekly_grinds: List[Dict[str, Any]],
     ghosts_count: int
 ) -> str:
-    """Generates the Sunday 20:00 IST 'State of the Pack' community broadcast (under 160 words)."""
+    """Generates the Sunday 20:00 IST community broadcast (under 120 words)."""
     client = get_gemini_client()
     if not client:
         return ""
@@ -182,18 +183,20 @@ async def generate_weekly_state_of_the_pack(
     grind_summaries = [f"{g['username']} ({g.get('key_learning', 'study')})" for g in weekly_grinds[:4]]
 
     prompt = (
-        f"Generate the Sunday 'State of the Pack' address for Winter Arc with sharp, grounded leadership.\n"
+        f"Generate a Sunday night weekly recap for the Winter Arc Discord fitness and study community.\n"
         f"Weekly Data:\n"
-        f"- Apex of the Week: {apex['username']} with {apex['points']} points.\n"
-        f"- Total Pack Volume: {weekly_stats.get('total_pushups', 0)} push-ups, {weekly_stats.get('total_km', 0)} km run.\n"
-        f"- Deep Work / Technical Breakthroughs: {', '.join(grind_summaries) if grind_summaries else 'Minimal'}\n"
-        f"- Ghost Warriors (0 activity all week): {ghosts_count}\n\n"
+        f"- Week Leader: {apex['username']} with {apex['points']} points.\n"
+        f"- Total Community Volume: {weekly_stats.get('total_pushups', 0)} push-ups, {weekly_stats.get('total_km', 0)} km run.\n"
+        f"- Deep Work Highlights: {', '.join(grind_summaries) if grind_summaries else 'Minimal'}\n"
+        f"- Inactive members all week: {ghosts_count}\n\n"
         "Structure:\n"
-        "1. The Apex Toast: Brief respect to the top grinder.\n"
-        "2. The Pack Stats: Terse acknowledgement of community volume.\n"
-        "3. The Roast: 1 sharp sentence on ghosts who let the frost take them.\n"
-        "4. The Monday Charge: 1 commanding sentence for 05:00 AM tomorrow.\n"
-        "Total length: UNDER 150 WORDS. Zero fluff."
+        "1. Acknowledge the week's top performer and the total workout volume logged.\n"
+        "2. A brief, grounded callout to anyone who went completely dark this week.\n"
+        "3. A clean, motivating closing sentence for the new week starting tomorrow.\n"
+        "TONE & CONSTRAINTS:\n"
+        "- NO FANTASY ROLEPLAY: Ban tropes like 'the frost took them', 'the pack prowls', 'shadows', 'crucible'.\n"
+        "- Talk like a real, respected coach or senior peer speaking in chat.\n"
+        "- Total length: UNDER 100 WORDS. Concise and punchy."
     )
 
     try:
@@ -244,7 +247,7 @@ async def generate_reminder_motivation(
     if user_context:
         u_name = user_context.get("username", "Warrior")
         u_streak = user_context.get("streak", 0)
-        context_notes.append(f"Warrior: {u_name}")
+        context_notes.append(f"User: {u_name}")
         context_notes.append(f"Active streak: {u_streak} days")
         if recent_history:
             past_pts = [f"{d['date'][-5:]}: {d.get('points', 0)} pts" for d in recent_history[:3]]
@@ -263,23 +266,24 @@ async def generate_reminder_motivation(
         include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
 
     prompt = (
-        f"You are Amarok, an uncompromising, grounded discipline coach for the Winter Arc challenge.\n"
-        f"Generate a single razor-sharp, realistic discipline reminder for a {reminder_type.upper()} announcement.\n\n"
+        f"You are Amarok, a grounded discipline coach for the Winter Arc challenge.\n"
+        f"Generate a single razor-sharp discipline reminder for a {reminder_type.upper()} announcement.\n\n"
         "STRICT CONSTRAINTS:\n"
         "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 25 WORDS TOTAL).\n"
         "- ZERO CLICHÉS, ZERO FANTASY ROLEPLAY: Strictly ban metaphors about 'howling dark', 'wolves', 'shadows', 'blizzards', 'frost', or gothic poetry.\n"
-        "- TONE: Grounded, blunt, stoic accountability. Focus on work, consistency, time, and standards. No corporate cheerleading, no fake hype.\n"
+        "- NO GENERIC GURU PHRASES: Avoid self-help preachiness like 'test of standards', 'did you settle', or empty motivational slogans.\n"
+        "- TONE: Grounded, blunt, real-world accountability. Focus on action, consistency, time, and putting reps on the board.\n"
     )
 
     if include_history_judgment and context_notes:
         prompt += (
-            f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
+            f"- CONTEXT ON USER'S RECENT WORK:\n"
             f"  {'; '.join(context_notes)}\n"
             f"- INSTRUCTION: Bluntly weave their past work or momentum into a grounded accountability statement. "
             f"If they are slacking/idle, call it out directly. If consistent, remind them yesterday's work buys nothing today.\n"
         )
     else:
-        prompt += "- Deliver an original, grounded stoic discipline thought focused on execution and standards.\n"
+        prompt += "- Deliver an original, grounded discipline thought focused on execution and daily action.\n"
 
     prompt += "\nOutput ONLY the plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
 

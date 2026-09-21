@@ -515,14 +515,14 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             f"⭐ **Clean Days (100%)**: **{stats.get('perfect_days', 0)}**\n"
             f"🛡️ **Frost Shields**: **{shields_count}/2 available**\n"
             f"⏳ **Next Shield Milestone**: **{days_to_milestone} day(s)** (at Day {next_milestone})\n\n"
-            + ("🛡️ *Protected by Frost Shield today!*" if is_shielded else "⚡ *Maintain daily discipline to defend the flame.*")
+            + ("🛡️ *Protected by Frost Shield today!*" if is_shielded else "⚡ *Log at least 30 points today to maintain your streak.*")
         )
         embed = discord.Embed(
             title="🔥 Winter Arc — Streak Status",
             description=desc,
             color=0xE67E22 if streak > 0 else 0x95A5A6
         )
-        embed.set_footer(text="Consistency Beats Motivation • Defend your streak")
+        embed.set_footer(text="Consistency Beats Motivation • 30 pts/day minimum for streak")
         await interaction.response.send_message(embed=embed)
         await safe_react(interaction, "🔥", "🐺")
 

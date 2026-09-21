@@ -1181,19 +1181,18 @@ def build_weekly_state_of_the_pack_embed(
     top_warriors: List[Dict[str, Any]],
     ai_speech: str
 ) -> discord.Embed:
-    """Builds the Sunday 20:00 IST State of the Pack broadcast embed."""
-    apex = top_warriors[0] if top_warriors else {"username": "Nobody", "points": 0}
+    """Builds the Sunday 20:00 IST community broadcast embed."""
     podium_lines = []
     for idx, w in enumerate(top_warriors[:3]):
         badge = ["👑", "⚔️", "🛡️"][idx] if idx < 3 else f"#{idx+1}"
         podium_lines.append(f"{badge} **{w['username']}** — **{w['points']} pts**")
 
+    ai_block = f"> {ai_speech}\n\n" if ai_speech else ""
     desc = (
-        f"**Weekly Reflection**:\n"
-        f"> {ai_speech}\n\n"
-        "**🏆 Week's Podium**\n"
+        ai_block
+        + "**🏆 Week's Podium**\n"
         + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
-        + "\n\n**🌐 Pack Cumulative Volume**\n"
+        + "\n\n**🌐 Community Total Volume**\n"
         f"• 💪 **Push-ups**: `{weekly_stats.get('total_pushups', 0):,}`\n"
         f"• 🧗 **Pull-ups**: `{weekly_stats.get('total_pullups', 0):,}`\n"
         f"• 🦵 **Squats**: `{weekly_stats.get('total_squats', 0):,}`\n"
@@ -1202,11 +1201,11 @@ def build_weekly_state_of_the_pack_embed(
     )
 
     embed = discord.Embed(
-        title="🐺 Winter Arc — Sunday State of the Pack",
+        title="📊 Winter Arc — Weekly Community Recap",
         description=desc,
         color=0xF1C40F
     )
-    embed.set_footer(text="A new week dawns tomorrow at 05:00 IST • Rest and steel your resolve")
+    embed.set_footer(text="A new week begins tomorrow at 05:00 IST • Consistency Beats Motivation")
     return embed
 
 

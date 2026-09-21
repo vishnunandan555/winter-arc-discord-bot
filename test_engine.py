@@ -1280,6 +1280,37 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("+35 pts earned", embed_accepted.description)
         self.assertIn("Dynamic Programming", embed_accepted.description)
 
+    def test_42_humanized_replies_and_broadcast_embeds(self):
+        from ui.embeds import build_weekly_state_of_the_pack_embed
+        from ai.gemini_service import CURATED_STOIC_FALLBACKS
+        from ai.groq_service import REACTIVE_STOIC_FALLBACKS
+
+        # 1. Test weekly broadcast embed title and format
+        stats = {
+            "total_pushups": 4200,
+            "total_pullups": 900,
+            "total_squats": 3500,
+            "total_situps": 2100,
+            "total_km": 150.5
+        }
+        top = [
+            {"username": "ApexOne", "points": 1450},
+            {"username": "WarriorTwo", "points": 1200}
+        ]
+        embed = build_weekly_state_of_the_pack_embed(stats, top, "Solid weekly execution across the board.")
+        self.assertEqual(embed.title, "📊 Winter Arc — Weekly Community Recap")
+        self.assertNotIn("Weekly Reflection", embed.description)
+        self.assertNotIn("State of the Pack", embed.title)
+        self.assertIn("Solid weekly execution across the board.", embed.description)
+        self.assertIn("4,200", embed.description)
+        self.assertIn("150.5 km", embed.description)
+
+        # 2. Verify all fallback pools contain zero fantasy melodrama or gothic tropes
+        banned_tropes = ["shadow", "crucible", "howling", "pack respects", "blizzard", "frost take"]
+        for quote in CURATED_STOIC_FALLBACKS + REACTIVE_STOIC_FALLBACKS:
+            for trope in banned_tropes:
+                self.assertNotIn(trope, quote.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
