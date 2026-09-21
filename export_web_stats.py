@@ -13,6 +13,7 @@ from datetime import datetime, date
 import database as db
 from config import BOT_TZ, DB_PATH
 from levels import get_all_ranks, get_level_info
+from helpers import format_num
 
 logger = logging.getLogger("winter_arc.export_web")
 
@@ -76,7 +77,7 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
         disciplines.append({
             "name": t["name"],
             "description": t["description"],
-            "target": int(t["target"]) if t["target"].is_integer() else t["target"],
+            "target": format_num(t["target"]),
             "unit": t["unit"],
             "max_points": t["max_points"],
         })

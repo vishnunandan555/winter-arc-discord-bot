@@ -20,6 +20,17 @@ from config import DEFAULT_ROLE_ID
 logger = logging.getLogger("winter_arc.helpers")
 
 
+def format_num(val: Any) -> Any:
+    """Safely converts numeric float/int to clean int if whole, without crashing if already int."""
+    if val is None:
+        return 0
+    try:
+        f = float(val)
+        return int(f) if f.is_integer() else round(f, 2)
+    except (ValueError, TypeError):
+        return val
+
+
 async def require_enrolled(interaction: discord.Interaction) -> bool:
     """Verifies that the user is enrolled in Winter Arc before allowing command execution."""
     if not db.is_user_enrolled(interaction.user.id):
@@ -45,7 +56,7 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
     for t in tasks:
         t_clean = re.sub(r'[^a-z0-9]', '', t["name"].lower())
         if not curr_clean or curr_clean in t_clean or (current or "").lower() in t["name"].lower():
-            target_disp = int(t["target"]) if t["target"].is_integer() else t["target"]
+            target_disp = format_num(t["target"])
             icon = icons.get(t["name"].lower(), "🎯")
             choices.append(app_commands.Choice(
                 name=f"{icon} {t['name']} ({target_disp} {t['unit']})",

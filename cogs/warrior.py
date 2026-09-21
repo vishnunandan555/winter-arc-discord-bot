@@ -27,6 +27,7 @@ from helpers import (
     history_days_autocomplete,
     get_or_create_arc_role,
     safe_react,
+    format_num,
 )
 from levels import check_level_up
 from ui.embeds import (
@@ -94,7 +95,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         active_tasks = db.get_active_tasks()
         task_lines = [
-            f"• **{t['name']}**: `{int(t['target']) if t['target'].is_integer() else t['target']} {t['unit']}` *(max {t['max_points']} pts)*"
+            f"• **{t['name']}**: `{format_num(t['target'])} {t['unit']}` *(max {t['max_points']} pts)*"
             for t in active_tasks
         ]
         disciplines_block = "\n".join(task_lines) if task_lines else "_No disciplines configured._"
@@ -288,7 +289,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             unit_display = "km" if "run" in task_key else "reps"
             logger.warning(f"/log rejected for {interaction.user}: {amount} {unit_display} for {task_canonical} exceeds limit {max_allowed}")
             await interaction.response.send_message(
-                f"❌ **Unrealistic Volume Rejected**: `{int(amount) if amount.is_integer() else amount} {unit_display}` in a single go exceeds the realistic single-set limit (max `{int(max_allowed)} {unit_display}`). "
+                f"❌ **Unrealistic Volume Rejected**: `{format_num(amount)} {unit_display}` in a single go exceeds the realistic single-set limit (max `{format_num(max_allowed)} {unit_display}`). "
                 f"Log your completed sets individually as you finish them.",
                 ephemeral=True
             )
@@ -606,9 +607,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # AI Discipline & Quick-Logging Commands
     # ==========================================
 
-    @app_commands.command(name="grind", description="Submit daily academic or engineering deep work for evaluation.")
+    @app_commands.command(name="grind", description="Log daily deep work, studying, or engineering practice.")
     @app_commands.describe(
-        text="Describe the academic/engineering problem, hours spent, or conceptual breakthrough"
+        text="Describe the technical problem, hours spent, or conceptual breakthrough"
     )
     async def grind_cmd(self, interaction: discord.Interaction, text: str):
         logger.info(f"Slash command '/grind' invoked by {interaction.user}: '{text[:60]}...'")
@@ -622,14 +623,14 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         existing = db.get_user_daily_grind(interaction.user.id, today_str)
         if existing:
             await interaction.response.send_message(
-                "❌ You have already submitted your daily **/grind** evaluation for today. Next submission unlocks at 00:00 IST.",
+                "❌ You have already logged your daily **/grind** for today. Next entry unlocks at 00:00 IST.",
                 ephemeral=True
             )
             return
 
         if len(text.strip()) < 10:
             await interaction.response.send_message(
-                "❌ Your reflection is too short. Describe what real friction or engineering/academic depth you tackled.",
+                "❌ Too short. Describe the study session, technical problem, or engineering work you tackled.",
                 ephemeral=True
             )
             return

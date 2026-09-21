@@ -339,7 +339,7 @@ class WinterArcScheduler:
                 total_enrolled=len(enrolled_users)
             )
             if ai_recap:
-                embed.description = f"**Daily Toast & Roast**:\n> {ai_recap}\n\n" + embed.description
+                embed.description = f"> {ai_recap}\n\n" + embed.description
         except Exception as e:
             logger.debug(f"Could not append AI daily recap: {e}")
 

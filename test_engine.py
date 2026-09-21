@@ -1220,6 +1220,66 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(u1_entry["total_points"], 600)
         self.assertEqual(u2_entry["total_points"], 500)
 
+    def test_41_stats_and_grind_embed_crash_and_jargon_prevention(self):
+        from unittest.mock import MagicMock
+        from ui.embeds import build_stats_embed, build_grind_embed, format_num
+        from helpers import format_num as helper_format_num
+
+        # 1. Test format_num robustness
+        for fn in [format_num, helper_format_num]:
+            self.assertEqual(fn(50), 50)
+            self.assertEqual(fn(50.0), 50)
+            self.assertEqual(fn(50.5), 50.5)
+            self.assertEqual(fn("42"), 42)
+            self.assertEqual(fn(None), 0)
+
+        # 2. Test build_stats_embed with int total_volume (previously crashed with AttributeError: 'int' object has no attribute 'is_integer')
+        mock_user = MagicMock()
+        mock_user.display_name = "TestWarrior"
+        stats_data = {
+            "current_streak": 5,
+            "perfect_days": 2,
+            "active_days": 10,
+            "lifetime_points": 850,
+            "task_totals": [
+                {"name": "Push-ups", "total_volume": 150, "unit": "reps"},
+                {"name": "Running", "total_volume": 12.5, "unit": "km"},
+                {"name": "Squats", "total_volume": 200, "unit": "reps"},
+            ]
+        }
+        embed = build_stats_embed(mock_user, stats_data)
+        self.assertIn("TestWarrior", embed.description)
+        self.assertIn("150 reps", embed.description)
+        self.assertIn("12.5 km", embed.description)
+
+        # 3. Test build_grind_embed: strictly NO "Verdict:", "Assessment:", "Submission Roasted:", or "Daily Intellectual Friction"
+        grind_roasted = {
+            "verdict": "ROASTED",
+            "points": 0,
+            "key_learning": "None",
+            "commentary": "Watching TV isn't deep work. Turn off the screen and write code."
+        }
+        embed_roasted = build_grind_embed(mock_user, grind_roasted, 45)
+        self.assertNotIn("Verdict", embed_roasted.description)
+        self.assertNotIn("Assessment", embed_roasted.description)
+        self.assertNotIn("Submission Roasted", embed_roasted.title)
+        self.assertNotIn("Daily Intellectual Friction", embed_roasted.description)
+        self.assertIn("0 pts earned", embed_roasted.description)
+        self.assertIn("Watching TV isn't deep work", embed_roasted.description)
+
+        grind_accepted = {
+            "verdict": "ACCEPTED",
+            "points": 35,
+            "key_learning": "Dynamic Programming",
+            "commentary": "Good work tackling graph DP problems."
+        }
+        embed_accepted = build_grind_embed(mock_user, grind_accepted, 80)
+        self.assertNotIn("Verdict", embed_accepted.description)
+        self.assertNotIn("Assessment", embed_accepted.description)
+        self.assertNotIn("Grind Accepted", embed_accepted.title)
+        self.assertIn("+35 pts earned", embed_accepted.description)
+        self.assertIn("Dynamic Programming", embed_accepted.description)
+
 
 if __name__ == "__main__":
     unittest.main()

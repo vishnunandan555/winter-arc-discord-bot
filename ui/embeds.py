@@ -15,6 +15,17 @@ from levels import get_level_info, get_all_ranks, APEX_THRESHOLD
 from ui.formatters import make_progress_bar, format_rank_badge, TASK_ICONS
 
 
+def format_num(val: Any) -> Any:
+    """Safely converts numeric float/int to clean int if whole, without crashing if already int."""
+    if val is None:
+        return 0
+    try:
+        f = float(val)
+        return int(f) if f.is_integer() else round(f, 2)
+    except (ValueError, TypeError):
+        return val
+
+
 def build_daily_leaderboard_embed() -> discord.Embed:
     """Builds the clean daily standing leaderboard embed (max top 10)."""
     now = datetime.now(BOT_TZ)
@@ -180,8 +191,8 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
         unit = t["unit"]
         pts = t["points_earned"]
         icon = TASK_ICONS.get(name.lower(), "🎯")
-        cur = int(t["current_amount"]) if float(t["current_amount"]).is_integer() else t["current_amount"]
-        tgt = int(t["target"]) if float(t["target"]).is_integer() else t["target"]
+        cur = format_num(t["current_amount"])
+        tgt = format_num(t["target"])
         check = " ✅" if t["completed"] else ""
         bar = make_progress_bar(cur, tgt, length=8)
         pct = int(round((cur / tgt) * 100)) if tgt > 0 else 0
@@ -233,8 +244,8 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
         max_pts = t.get("max_points", 100)
         desc = t.get("description") or "Discipline workout target"
         icon = TASK_ICONS.get(name.lower(), "🎯")
-        cur = int(t["current_amount"]) if float(t["current_amount"]).is_integer() else t["current_amount"]
-        tgt = int(t["target"]) if float(t["target"]).is_integer() else t["target"]
+        cur = format_num(t["current_amount"])
+        tgt = format_num(t["target"])
         check = " ✅" if t["completed"] else ""
         bar = make_progress_bar(cur, tgt, length=8)
         pct = int(round((cur / tgt) * 100)) if tgt > 0 else 0
@@ -281,9 +292,9 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
 
 def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> discord.Embed:
     """Builds the confirmation embed after logging sets, including level up promotion banners."""
-    cur = int(result["new_total"]) if result["new_total"].is_integer() else result["new_total"]
-    tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
-    amt = int(amount) if amount.is_integer() else amount
+    cur = format_num(result["new_total"])
+    tgt = format_num(result["target"])
+    amt = format_num(amount)
 
     bar = make_progress_bar(result["new_total"], result["target"], length=8)
     delta_str = f"+{result['points_earned_delta']} pts" if result['points_earned_delta'] > 0 else "Capped"
@@ -318,9 +329,9 @@ def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Option
 
 def build_set_embed(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> discord.Embed:
     """Builds the confirmation embed after overriding/resetting reps."""
-    cur = int(result["new_total"]) if result["new_total"].is_integer() else result["new_total"]
-    tgt = int(result["target"]) if result["target"].is_integer() else result["target"]
-    prev = int(result["previous_total"]) if result["previous_total"].is_integer() else result["previous_total"]
+    cur = format_num(result["new_total"])
+    tgt = format_num(result["target"])
+    prev = format_num(result["previous_total"])
 
     bar = make_progress_bar(result["new_total"], result["target"], length=8)
 
@@ -363,7 +374,7 @@ def build_stats_embed(target_user: discord.Member, data: Dict[str, Any]) -> disc
 
     volume_lines = []
     for t in data.get("task_totals", []):
-        vol = int(t["total_volume"]) if t["total_volume"].is_integer() else t["total_volume"]
+        vol = format_num(t["total_volume"])
         volume_lines.append(f"• **{t['name']}**: {vol:,} {t['unit']}")
 
     desc = (
@@ -789,7 +800,7 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
     """Builds the 05:00 morning kickoff broadcast embed."""
     task_lines = []
     for t in active_tasks:
-        target_display = int(t["target"]) if t["target"].is_integer() else t["target"]
+        target_display = format_num(t["target"])
         task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
 
     disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
@@ -1001,7 +1012,7 @@ def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> disc
 def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_display: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds private morning briefing DM sent at 05:00 IST."""
     task_lines = [
-        f"• **{t['name']}**: `{int(t['target']) if t['target'].is_integer() else t['target']} {t['unit']}` *(max {t['max_points']} pts)*"
+        f"• **{t['name']}**: `{format_num(t['target'])} {t['unit']}` *(max {t['max_points']} pts)*"
         for t in tasks
     ]
 
@@ -1081,32 +1092,29 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
 
 
 def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_points: int) -> discord.Embed:
-    """Builds the confirmation embed for /grind evaluation."""
-    verdict = result["verdict"]
-    pts = result["points"]
+    """Builds a clean, human confirmation card for /grind deep work entries."""
+    verdict = result.get("verdict", "REJECTED")
+    pts = result.get("points", 0)
+    learning = result.get("key_learning")
+    has_focus = learning and learning != "None"
 
-    if verdict == "ACCEPTED":
-        title = f"⚔️ Grind Accepted: +{pts} Points"
+    if pts > 0:
+        title = f"🧠 Deep Work Logged (+{pts} pts)"
         color = 0x00D2FF
-        icon = "🧠"
-    elif verdict == "ROASTED":
-        title = "🔥 Submission Roasted: 0 Points"
-        color = 0xE67E22
-        icon = "💀"
+        header_tag = f"• `{learning}`" if has_focus else "• Deep Work"
+        pts_line = f"**+{pts} pts earned** • Today's Board: **{total_daily_points} pts**"
     else:
-        title = "❌ Submission Rejected: 0 Points"
-        color = 0x95A5A6
-        icon = "⚪"
+        title = "⚪ Deep Work Log (0 pts)"
+        color = 0xE67E22 if verdict == "ROASTED" else 0x95A5A6
+        header_tag = "• Deep Work"
+        pts_line = f"**0 pts earned** • Today's Board: **{total_daily_points} pts**"
 
-    learning_line = f"• **Key Focus**: `{result['key_learning']}`\n" if result.get("key_learning") and result["key_learning"] != "None" else ""
+    commentary = result.get("commentary", "Session logged.")
 
     desc = (
-        f"**{user.display_name}** • Daily Intellectual Friction\n\n"
-        f"{icon} **Verdict**: **{verdict}** (+{pts} bonus pts)\n"
-        f"{learning_line}"
-        f"📊 **Today's Total**: **{total_daily_points} pts**\n\n"
-        f"**Assessment**:\n"
-        f"{result['commentary']}"
+        f"**{user.display_name}** {header_tag}\n"
+        f"{pts_line}\n\n"
+        f"> {commentary}"
     )
 
     embed = discord.Embed(
@@ -1114,7 +1122,7 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
         description=desc,
         color=color
     )
-    embed.set_footer(text="Winter Arc • Only real friction counts • Returns tomorrow at 00:00 IST")
+    embed.set_footer(text="Winter Arc • Consistency Beats Motivation • Limit: 1 deep work entry/day")
     return embed
 
 
@@ -1133,9 +1141,9 @@ def build_quicklog_embed(
 
     for r in log_results:
         raw_tgt = r.get("target") or r.get("task_target") or 100.0
-        cur = int(r["new_total"]) if float(r["new_total"]).is_integer() else r["new_total"]
-        tgt = int(raw_tgt) if float(raw_tgt).is_integer() else raw_tgt
-        amt = int(r["amount_logged"]) if float(r["amount_logged"]).is_integer() else r["amount_logged"]
+        cur = format_num(r["new_total"])
+        tgt = format_num(raw_tgt)
+        amt = format_num(r["amount_logged"])
         bar = make_progress_bar(r["new_total"], tgt, length=8)
         delta_tag = f"+{r['points_earned_delta']} pts" if r['points_earned_delta'] > 0 else "Capped"
         lines.append(f"• **{r['task_name']}**: `+{amt} {r['unit']}` ➔ `{cur} / {tgt} {r['unit']}` ({delta_tag})\n  `{bar}`")
