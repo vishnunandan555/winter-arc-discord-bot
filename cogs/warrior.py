@@ -61,6 +61,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         cmd = interaction.command.name if interaction.command else "unknown"
+        orig = getattr(error, "original", error)
+        if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
+            logger.warning(
+                f"Warrior command '/{cmd}' interaction expired or was cancelled by Discord (404 Unknown interaction). User: {interaction.user} (ID: {interaction.user.id})"
+            )
+            return
         logger.error(
             f"Error in warrior command '/{cmd}' for {interaction.user} (ID: {interaction.user.id}): {error}",
             exc_info=error
@@ -183,6 +189,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
 
+        await interaction.response.defer()
+
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
         date_display = now.strftime("%A, %B %d, %Y")
@@ -191,7 +199,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         streak = db.calculate_streak(target_user.id, today_str)
 
         embed = build_today_embed(target_user, progress, streak, date_display)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         asyncio.create_task(
             groq_service.dispatch_interaction_nudge(
@@ -228,6 +236,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
 
+        await interaction.response.defer()
+
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
         date_display = now.strftime("%A, %B %d, %Y")
@@ -236,7 +246,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         streak = db.calculate_streak(target_user.id, today_str)
 
         embed = build_tasks_embed(target_user, progress, streak, date_display)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         asyncio.create_task(
             groq_service.dispatch_interaction_nudge(
@@ -295,6 +305,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
             return
 
+        await interaction.response.defer()
+
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         old_points = db.get_user_lifetime_points(interaction.user.id)
 
@@ -308,7 +320,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         except ValueError as e:
             logger.warning(f"/log validation error for {interaction.user} on {task}: {e}")
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
             return
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
@@ -318,7 +330,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         logger.info(f"/log successful for {interaction.user}: {task_canonical} +{amount} (+{pts_added} pts, daily total: {daily_total} pts)")
 
         embed = build_log_embed(result, amount, level_up_info=level_up_info)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         asyncio.create_task(
             groq_service.dispatch_interaction_nudge(
@@ -362,6 +374,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             return
 
         task_canonical = task_obj["name"]
+        await interaction.response.defer()
+
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         old_points = db.get_user_lifetime_points(interaction.user.id)
 
@@ -375,7 +389,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         except ValueError as e:
             logger.warning(f"/set validation error for {interaction.user} on {task}: {e}")
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
             return
 
         new_points = db.get_user_lifetime_points(interaction.user.id)
@@ -385,7 +399,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         logger.info(f"/set successful for {interaction.user}: {task_canonical} set to {amount} (points: {pts_old} -> {pts_new})")
 
         embed = build_set_embed(result, amount, level_up_info=level_up_info)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         if level_up_info:
             await safe_react(interaction, "🎉", "🐺")
@@ -410,6 +424,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
                 return
 
+        await interaction.response.defer()
+
         user = db.get_user_by_discord_id(target_user.id)
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         streak = db.calculate_streak(target_user.id, today_str)
@@ -426,7 +442,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             total_warriors=total_warriors,
             today_progress=today_progress
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         asyncio.create_task(
             groq_service.dispatch_interaction_nudge(
@@ -451,9 +467,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="leaderboard", description="View daily, monthly, and overall standings.")
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def leaderboard(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         embed = build_daily_leaderboard_embed()
         view = LeaderboardView(current_tab="daily")
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
         await safe_react(interaction, "🏆")
 
     @app_commands.command(name="stats", description="View lifetime volume and performance statistics.")
@@ -469,9 +486,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
                 return
 
+        await interaction.response.defer()
         data = db.get_user_stats(target_user.id)
         embed = build_stats_embed(target_user, data)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="history", description="View point and completion history.")
     @app_commands.describe(days="Timeframe to inspect (e.g. 7, 14, 30 days)")
@@ -481,10 +499,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if not await require_enrolled(interaction):
             return
 
+        await interaction.response.defer()
         days_count = max(1, min(days or 7, 90))
         hist = db.get_user_history(interaction.user.id, days=days_count)
         embed = build_history_embed(interaction.user, hist)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="streak", description="Quickly look up current streak and shield protection status.")
     @app_commands.describe(member="Optional: Check another warrior's streak")
@@ -497,6 +516,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             if not db.is_user_enrolled(target_user.id):
                 await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
+
+        await interaction.response.defer()
 
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         streak = db.calculate_streak(target_user.id, today_str)
@@ -523,7 +544,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             color=0xE67E22 if streak > 0 else 0x95A5A6
         )
         embed.set_footer(text="Consistency Beats Motivation • 30 pts/day minimum for streak")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
         await safe_react(interaction, "🔥", "🐺")
 
         asyncio.create_task(

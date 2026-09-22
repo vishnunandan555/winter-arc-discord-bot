@@ -92,6 +92,13 @@ class WinterArcBot(commands.Bot):
                     logger.warning(f"Could not send missing permissions message to {user_info}: {send_err}")
                 return
 
+            orig = getattr(error, "original", error)
+            if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
+                logger.warning(
+                    f"Interaction for '/{cmd_name}' expired or was cancelled by Discord (404 Unknown interaction). User: {user_info} in '{guild_name}' #{channel_name}"
+                )
+                return
+
             logger.error(
                 f"Slash command '/{cmd_name}' failed for {user_info} in '{guild_name}' #{channel_name}: {error}",
                 exc_info=error

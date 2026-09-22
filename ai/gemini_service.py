@@ -90,7 +90,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     try:
         logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for /grind evaluation...")
         from google.genai import types
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=GEMINI_MODEL,
             contents=f"User Reflection:\n\"{raw_text}\"",
             config=types.GenerateContentConfig(
@@ -154,7 +154,7 @@ async def generate_daily_toast_and_roast(
 
     try:
         from google.genai import types
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -201,7 +201,7 @@ async def generate_weekly_state_of_the_pack(
 
     try:
         from google.genai import types
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -289,7 +289,7 @@ async def generate_reminder_motivation(
 
     try:
         logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for {reminder_type} reminder quote...")
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt,
         )
