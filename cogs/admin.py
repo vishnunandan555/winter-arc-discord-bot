@@ -8,10 +8,13 @@ Contains administrative controls for Winter Arc:
 - Scheduled broadcast previews (/test_reminder)
 """
 
+from __future__ import annotations
+
 import os
 import gc
 import logging
 import resource
+from typing import Any, Optional, Dict, List, Union
 from datetime import datetime, timezone
 import discord
 from discord import app_commands
@@ -197,6 +200,27 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             color=0x3498DB
         )
         await interaction.response.send_message(embed=embed)
+
+    @admin_group.command(name="sync", description="Force synchronize all slash commands instantly to this server.")
+    async def admin_sync(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await interaction.followup.send("❌ This command must be run within a server.", ephemeral=True)
+            return
+
+        try:
+            self.bot.tree.copy_global_to(guild=interaction.guild)
+            synced = await self.bot.tree.sync(guild=interaction.guild)
+            await self.bot.tree.sync()
+            await interaction.followup.send(
+                f"✅ **Slash Command Sync Complete!**\n"
+                f"Synchronized **{len(synced)}** slash commands directly to **{interaction.guild.name}**.\n"
+                f"Commands are available immediately in this server.",
+                ephemeral=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync slash commands via /admin sync: {e}", exc_info=e)
+            await interaction.followup.send(f"❌ Failed to sync slash commands: {e}", ephemeral=True)
 
     # ==========================================
     # Diagnostic & Testing Command

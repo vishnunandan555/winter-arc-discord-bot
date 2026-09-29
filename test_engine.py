@@ -2307,12 +2307,33 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         asyncio.run(test_streak_commands())
 
+    def test_51_all_extensions_and_slash_commands_load(self):
+        """Verify cogs.admin and cogs.warrior load cleanly and register all 22 slash commands."""
+        import asyncio
+        from bot import WinterArcBot
+
+        async def verify_bot_cogs():
+            bot = WinterArcBot()
+            await bot.load_extension("cogs.admin")
+            await bot.load_extension("cogs.warrior")
+            commands = bot.tree.get_commands()
+            cmd_names = {c.name for c in commands}
+
+            expected_cmds = {
+                "admin", "consistency", "enroll", "grind", "help", "history",
+                "leaderboard", "leave_arc", "log", "ping", "profile", "quick",
+                "ranks", "recap", "set", "settings", "shield", "stats", "streak",
+                "tasks", "test_reminder", "today"
+            }
+            self.assertTrue(expected_cmds.issubset(cmd_names), f"Missing commands: {expected_cmds - cmd_names}")
+            self.assertEqual(len(commands), 22)
+
+            admin_cmd = next(c for c in commands if c.name == "admin")
+            subcmd_names = {sc.name for sc in admin_cmd.commands}
+            self.assertIn("sync", subcmd_names)
+
+        asyncio.run(verify_bot_cogs())
+
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-

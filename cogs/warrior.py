@@ -9,10 +9,12 @@ Contains commands for enrolled participants:
 - General utilities (/help, /ping)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional, Dict, List, Union
 import discord
 from discord import app_commands
 from discord.ext import commands

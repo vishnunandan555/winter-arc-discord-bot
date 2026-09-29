@@ -4,6 +4,9 @@ ui/views.py - Interactive Discord UI Views and Components
 Contains interactive views such as LeaderboardView with Daily / Overall tabs.
 """
 
+from __future__ import annotations
+
+from typing import Any, Optional, Dict, List, Union
 import discord
 import database as db
 from ui.embeds import (
