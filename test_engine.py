@@ -1840,6 +1840,30 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("Streak Shields Work", shield_embed.description)
         self.assertIn("MAX SHIELDS STORED (2/2)", shield_embed.description)
 
+        # 6. build_ranks_embed verification
+        from ui.embeds import build_ranks_embed
+        ranks_embed = build_ranks_embed(50)
+        self.assertIn("12-Tier Progression Hierarchy", ranks_embed.title)
+        self.assertNotIn("Pack", ranks_embed.title)
+        self.assertIn("🥉 **Lvl 1: Initiate**", ranks_embed.description)
+        self.assertIn("🥉 **Lvl 2: Novice**", ranks_embed.description)
+        self.assertIn("💎 **Lvl 12: Apex**", ranks_embed.description)
+        self.assertNotIn("Lone Stray", ranks_embed.description)
+        self.assertIn("Your Current Standing: 🥉 **Level 1: Initiate** (50 pts)", ranks_embed.description)
+
+        # 7. Server records & ServerRecordsView verification
+        from ui.views import ServerRecordsView
+        from ui.embeds import build_server_records_embed
+        records_data = db.get_server_records(None, db_path=TEST_DB)
+        records_embed = build_server_records_embed(records_data, phase_id=None)
+        self.assertIn("All-Time Server Records", records_embed.title)
+        self.assertIn("Achievements & Records", records_embed.description)
+        self.assertIn("Server Totals", records_embed.description)
+
+        records_view = ServerRecordsView(author_id=123, current_selection="overall")
+        self.assertEqual(len(records_view.children), 4)  # Overall, Phase 1, Phase 2, Phase 3
+        self.assertEqual(records_view.children[0].label, "Overall")
+
 
 if __name__ == "__main__":
     unittest.main()

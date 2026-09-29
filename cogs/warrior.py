@@ -50,8 +50,9 @@ from ui.embeds import (
     format_grind_reply,
     build_quicklog_embed,
     build_recap_embed,
+    build_server_records_embed,
 )
-from ui.views import LeaderboardView, SettingsView, HelpView, RecapView
+from ui.views import LeaderboardView, SettingsView, HelpView, RecapView, ServerRecordsView
 from ai import gemini_service, groq_service
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
@@ -463,7 +464,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         )
 
-    @app_commands.command(name="ranks", description="View the 12-level Winter Pack hierarchy and requirements.")
+    @app_commands.command(name="ranks", description="View the 12-tier discipline progression hierarchy and requirements.")
     async def ranks(self, interaction: discord.Interaction):
         lifetime_points = db.get_user_lifetime_points(interaction.user.id)
         embed = build_ranks_embed(lifetime_points)
@@ -482,23 +483,33 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.followup.send(embed=embed, view=view)
         await safe_react(interaction, "🏆")
 
-    @app_commands.command(name="stats", description="View lifetime volume and performance statistics.")
-    @app_commands.describe(member="Optional: View another member's statistics")
+    @app_commands.command(name="stats", description="Explore server benchmarks, peak records, and community volume.")
+    @app_commands.describe(phase="Select a specific phase or view all-time overall records (default: Overall)")
+    @app_commands.choices(phase=[
+        app_commands.Choice(name="Overall (All-Time)", value="overall"),
+        app_commands.Choice(name="Phase 1: FIRST FROST", value="phase_1"),
+        app_commands.Choice(name="Phase 2: THE HUNT", value="phase_2"),
+        app_commands.Choice(name="Phase 3: THE ENDGAME", value="phase_3"),
+    ])
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
-    async def stats(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
-        target_user = member or interaction.user
-        if target_user.id == interaction.user.id:
-            if not await require_enrolled(interaction):
-                return
-        else:
-            if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
-                return
+    async def stats(self, interaction: discord.Interaction, phase: Optional[app_commands.Choice[str]] = None):
+        if not await require_enrolled(interaction):
+            return
 
         await interaction.response.defer()
-        data = db.get_user_stats(target_user.id)
-        embed = build_stats_embed(target_user, data)
-        await interaction.followup.send(embed=embed)
+
+        chosen_val = phase.value if phase else "overall"
+        phase_id = None
+        if chosen_val.startswith("phase_"):
+            try:
+                phase_id = int(chosen_val.split("_")[1])
+            except ValueError:
+                phase_id = None
+
+        data = db.get_server_records(phase_id)
+        embed = build_server_records_embed(data, phase_id=phase_id)
+        view = ServerRecordsView(author_id=interaction.user.id, current_selection=chosen_val)
+        await interaction.followup.send(embed=embed, view=view)
 
     @app_commands.command(name="history", description="View point and completion history.")
     @app_commands.describe(days="Timeframe to inspect (e.g. 7, 14, 30 days)")
