@@ -184,14 +184,14 @@ class WinterArcBot(commands.Bot):
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
         logger.info("=" * 60)
 
-        # Synchronize slash commands directly to connected guilds for instant availability
+        # Clear guild-specific command copies to prevent duplicate slash commands in Discord UI
         for g in self.guilds:
             try:
-                self.tree.copy_global_to(guild=g)
-                synced_guild = await self.tree.sync(guild=g)
-                logger.info(f"⚡ Instantly synchronized {len(synced_guild)} slash commands to server '{g.name}' (ID: {g.id}).")
+                self.tree.clear_commands(guild=g)
+                await self.tree.sync(guild=g)
+                logger.info(f"🧹 Purged guild-scoped command duplicates from '{g.name}'.")
             except Exception as e:
-                logger.warning(f"Could not sync guild commands for {g.name}: {e}")
+                logger.warning(f"Could not clear guild commands for {g.name}: {e}")
 
         # Ensure global commands are synchronized
         try:
