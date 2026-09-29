@@ -46,22 +46,88 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
+import sys
+from logging.handlers import RotatingFileHandler
+
+LOG_DIR = os.getenv("LOG_DIR", "logs")
+LOG_FILE_PATH = os.path.join(LOG_DIR, "winter_arc.log")
+LOG_LEVEL_NAME = os.getenv("LOG_LEVEL", "INFO").upper()
+
+
 class VoiceWarningFilter(logging.Filter):
     """Filters out irrelevant voice-related warnings since Winter Arc does not use voice channels."""
     def filter(self, record):
         return "voice will NOT be supported" not in record.getMessage()
 
-# Setup logger
+
+class NoisyLibraryFilter(logging.Filter):
+    """Filters out repetitive third-party diagnostic warnings."""
+    def filter(self, record):
+        msg = record.getMessage()
+        if "Direct use of automatic function calling (AFC)" in msg:
+            return False
+        return True
+
+
 def setup_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-    # Suppress prefix command intent warning since bot exclusively uses slash commands
+    log_level = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    # Clear existing handlers to avoid duplicates on reloads
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    log_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
+    formatter = logging.Formatter(log_format, date_format)
+
+    # 1. Console / Stdout Handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # 2. Rotating File Handler (max 5MB, 3 backups)
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            LOG_FILE_PATH,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8"
+        )
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+    except Exception as e:
+        sys.stderr.write(f"Warning: Could not configure rotating log file at '{LOG_FILE_PATH}': {e}\n")
+
+    # Suppress verbose / noisy libraries
     logging.getLogger("discord.ext.commands.bot").setLevel(logging.ERROR)
-    # Filter voice warnings
+    if log_level > logging.DEBUG:
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+    # Apply filters
     logging.getLogger("discord.client").addFilter(VoiceWarningFilter())
-    return logging.getLogger("winter_arc")
+    logging.getLogger("google_genai.models").addFilter(NoisyLibraryFilter())
+
+    app_logger = logging.getLogger("winter_arc")
+    app_logger.setLevel(log_level)
+    return app_logger
+
+
+def setup_global_exception_handlers(app_logger: logging.Logger):
+    """Hooks into sys.excepthook to ensure uncaught exceptions are formatted and logged."""
+    def handle_uncaught_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        app_logger.critical("Uncaught fatal exception at top-level:", exc_info=(exc_type, exc_value, exc_traceback))
+
+    sys.excepthook = handle_uncaught_exception
+
 
 logger = setup_logging()

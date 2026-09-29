@@ -80,10 +80,34 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 f"Warrior command '/{cmd}' interaction expired or was cancelled by Discord (404 Unknown interaction). User: {interaction.user} (ID: {interaction.user.id})"
             )
             return
-        logger.error(
-            f"Error in warrior command '/{cmd}' for {interaction.user} (ID: {interaction.user.id}): {error}",
-            exc_info=error
-        )
+
+        if isinstance(error, app_commands.CommandOnCooldown):
+            logger.info(f"Warrior command '/{cmd}' by {interaction.user} rejected: on cooldown ({error.retry_after:.1f}s remaining).")
+            msg = f"⏳ You're on cooldown. Try again in `{error.retry_after:.1f}s`."
+        elif isinstance(error, app_commands.MissingPermissions):
+            logger.warning(f"Warrior command '/{cmd}' by {interaction.user} rejected: missing permissions.")
+            msg = "🚫 You do not have permission to execute this command."
+        elif isinstance(error, app_commands.BotMissingPermissions):
+            missing = ", ".join(error.missing_permissions)
+            logger.warning(f"Warrior command '/{cmd}' cannot execute: bot missing permissions: {missing}")
+            msg = f"🚫 I am missing the required permissions to execute this command: `{missing}`."
+        elif isinstance(error, app_commands.CheckFailure):
+            logger.info(f"Warrior command '/{cmd}' by {interaction.user} rejected: check failed.")
+            msg = "❌ Command check failed. If you haven't enrolled yet, use `/enroll` first."
+        else:
+            logger.error(
+                f"Error in warrior command '/{cmd}' for {interaction.user} (ID: {interaction.user.id}): {error}",
+                exc_info=error
+            )
+            msg = "❌ An unexpected error occurred while processing this command."
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception as send_err:
+            logger.warning(f"Could not deliver error response to user {interaction.user.id} for '/{cmd}': {send_err}")
 
     # ==========================================
     # Enrollment Commands

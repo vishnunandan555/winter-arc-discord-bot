@@ -2334,6 +2334,86 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         asyncio.run(verify_bot_cogs())
 
+    def test_52_robust_logging_and_error_handling(self):
+        """Verify logging mechanism, RobustView error handling, and cog error responses."""
+        import asyncio
+        from unittest.mock import MagicMock, AsyncMock
+        import discord
+        from discord import app_commands
+        from config import LOG_FILE_PATH, LOG_LEVEL_NAME, logger
+        from ui.views import RobustView
+        from cogs.warrior import WarriorCog
+        from cogs.admin import AdminCog, get_system_health_metrics
+
+        self.assertTrue(bool(LOG_FILE_PATH))
+        self.assertTrue(bool(LOG_LEVEL_NAME))
+
+        # Test RobustView on_error
+        async def test_view_error():
+            view = RobustView()
+            inter = MagicMock(spec=discord.Interaction)
+            inter.user = MagicMock(id=12345, name="TestUser")
+            inter.guild = MagicMock(id=67890)
+            inter.is_expired.return_value = False
+            inter.response = MagicMock()
+            inter.response.is_done.return_value = False
+            inter.response.send_message = AsyncMock()
+
+            button = discord.ui.Button(label="Test", custom_id="btn_test")
+            await view.on_error(inter, ValueError("Simulated view error"), button)
+            inter.response.send_message.assert_called_once()
+            self.assertIn("unexpected error occurred", inter.response.send_message.call_args[0][0])
+
+        asyncio.run(test_view_error())
+
+        # Test WarriorCog cog_app_command_error with cooldown
+        async def test_warrior_cog_error():
+            bot = MagicMock()
+            cog = WarriorCog(bot)
+            inter = MagicMock(spec=discord.Interaction)
+            inter.command = MagicMock()
+            inter.command.name = "today"
+            inter.user = MagicMock(id=12345)
+            inter.is_expired.return_value = False
+            inter.response = MagicMock()
+            inter.response.is_done.return_value = False
+            inter.response.send_message = AsyncMock()
+
+            cooldown_err = app_commands.CommandOnCooldown(None, 4.5)
+            await cog.cog_app_command_error(inter, cooldown_err)
+            inter.response.send_message.assert_called_once()
+            self.assertIn("4.5s", inter.response.send_message.call_args[0][0])
+
+        asyncio.run(test_warrior_cog_error())
+
+        # Test AdminCog cog_app_command_error with missing permissions
+        async def test_admin_cog_error():
+            bot = MagicMock()
+            cog = AdminCog(bot)
+            inter = MagicMock(spec=discord.Interaction)
+            inter.command = MagicMock()
+            inter.command.name = "sync"
+            inter.user = MagicMock(id=12345)
+            inter.is_expired.return_value = False
+            inter.response = MagicMock()
+            inter.response.is_done.return_value = False
+            inter.response.send_message = AsyncMock()
+
+            perm_err = app_commands.MissingPermissions(missing_permissions=["administrator"])
+            await cog.cog_app_command_error(inter, perm_err)
+            inter.response.send_message.assert_called_once()
+            self.assertIn("Administrator", inter.response.send_message.call_args[0][0])
+
+        asyncio.run(test_admin_cog_error())
+
+        # Test system health metrics include log footprint
+        mock_bot = MagicMock()
+        mock_bot.latency = 0.045
+        mock_bot.start_time = None
+        metrics = get_system_health_metrics(mock_bot)
+        self.assertIn("log_size_kb", metrics)
+        self.assertIn("log_level", metrics)
+
 
 if __name__ == "__main__":
     unittest.main()

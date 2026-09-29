@@ -21,7 +21,8 @@ from discord import app_commands
 from discord.ext import commands
 
 import database as db
-from config import BOT_TZ, DB_PATH
+from config import BOT_TZ, DB_PATH, LOG_FILE_PATH, LOG_LEVEL_NAME
+from ui.views import RobustView
 from helpers import (
     task_autocomplete,
     all_tasks_autocomplete,
@@ -41,10 +42,31 @@ class AdminCog(commands.Cog, name="Admin Commands"):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         cmd = interaction.command.name if interaction.command else "unknown"
-        logger.error(
-            f"Error in admin command '/admin {cmd}' invoked by {interaction.user} (ID: {interaction.user.id}): {error}",
-            exc_info=error
-        )
+        orig = getattr(error, "original", error)
+        if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
+            logger.warning(f"Admin command '/admin {cmd}' interaction expired or cancelled by Discord. User: {interaction.user}")
+            return
+
+        if isinstance(error, app_commands.MissingPermissions):
+            logger.warning(f"Admin command '/admin {cmd}' rejected for {interaction.user}: missing administrator permissions.")
+            msg = "🚫 You need **Administrator** permissions to execute this command."
+        elif isinstance(error, app_commands.CommandOnCooldown):
+            logger.info(f"Admin command '/admin {cmd}' rejected for {interaction.user}: on cooldown ({error.retry_after:.1f}s).")
+            msg = f"⏳ Command on cooldown. Try again in `{error.retry_after:.1f}s`."
+        else:
+            logger.error(
+                f"Error in admin command '/admin {cmd}' invoked by {interaction.user} (ID: {interaction.user.id}): {error}",
+                exc_info=error
+            )
+            msg = f"❌ An error occurred executing `/admin {cmd}`: `{str(error)[:100]}`"
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception as send_err:
+            logger.warning(f"Could not deliver admin error response to {interaction.user.id}: {send_err}")
 
     admin_group = app_commands.Group(
         name="admin",
@@ -395,10 +417,16 @@ def get_system_health_metrics(bot: commands.Bot) -> dict:
     enrolled_count = len(db.get_enrolled_users())
     latency_ms = round(bot.latency * 1000, 1) if bot.latency else 0.0
 
+    log_size_kb = 0.0
+    if os.path.exists(LOG_FILE_PATH):
+        log_size_kb = round(os.path.getsize(LOG_FILE_PATH) / 1024.0, 1)
+
     return {
         "ram_mb": ram_mb,
         "db_size_kb": db_size_kb,
         "wal_size_kb": wal_size_kb,
+        "log_size_kb": log_size_kb,
+        "log_level": LOG_LEVEL_NAME,
         "uptime": uptime_str,
         "enrolled_count": enrolled_count,
         "latency_ms": latency_ms,
@@ -414,10 +442,11 @@ def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
         "**Host Environment**: Wispbyte Free Tier (Linux Container)\n\n"
         f"📊 **Memory (RAM RSS)**: **{ram} MB** / ~512 MB ({ram_pct}% container limit)\n"
         f"🗄️ **Database Disk Footprint**: **{metrics['db_size_kb']} KB** *(WAL: {metrics['wal_size_kb']} KB)*\n"
+        f"📜 **Active Log File**: **{metrics['log_size_kb']} KB** *(Level: `{metrics['log_level']}`)*\n"
         f"⚡ **Gateway Latency**: **{metrics['latency_ms']} ms**\n"
         f"⏱️ **Bot Uptime**: **{metrics['uptime']}**\n"
         f"👥 **Enrolled Warriors**: **{metrics['enrolled_count']}**\n\n"
-        "🛡️ *Optimizations active: SQLite ~2MB cache cap, message cache 100, AI client singletons.*"
+        "🛡️ *Optimizations active: SQLite ~2MB cache cap, message cache 100, AI client singletons, rotating logs.*"
     )
     if extra_note:
         desc += f"\n\n{extra_note}"
@@ -431,7 +460,7 @@ def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
     return embed
 
 
-class HealthView(discord.ui.View):
+class HealthView(RobustView):
     """Interactive view allowing administrators to force garbage collection."""
     def __init__(self, bot: commands.Bot):
         super().__init__(timeout=180.0)

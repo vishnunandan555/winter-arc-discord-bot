@@ -79,50 +79,64 @@ class WinterArcScheduler:
 
     @tasks.loop(seconds=30.0)
     async def ticker_loop(self):
-        now = get_now_ist()
-        today_str = now.date().isoformat()
+        try:
+            now = get_now_ist()
+            today_str = now.date().isoformat()
 
-        # 1. 05:00 - 05:05 IST - Morning Kickoff & Personal DMs
-        if now.hour == 5 and now.minute < 5 and self._last_morning_date != today_str:
-            self._last_morning_date = today_str
-            db.set_bot_state("last_morning_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Morning Kickoff for {today_str}...")
-            await self.broadcast_morning_kickoff()
-            await self.dispatch_morning_dms()
+            # 1. 05:00 - 05:05 IST - Morning Kickoff & Personal DMs
+            if now.hour == 5 and now.minute < 5 and self._last_morning_date != today_str:
+                self._last_morning_date = today_str
+                db.set_bot_state("last_morning_date", today_str, db_path=self.db_path)
+                logger.info(f"Triggering Morning Kickoff for {today_str}...")
+                await self.broadcast_morning_kickoff()
+                await self.dispatch_morning_dms()
 
-        # 2. 16:30 - 16:35 IST - Afternoon Check-in
-        if now.hour == 16 and 30 <= now.minute < 35 and self._last_afternoon_date != today_str:
-            self._last_afternoon_date = today_str
-            db.set_bot_state("last_afternoon_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Afternoon Check-in for {today_str}...")
-            await self.broadcast_afternoon_checkin()
+            # 2. 16:30 - 16:35 IST - Afternoon Check-in
+            if now.hour == 16 and 30 <= now.minute < 35 and self._last_afternoon_date != today_str:
+                self._last_afternoon_date = today_str
+                db.set_bot_state("last_afternoon_date", today_str, db_path=self.db_path)
+                logger.info(f"Triggering Afternoon Check-in for {today_str}...")
+                await self.broadcast_afternoon_checkin()
 
-        # 3. 21:00 - 21:05 IST - Evening Streak Warning Channel Broadcast & Personal DMs (3h before midnight)
-        if now.hour == 21 and now.minute < 5 and self._last_evening_date != today_str:
-            self._last_evening_date = today_str
-            db.set_bot_state("last_evening_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Evening Streak Warning for {today_str}...")
-            await self.broadcast_evening_checkin()
-            await self.dispatch_evening_dms()
+            # 3. 21:00 - 21:05 IST - Evening Streak Warning Channel Broadcast & Personal DMs (3h before midnight)
+            if now.hour == 21 and now.minute < 5 and self._last_evening_date != today_str:
+                self._last_evening_date = today_str
+                db.set_bot_state("last_evening_date", today_str, db_path=self.db_path)
+                logger.info(f"Triggering Evening Streak Warning for {today_str}...")
+                await self.broadcast_evening_checkin()
+                await self.dispatch_evening_dms()
 
-        # 3.5 Sunday 20:00 - 20:05 IST - Weekly State of the Pack
-        if now.weekday() == 6 and now.hour == 20 and now.minute < 5 and self._last_sunday_date != today_str:
-            self._last_sunday_date = today_str
-            db.set_bot_state("last_sunday_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Sunday State of the Pack for {today_str}...")
-            await self.broadcast_sunday_state_of_the_pack()
+            # 3.5 Sunday 20:00 - 20:05 IST - Weekly State of the Pack
+            if now.weekday() == 6 and now.hour == 20 and now.minute < 5 and self._last_sunday_date != today_str:
+                self._last_sunday_date = today_str
+                db.set_bot_state("last_sunday_date", today_str, db_path=self.db_path)
+                logger.info(f"Triggering Sunday State of the Pack for {today_str}...")
+                await self.broadcast_sunday_state_of_the_pack()
 
-        # 4. 00:00 - 00:05 IST - Midnight Finalization & Podium
-        if now.hour == 0 and now.minute < 5 and self._last_midnight_date != today_str:
-            self._last_midnight_date = today_str
-            db.set_bot_state("last_midnight_date", today_str, db_path=self.db_path)
-            logger.info(f"Triggering Midnight Finalization at {today_str}...")
-            await self.broadcast_midnight_finalization()
+            # 4. 00:00 - 00:05 IST - Midnight Finalization & Podium
+            if now.hour == 0 and now.minute < 5 and self._last_midnight_date != today_str:
+                self._last_midnight_date = today_str
+                db.set_bot_state("last_midnight_date", today_str, db_path=self.db_path)
+                logger.info(f"Triggering Midnight Finalization at {today_str}...")
+                await self.broadcast_midnight_finalization()
+        except Exception as e:
+            logger.error(f"Error executing scheduler ticker loop iteration: {e}", exc_info=e)
 
     @ticker_loop.before_loop
     async def before_ticker(self):
         await self.bot.wait_until_ready()
         logger.info("Scheduler ticker loop synchronized with Discord Gateway.")
+
+    @ticker_loop.error
+    async def ticker_loop_error(self, error: Exception):
+        logger.critical(f"Critical unhandled error in scheduler ticker_loop: {error}", exc_info=error)
+        await asyncio.sleep(10)
+        if not self.ticker_loop.is_running():
+            logger.info("Restarting scheduler ticker_loop following unhandled exception...")
+            try:
+                self.ticker_loop.restart()
+            except Exception as restart_err:
+                logger.error(f"Failed to restart ticker_loop: {restart_err}", exc_info=restart_err)
 
     # ==========================================
     # Maintenance & Presence Loop (Every 5 minutes)
@@ -159,6 +173,17 @@ class WinterArcScheduler:
     @maintenance_and_presence_loop.before_loop
     async def before_maintenance(self):
         await self.bot.wait_until_ready()
+
+    @maintenance_and_presence_loop.error
+    async def maintenance_loop_error(self, error: Exception):
+        logger.critical(f"Critical unhandled error in maintenance_and_presence_loop: {error}", exc_info=error)
+        await asyncio.sleep(10)
+        if not self.maintenance_and_presence_loop.is_running():
+            logger.info("Restarting maintenance_and_presence_loop following unhandled exception...")
+            try:
+                self.maintenance_and_presence_loop.restart()
+            except Exception as restart_err:
+                logger.error(f"Failed to restart maintenance_and_presence_loop: {restart_err}", exc_info=restart_err)
 
     # ==========================================
     # Channel & Ping Resolution

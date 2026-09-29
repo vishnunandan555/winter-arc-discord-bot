@@ -16,7 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import database as db
-from config import DISCORD_TOKEN, logger
+from config import DISCORD_TOKEN, logger, setup_global_exception_handlers
 from scheduler import WinterArcScheduler
 
 EXTENSIONS = [
@@ -46,9 +46,25 @@ class WinterArcBot(commands.Bot):
         self._synced = False
         from datetime import datetime, timezone
         self.start_time = datetime.now(timezone.utc)
+        setup_global_exception_handlers(logger)
+
+    async def on_error(self, event_method: str, *args, **kwargs):
+        """Global gateway event exception listener."""
+        logger.error(f"Unhandled exception in Discord gateway event '{event_method}'", exc_info=True)
 
     async def setup_hook(self):
         """Initializes database, loads cogs, and initializes scheduler."""
+        # 0. Global asyncio background task exception handler
+        try:
+            loop = asyncio.get_running_loop()
+            def handle_async_exception(loop, context):
+                msg = context.get("message", "Unhandled exception in background asyncio task")
+                exc = context.get("exception")
+                logger.error(f"{msg}: {exc}", exc_info=exc)
+            loop.set_exception_handler(handle_async_exception)
+        except Exception as e:
+            logger.debug(f"Could not attach asyncio loop exception handler: {e}")
+
         # 1. Initialize SQLite database schemas
         db.init_db()
 
@@ -92,12 +108,47 @@ class WinterArcBot(commands.Bot):
                 except Exception as send_err:
                     logger.warning(f"Could not send missing permissions message to {user_info}: {send_err}")
                 return
+            elif isinstance(error, discord.app_commands.BotMissingPermissions):
+                missing = ", ".join(error.missing_permissions)
+                logger.warning(f"Command '/{cmd_name}' cannot execute: bot missing permissions '{missing}' in '{guild_name}'.")
+                msg = f"🚫 I am missing the required permissions in this channel: `{missing}`."
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(msg, ephemeral=True)
+                except Exception as send_err:
+                    logger.warning(f"Could not send bot missing permissions message to {user_info}: {send_err}")
+                return
+            elif isinstance(error, discord.app_commands.CheckFailure):
+                logger.info(f"Command '/{cmd_name}' by {user_info} check failed in '{guild_name}'.")
+                msg = "❌ Command check failed. Ensure you are enrolled via `/enroll`."
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(msg, ephemeral=True)
+                except Exception as send_err:
+                    logger.warning(f"Could not send check failure message to {user_info}: {send_err}")
+                return
 
             orig = getattr(error, "original", error)
             if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
                 logger.warning(
                     f"Interaction for '/{cmd_name}' expired or was cancelled by Discord (404 Unknown interaction). User: {user_info} in '{guild_name}' #{channel_name}"
                 )
+                return
+
+            if isinstance(orig, discord.errors.Forbidden):
+                logger.warning(f"Forbidden error executing '/{cmd_name}' for {user_info} in '{guild_name}': {orig}")
+                msg = "🚫 Discord permission error: I do not have permission to post or edit messages here."
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(msg, ephemeral=True)
+                    else:
+                        await interaction.response.send_message(msg, ephemeral=True)
+                except Exception:
+                    pass
                 return
 
             logger.error(

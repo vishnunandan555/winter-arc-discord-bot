@@ -13,12 +13,15 @@ import os
 import sqlite3
 import math
 import re
+import logging
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
 import calendar
 from typing import List, Dict, Any, Optional, Tuple
 
 from config import DB_PATH, MIN_STREAK_POINTS, BOT_TZ
+
+logger = logging.getLogger("winter_arc.database")
 
 
 def get_today_date() -> date:
@@ -41,17 +44,30 @@ DEFAULT_TASKS = [
 
 @contextmanager
 def get_connection(db_path: str = DB_PATH):
-    conn = sqlite3.connect(db_path, timeout=10.0)
+    try:
+        conn = sqlite3.connect(db_path, timeout=15.0)
+    except sqlite3.Error as e:
+        logger.error(f"Failed to connect to SQLite database at '{db_path}': {e}", exc_info=e)
+        raise
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    conn.execute("PRAGMA cache_size = -2000;")         # Cap memory cache to ~2 MB
-    conn.execute("PRAGMA wal_autocheckpoint = 500;")   # Frequent WAL flush to keep disk usage minimal
+    try:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+        conn.execute("PRAGMA synchronous = NORMAL;")
+        conn.execute("PRAGMA cache_size = -2000;")         # Cap memory cache to ~2 MB
+        conn.execute("PRAGMA wal_autocheckpoint = 500;")   # Frequent WAL flush to keep disk usage minimal
+    except sqlite3.Error as e:
+        logger.warning(f"Error applying PRAGMAs on '{db_path}': {e}")
     try:
         yield conn
+    except sqlite3.Error as e:
+        logger.error(f"SQLite error executing statement on '{db_path}': {e}", exc_info=e)
+        raise
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception as e:
+            logger.debug(f"Error closing SQLite connection for '{db_path}': {e}")
 
 
 def init_db(db_path: str = DB_PATH):

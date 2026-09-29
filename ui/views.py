@@ -6,6 +6,7 @@ Contains interactive views such as LeaderboardView with Daily / Overall tabs.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional, Dict, List, Union
 import discord
 import database as db
@@ -19,8 +20,36 @@ from ui.embeds import (
     build_recap_embed,
 )
 
+logger = logging.getLogger("winter_arc.ui.views")
 
-class LeaderboardView(discord.ui.View):
+
+class RobustView(discord.ui.View):
+    """
+    Base view that provides centralized error handling, interaction timeout handling,
+    and structured logging across all interactive Discord components.
+    """
+    def __init__(self, timeout: Optional[float] = 180.0):
+        super().__init__(timeout=timeout)
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item[Any]) -> None:
+        item_id = getattr(item, "custom_id", item.__class__.__name__)
+        logger.error(
+            f"Error in view '{self.__class__.__name__}' item '{item_id}' "
+            f"invoked by {interaction.user} (ID: {interaction.user.id}) "
+            f"in guild {getattr(interaction.guild, 'id', 'DM')}: {error}",
+            exc_info=error
+        )
+        msg = "⚠️ An unexpected error occurred while processing this action. Please try again."
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception as send_err:
+            logger.debug(f"Could not deliver view error response: {send_err}")
+
+
+class LeaderboardView(RobustView):
     """Interactive view allowing users to toggle between Daily, Weekly, Monthly, and All-Time leaderboards."""
     def __init__(self, current_tab: str = "daily"):
         super().__init__(timeout=600)
@@ -72,7 +101,7 @@ class LeaderboardView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class SettingsView(discord.ui.View):
+class SettingsView(RobustView):
     """Interactive view for configuring personal DM notifications."""
 
     def __init__(self, user_id: int, settings: dict):
@@ -134,7 +163,7 @@ class SettingsView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class HelpView(discord.ui.View):
+class HelpView(RobustView):
     """Interactive select menu allowing warriors to navigate the complete command manual."""
     def __init__(self):
         super().__init__(timeout=300)
@@ -158,7 +187,7 @@ class HelpView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class RecapView(discord.ui.View):
+class RecapView(RobustView):
     """
     Interactive view for /recap allowing warriors to switch between
     unlocked phases and the overall campaign recap.
@@ -223,7 +252,7 @@ class RecapView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class ServerRecordsView(discord.ui.View):
+class ServerRecordsView(RobustView):
     """
     Interactive view for /stats allowing members to switch between
     Overall (All-Time) and Phases 1, 2, 3 server benchmarks.
@@ -291,7 +320,7 @@ class ServerRecordsView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class StreakConsistencyView(discord.ui.View):
+class StreakConsistencyView(RobustView):
     """
     Streamlined 2-button view for /streak and /consistency:
     - [Current]: Shows our current month habit consistency only (no month changes)
