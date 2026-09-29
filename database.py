@@ -1365,14 +1365,14 @@ def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str,
 
 
 def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, reason: str = "Manual rest day", db_path: str = DB_PATH) -> Dict[str, Any]:
-    """Consumes 1 Frost Shield for the user and protects their streak on target_date."""
+    """Consumes 1 Streak Shield for the user and protects their streak on target_date."""
     user = get_user_by_discord_id(discord_id, db_path)
     if not user or not user["enrolled"]:
-        raise ValueError("You must be enrolled in Winter Arc to use a Frost Shield.")
+        raise ValueError("You must be enrolled in Winter Arc to use a Streak Shield.")
 
     shields = user.get("frost_shields", 0) or 0
     if shields <= 0:
-        raise ValueError("You have 0 Frost Shields available. Maintain a 7-day streak to earn a shield.")
+        raise ValueError("You have 0 Streak Shields available. Maintain a 7-day streak to earn a shield.")
 
     target_date_str = target_date or get_today_str()
 
@@ -1380,7 +1380,7 @@ def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, re
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM shield_logs WHERE user_id = ? AND date = ?;", (user["id"], target_date_str))
         if cursor.fetchone():
-            raise ValueError(f"A Frost Shield is already active for {target_date_str}.")
+            raise ValueError(f"A Streak Shield is already active for {target_date_str}.")
 
         cursor.execute("UPDATE users SET frost_shields = frost_shields - 1 WHERE id = ?;", (user["id"],))
         cursor.execute("""

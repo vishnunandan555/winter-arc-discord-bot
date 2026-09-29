@@ -58,39 +58,41 @@ Modelled after the legendary **Saitama training challenge** (100 push-ups, 100 s
 - **Natural Language Parsing (Groq)**: `/quick [text]` allows warriors to log complex workouts in plain text (e.g., `/quick "did 45 pushups and ran 3.2km"`).
 - **Friction & Academic Grind (Google Gemini)**: `/grind [text]` allows warriors to submit daily deep work, studying, or engineering friction to receive verified bonus points (1x per day, +10 to +60 pts).
 
-### 4. Streak System & Frost Shield Defense
-- Daily streaks advance with consecutive Clean Days.
-- To prevent injury or demoralization from illness, warriors earn **Frost Shields** by achieving streak milestones. Activating a shield with `/shield use` protects an active streak across a necessary recovery day.
+### 4. Streak System & Streak Shield Defense
+- Daily streaks advance with consecutive Clean Days (at least 30 points).
+- To prevent injury or demoralization from illness, members earn **Streak Shields** by achieving 7-day streak milestones. Activating a shield with `/shield use` protects an active streak across a necessary recovery day.
 
 ### 5. Automated Cadence
 Scheduled automated checkpoints broadcast into the designated channel:
-- **05:00**: Morning Wakeup & Daily Challenge Announcement
-- **16:30**: Midday Accountability Pulse
-- **00:00**: Midnight Podium Finalization, Streak Calculation, and Rollover
+- **07:00 IST**: Morning Kickoff & Discipline Targets Announcement
+- **16:30 IST**: Midday Accountability Pulse
+- **21:00 IST**: Evening Streak Warning (3h before midnight)
+- **00:00 IST**: Midnight Podium Finalization, Streak Calculation, and Rollover
+- **Sunday 20:00 IST**: Weekly Community Recap & Podium
 
 ### 6. Single Dedicated Channel Architecture
 The bot broadcasts solely inside the text channel designated by `/admin set_channel`. No clutter or unsolicited bot spam occurs across other server channels.
 
 ---
 
-## The 12-Level Pack Hierarchy
+## The 12-Tier Discipline Hierarchy
 
 Calibrated around a 90-day arc, culminating at Apex (12,000 Lifetime Points / ~133 pts daily average):
 
-| Level | Rank Title | Point Range | Target Timeline | Focus |
-| :---: | :--- | :--- | :--- | :--- |
-| **01** | **Lone Stray** | 0 - 499 pts | Days 1 - 3 | Initiation |
-| **02** | **Stray** | 500 - 1,199 pts | Days 4 - 8 | Habit Forming |
-| **03** | **Scout** | 1,200 - 1,999 pts | Days 9 - 15 | Momentum |
-| **04** | **Prowler** | 2,000 - 2,999 pts | Days 16 - 22 | Routine Locked |
-| **05** | **Tracker** | 3,000 - 4,199 pts | Days 23 - 31 | Reliable Volume |
-| **06** | **Hunter** | 4,200 - 5,499 pts | Days 32 - 41 | Halfway Milestone |
-| **07** | **Savage** | 5,500 - 6,999 pts | Days 42 - 52 | High Endurance |
-| **08** | **Vanguard** | 7,000 - 8,499 pts | Days 53 - 63 | Elite Discipline |
-| **09** | **Frostborn** | 8,500 - 9,799 pts | Days 64 - 73 | Winter Hardened |
-| **10** | **Predator** | 9,800 - 10,799 pts | Days 74 - 81 | Relentless Output |
-| **11** | **Alpha** | 10,800 - 11,999 pts | Days 82 - 89 | Final Ascent |
-| **12** | **Apex** | 12,000+ pts | Day 90+ | Peak Mastery |
+| Level | Rank Title | Badge | Point Range | Focus |
+| :---: | :--- | :---: | :--- | :--- |
+| **01** | **Initiate** | 🥉 | 0 - 499 pts | The journey begins. First steps on the board. |
+| **02** | **Novice** | 🥉 | 500 - 1,199 pts | Surviving week one. Developing the daily habit. |
+| **03** | **Challenger** | 🥈 | 1,200 - 1,999 pts | Routine taking root. Consistency building. |
+| **04** | **Dedicated** | 🥈 | 2,000 - 2,999 pts | Body adapting. Soreness fading, rhythm locked. |
+| **05** | **Disciplined** | 🥇 | 3,000 - 4,199 pts | Month 1 completed. Execution on autopilot. |
+| **06** | **Hardened** | 🥇 | 4,200 - 5,499 pts | Daily execution without negotiation. |
+| **07** | **Iron** | ⚡ | 5,500 - 6,999 pts | Halfway mark reached. Resilient momentum. |
+| **08** | **Vanguard** | 🛡️ | 7,000 - 8,499 pts | Month 2 milestone. Unshakable standard. |
+| **09** | **Relentless** | ❄️ | 8,500 - 9,799 pts | Rain, cold, or fatigue—the work gets done. |
+| **10** | **Veteran** | 🔥 | 9,800 - 10,799 pts | Final stretch. High standards daily. |
+| **11** | **Master** | 👑 | 10,800 - 11,999 pts | Elite consistency. Top tier execution. |
+| **12** | **Apex** | 💎 | 12,000+ pts | Peak Mastery. Arc Conquered. |
 
 ---
 
@@ -103,12 +105,12 @@ Calibrated around a 90-day arc, culminating at Apex (12,000 Lifetime Points / ~1
 | `/log [task] [amount]` | Increment today's workout reps or kilometers with autocomplete. |
 | `/set [task] [amount]` | Directly set or correct today's count (or 0 to reset). |
 | `/profile` | View rank card, progress towards next tier, lifetime points, and streak. |
-| `/ranks` | Display the 12-tier pack hierarchy, point targets, and requirements. |
-| `/leaderboard` | Interactive leaderboard with Daily and All-Time overall standings. |
+| `/ranks` | Display the 12-tier discipline hierarchy, point targets, and requirements. |
+| `/leaderboard` | Interactive leaderboard with Daily, Weekly, Monthly, and All-Time standings. |
 | `/quick [text]` | Log natural language workout descriptions via Groq LLM parsing. |
 | `/grind [text]` | Log academic/engineering friction evaluated by Gemini (+10 to +60 pts). |
-| `/shield status` | Check Frost Shield inventory and active protection state. |
-| `/shield use [reason]` | Activate a Frost Shield on a rest day to defend streak integrity. |
+| `/shield status` | Check Streak Shield inventory and active protection state. |
+| `/shield use [reason]` | Activate a Streak Shield on a rest day to defend streak integrity. |
 | `/enroll` | Join the Winter Arc challenge and receive the server role. |
 | `/leave_arc` | Step away and unenroll from the challenge. |
 | `/help` | View command manual, daily schedule, and rules. |

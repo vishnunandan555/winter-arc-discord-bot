@@ -515,7 +515,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="recap", description="Explore detailed performance recaps by phase and overall campaign.")
-    @app_commands.describe(user="The warrior to view the recap for (defaults to yourself)")
+    @app_commands.describe(user="The member to view the recap for (defaults to yourself)")
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def recap(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         target = user or interaction.user
@@ -540,7 +540,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.followup.send(embed=embed, view=view)
 
     @app_commands.command(name="streak", description="Quickly look up current streak and shield protection status.")
-    @app_commands.describe(member="Optional: Check another warrior's streak")
+    @app_commands.describe(member="Optional: Check another member's streak")
     async def streak_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target_user = member or interaction.user
         if target_user.id == interaction.user.id:

@@ -366,7 +366,7 @@ def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Option
             f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!\n"
         )
     if result.get("shield_awarded"):
-        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+        promo_banner += "\n\n🛡️ **STREAK SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
 
     desc = (
         f"**+{amt} {result['unit']}** logged to **{result['task_name']}**\n\n"
@@ -402,7 +402,7 @@ def build_set_embed(result: Dict[str, Any], amount: float, level_up_info: Option
             f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!\n"
         )
     if result.get("shield_awarded"):
-        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+        promo_banner += "\n\n🛡️ **STREAK SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
 
     desc = (
         f"**{result['task_name']}** adjusted: **{prev}** ➔ **{cur} {result['unit']}**\n\n"
@@ -711,15 +711,15 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• `/today [member]` — Clean daily progress card with individual emoji progress bars, points, and completion rate.\n"
                 "• `/tasks [member]` — Extended disciplines overview with individual emoji progress bars, targets, and exercise descriptions.\n"
-                "• `/streak [member]` — Quick check of active streak days, clean days (100%), and Frost Shield protection status."
+                "• `/streak [member]` — Quick check of active streak days, clean days (100%), and Streak Shield protection status."
             ),
             inline=False
         )
         embed.add_field(
-            name="🐺 12-Tier Rank Hierarchy",
+            name="🎖️ 12-Tier Discipline Hierarchy",
             value=(
-                "• `/profile [member]` — Complete warrior dossier with All-Time Rank (#X of Y), Pack Level, Next Level progression, and separate Daily Progress.\n"
-                "• `/ranks` — Inspect all 12 pack ranks from **Lone Stray (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
+                "• `/profile [member]` — Complete member profile with All-Time Rank (#X of Y), Discipline Rank, Next Level progression, and Daily Progress.\n"
+                "• `/ranks` — Inspect all 12 discipline tiers from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
             ),
             inline=False
         )
@@ -1372,10 +1372,10 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
         color = 0xE74C3C
         needed = MIN_STREAK_POINTS - pts
         shield_info = (
-            f"\n\n🛡️ **Safety Net**: You have **{shield_status['frost_shields']} Frost Shield(s)**. "
+            f"\n\n🛡️ **Safety Net**: You have **{shield_status['frost_shields']} Streak Shield(s)**. "
             "If you cannot finish today, an auto-shield will protect your streak at midnight."
             if shield_status["frost_shields"] > 0
-            else f"\n\n⚠️ **No Frost Shields available!** Log {needed} more points before midnight to prevent your streak from resetting."
+            else f"\n\n⚠️ **No Streak Shields available!** Log {needed} more points before midnight to prevent your streak from resetting."
         )
         desc = (
             f"**{user.display_name}**, only **3 hours remain** before midnight (00:00 IST).\n\n"
@@ -1473,7 +1473,7 @@ def build_quicklog_embed(
             f"You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!"
         )
     if any(r.get("shield_awarded") for r in log_results):
-        promo_banner += "\n\n🛡️ **FROST SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+        promo_banner += "\n\n🛡️ **STREAK SHIELD EARNED!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
 
     desc = (
         f"**{user.display_name}** • Fast Workout Log\n\n"
