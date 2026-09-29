@@ -696,7 +696,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         # Check cheat sheet roster
         cheat_sheet = [v for k, v in field_map.items() if "Command Directory Cheat Sheet" in k][0]
-        for cmd in ["/quick", "/log", "/set", "/grind", "/today", "/tasks", "/streak", "/profile", "/ranks",
+        for cmd in ["/quick", "/log", "/set", "/grind", "/today", "/tasks", "/streak", "/consistency", "/profile", "/ranks",
                     "/leaderboard", "/stats", "/history", "/recap", "/shield status", "/shield use",
                     "/settings", "/enroll", "/leave_arc", "/ping", "/admin"]:
             self.assertIn(cmd, cheat_sheet)
@@ -725,12 +725,14 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertNotIn("Clean Day", progress_embed.description)
         self.assertIn("Daily goal: 500 points (Perfect Day)", progress_embed.footer.text)
         prog_field_map = {f.name: f.value for f in progress_embed.fields}
-        self.assertTrue(any("Daily Tracking" in k for k in prog_field_map))
+        self.assertTrue(any("Tracking" in k for k in prog_field_map))
         self.assertTrue(any("12-Tier Discipline Hierarchy" in k for k in prog_field_map))
         self.assertTrue(any("Standings, Benchmarks & Analytics" in k for k in prog_field_map))
 
-        tracking_text = [v for k, v in prog_field_map.items() if "Daily Tracking" in k][0]
+        tracking_text = [v for k, v in prog_field_map.items() if "Tracking" in k][0]
         self.assertIn("Perfect Days (100%)", tracking_text)
+        self.assertIn("/streak", tracking_text)
+        self.assertIn("/consistency", tracking_text)
         self.assertNotIn("clean", tracking_text.lower())
 
         analytics_text = [v for k, v in prog_field_map.items() if "Standings, Benchmarks" in k][0]

@@ -692,7 +692,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚡ Reactive AI Coach & Bot Tips",
             value=(
                 "When you run commands or log volume (`/today`, `/tasks`, `/log`, `/quick`, `/profile`, `/ranks`, "
-                "`/leaderboard`, `/stats`, `/history`, `/recap`, `/streak`, `/shield status`, `/shield use`, `/grind`), "
+                "`/leaderboard`, `/stats`, `/history`, `/recap`, `/streak`, `/consistency`, `/shield status`, `/shield use`, `/grind`), "
                 "the AI coach Amarok analyzes your results and speaks with sharp accountability (strictly excludes `/set`).\n"
                 "Helpful bot usage tips are also shared periodically across non-admin commands on a 10-minute timer."
             ),
@@ -708,11 +708,11 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             color=0x9B59B6
         )
         embed.add_field(
-            name="🎯 Daily Tracking",
+            name="🎯 Daily & Habit Tracking",
             value=(
                 "• `/today [member]` — Live daily progress card with individual emoji progress bars, points breakdown, and live streak status.\n"
                 "• `/tasks [member]` — Extended disciplines overview with targets, units, muscle groups, and live progress bars.\n"
-                "• `/streak [member]` — Quick check of active streak days, Perfect Days (100%), and Streak Shield inventory."
+                "• `/streak [member]` (or `/consistency`) — Habit consistency calendar & streak dashboard! Monday–Sunday weekly matrix with status tags (🟩 30+ pts, ⭐ Perfect Days (100%), 🛡️ Streak Shield, 🟥 Missed, ▫️ Upcoming) and interactive buttons for **Current Month** and the **Full 3-Phase Campaign Calendar** (Oct 1 – Dec 31, 92 days)."
             ),
             inline=False
         )
@@ -882,7 +882,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚡ Command Directory Cheat Sheet",
             value=(
                 "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
-                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/profile` • `/ranks`\n"
+                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/consistency` • `/profile` • `/ranks`\n"
                 "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
                 "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
