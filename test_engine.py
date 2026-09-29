@@ -2214,74 +2214,60 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("🛡️ Streak Shield", STREAK_LEGEND_SUBTEXT)
         self.assertIn("▫️ Upcoming", STREAK_LEGEND_SUBTEXT)
 
-        # 6. Test build_quick_streak_embed
-        quick_embed = build_quick_streak_embed(
-            mock_member,
-            streak=6,
-            shield_status={"frost_shields": 1, "is_today_shielded": False},
-            stats={"perfect_days": 2}
-        )
-        self.assertEqual(quick_embed.title, "🔥 Winter Arc — Streak Status")
-        self.assertIn("Current Streak**: **6 days", quick_embed.description)
-        self.assertIn("Perfect Days (100%)**: **2", quick_embed.description)
-        self.assertIn("Streak Shields**: **1/2 available", quick_embed.description)
+        # 6. Test build_full_calendar_embed and get_user_full_campaign_calendar
+        from ui.embeds import build_full_calendar_embed
+        full_data = db.get_user_full_campaign_calendar(user_id, TEST_DB)
+        self.assertIn("PHASE 1: OCTOBER", full_data["calendar_text"])
+        self.assertIn("PHASE 2: NOVEMBER", full_data["calendar_text"])
+        self.assertIn("PHASE 3: DECEMBER", full_data["calendar_text"])
 
-        # 7. Test StreakConsistencyView
+        full_embed = build_full_calendar_embed(mock_member, full_data)
+        self.assertEqual(full_embed.title, "📅 Winter Arc — Full Calendar")
+        self.assertIn("CONSISTENCYWARRIOR", full_embed.description)
+        self.assertIn("OCT 1 – DEC 31", full_embed.description)
+        self.assertIn("🏆 **Overall Highlights:**", full_embed.description)
+        self.assertIn("• Overall Consistency: 📅", full_embed.description)
+        self.assertIn("• All-Time Longest Streak: 🏔️", full_embed.description)
+        self.assertIn("• Campaign Volume: ⚡", full_embed.description)
+        self.assertIn("• Total Perfect Days: ⭐", full_embed.description)
+        self.assertIn("• Total Shields Used: 🛡️", full_embed.description)
+
+        # 7. Test Streamlined 2-button StreakConsistencyView
         view = StreakConsistencyView(
             target_user=mock_member,
             author_id=user_id,
-            year=2026,
-            month=10,
-            current_view="calendar"
+            current_view="current"
         )
-        self.assertEqual(len(view.children), 5)
+        self.assertEqual(len(view.children), 2)
         btn_labels = [c.label for c in view.children]
-        self.assertIn("📅 Monthly Calendar", btn_labels)
-        self.assertIn("🔥 Quick Streak", btn_labels)
-        self.assertIn("🛡️ Shield Status", btn_labels)
-        self.assertIn("◀ Prev Month", btn_labels)
-        self.assertIn("Next Month ▶", btn_labels)
+        self.assertEqual(btn_labels, ["Current", "Calendar"])
+        self.assertTrue(view.children[0].disabled)  # Current is active & disabled
+        self.assertFalse(view.children[1].disabled) # Calendar is clickable
 
-        # Test month pagination wrapping
+        # Test view interactions
         async def test_view_interactions():
             inter = MagicMock(spec=discord.Interaction)
             inter.user.id = user_id
             inter.response.edit_message = AsyncMock()
 
-            # Flip to next month (Nov 2026)
-            await view._next_month_callback(inter)
-            self.assertEqual(view.month, 11)
-            self.assertEqual(view.year, 2026)
-
-            # Flip backwards 2 months (Oct, then Sep)
-            await view._prev_month_callback(inter)
-            self.assertEqual(view.month, 10)
-            await view._prev_month_callback(inter)
-            self.assertEqual(view.month, 9)
-
-            # Test December to January rollover
-            view.month = 12
-            view.year = 2026
-            await view._next_month_callback(inter)
-            self.assertEqual(view.month, 1)
-            self.assertEqual(view.year, 2027)
-
-            # Test January to December rollover
-            await view._prev_month_callback(inter)
-            self.assertEqual(view.month, 12)
-            self.assertEqual(view.year, 2026)
-
-            # Test quick view switch
-            await view._quick_callback(inter)
-            self.assertEqual(view.current_view, "quick")
-
-            # Test shield view switch
-            await view._shield_callback(inter)
-            self.assertEqual(view.current_view, "shield")
-
-            # Test calendar view switch
+            # Switch to Calendar view
             await view._calendar_callback(inter)
             self.assertEqual(view.current_view, "calendar")
+            self.assertFalse(view.children[0].disabled) # Current now enabled
+            self.assertTrue(view.children[1].disabled)  # Calendar now disabled
+            inter.response.edit_message.assert_called_once()
+            cal_call = inter.response.edit_message.call_args[1]
+            self.assertEqual(cal_call["embed"].title, "📅 Winter Arc — Full Calendar")
+
+            # Switch back to Current view
+            inter.response.edit_message.reset_mock()
+            await view._current_callback(inter)
+            self.assertEqual(view.current_view, "current")
+            self.assertTrue(view.children[0].disabled)  # Current now disabled
+            self.assertFalse(view.children[1].disabled) # Calendar now enabled
+            inter.response.edit_message.assert_called_once()
+            curr_call = inter.response.edit_message.call_args[1]
+            self.assertEqual(curr_call["embed"].title, "📅 Winter Arc — Streak and Consistency")
 
         asyncio.run(test_view_interactions())
 

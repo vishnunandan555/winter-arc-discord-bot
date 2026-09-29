@@ -53,6 +53,7 @@ from ui.embeds import (
     build_server_records_embed,
     format_embed_as_text,
     build_streak_consistency_embed,
+    build_full_calendar_embed,
     build_quick_streak_embed,
     STREAK_LEGEND_SUBTEXT,
 )
@@ -678,18 +679,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         )
 
-    @app_commands.command(name="streak", description="View monthly training calendar, streak consistency, and recovery status.")
-    @app_commands.describe(
-        member="Optional: Check another member's streak and calendar",
-        month="Optional month number (1-12, default: current month)",
-        year="Optional year (e.g. 2026, default: current year)"
-    )
+    @app_commands.command(name="streak", description="View your habit consistency calendar and overall arc progress.")
+    @app_commands.describe(member="Optional: Check another member's streak and calendar")
     async def streak_cmd(
         self,
         interaction: discord.Interaction,
-        member: Optional[discord.Member] = None,
-        month: Optional[int] = None,
-        year: Optional[int] = None
+        member: Optional[discord.Member] = None
     ):
         target_user = member or interaction.user
         if target_user.id == interaction.user.id:
@@ -702,14 +697,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         await interaction.response.defer()
 
-        consistency_data = db.get_user_monthly_consistency(target_user.id, year=year, month=month)
+        consistency_data = db.get_user_monthly_consistency(target_user.id)
         embed = build_streak_consistency_embed(target_user, consistency_data)
         view = StreakConsistencyView(
             target_user=target_user,
             author_id=interaction.user.id,
-            year=consistency_data["year"],
-            month=consistency_data["month"],
-            current_view="calendar"
+            current_view="current"
         )
         await interaction.followup.send(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=view)
         await safe_react(interaction, "🔥", "🐺")
@@ -732,20 +725,14 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         )
 
-    @app_commands.command(name="consistency", description="View monthly training calendar, streak consistency, and weekly progress.")
-    @app_commands.describe(
-        member="Optional: Check another member's calendar",
-        month="Optional month number (1-12)",
-        year="Optional year (e.g. 2026)"
-    )
+    @app_commands.command(name="consistency", description="View habit consistency calendar and overall arc progress.")
+    @app_commands.describe(member="Optional: Check another member's calendar")
     async def consistency_cmd(
         self,
         interaction: discord.Interaction,
-        member: Optional[discord.Member] = None,
-        month: Optional[int] = None,
-        year: Optional[int] = None
+        member: Optional[discord.Member] = None
     ):
-        return await self.streak_cmd.callback(self, interaction, member=member, month=month, year=year)
+        return await self.streak_cmd.callback(self, interaction, member=member)
 
     # ==========================================
     # Streak Shield & Protection Commands

@@ -2534,5 +2534,91 @@ def get_user_monthly_consistency(
     }
 
 
+def get_user_full_campaign_calendar(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Constructs the 3-phase full Winter Arc campaign calendar (Oct, Nov, Dec - 92 days) and cumulative highlights.
+    """
+    today = get_today_date()
+    from phases import BASE_YEAR
+    base_year = BASE_YEAR
+
+    months_phases = [
+        {"phase": 1, "name": "FIRST FROST", "month": 10, "emoji": "❄️", "total_days": 31},
+        {"phase": 2, "name": "THE HUNT", "month": 11, "emoji": "🐺", "total_days": 30},
+        {"phase": 3, "name": "THE ENDGAME", "month": 12, "emoji": "⚔️", "total_days": 31},
+    ]
+
+    phase_blocks = []
+    total_campaign_points = 0
+    total_perfect_days = 0
+    total_shields_used = 0
+    total_active_days = 0
+    total_elapsed_days = 0
+
+    for p in months_phases:
+        m_data = get_user_monthly_consistency(discord_id, year=base_year, month=p["month"], db_path=db_path)
+        h = m_data.get("highlights", {})
+        total_campaign_points += h.get("total_points", 0)
+        total_perfect_days += h.get("perfect_days", 0)
+        total_shields_used += h.get("shields_used", 0)
+        total_active_days += h.get("active_days", 0)
+        total_elapsed_days += h.get("elapsed_days", 0)
+
+        pts = h.get("total_points", 0)
+        act = h.get("active_days", 0)
+        tot = p["total_days"]
+        month_name = m_data.get("month_name", "Month").upper()
+
+        if date(base_year, p["month"], 1) > today and pts == 0:
+            status_tag = f"Upcoming ({tot} days)"
+        elif today.year == base_year and today.month == p["month"]:
+            status_tag = f"In Progress • {act}/{tot} days ({pts:,} pts)"
+        else:
+            status_tag = f"{act}/{tot} days ({pts:,} pts)"
+
+        phase_header = f"{p['emoji']} PHASE {p['phase']}: {month_name} ({p['name']}) • {status_tag}"
+        grid = m_data.get("calendar_grid", "")
+        phase_blocks.append(f"{phase_header}\n{grid}")
+
+    calendar_text = "\n\n".join(phase_blocks)
+
+    total_elapsed_days = min(92, max(0, total_elapsed_days))
+    consistency_pct = round((total_active_days / total_elapsed_days) * 100) if total_elapsed_days > 0 else 0
+    avg_points = round(total_campaign_points / total_elapsed_days) if total_elapsed_days > 0 else 0
+
+    shield_status = get_user_shield_status(discord_id, db_path)
+    shields_left = shield_status.get("frost_shields", 0)
+
+    highest_streak = get_user_longest_streak(discord_id, db_path)
+    current_streak = calculate_streak(discord_id, db_path=db_path)
+
+    user = get_user_by_discord_id(discord_id, db_path)
+    from levels import get_level_info
+    stats = get_user_stats(discord_id, db_path)
+    lvl_info = get_level_info(stats.get("lifetime_points", 0))
+
+    return {
+        "user_id": user["id"] if user else 0,
+        "discord_id": discord_id,
+        "username": user["username"] if user else "Unknown",
+        "rank_title": lvl_info["title"],
+        "calendar_text": calendar_text,
+        "highlights": {
+            "overall_consistency_pct": consistency_pct,
+            "active_days": total_active_days,
+            "elapsed_days": total_elapsed_days,
+            "total_days": 92,
+            "longest_streak": highest_streak,
+            "current_streak": current_streak,
+            "total_points": total_campaign_points,
+            "avg_points": avg_points,
+            "perfect_days": total_perfect_days,
+            "shields_used": total_shields_used,
+            "shields_left": shields_left
+        }
+    }
+
+
+
 
 

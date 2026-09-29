@@ -1906,7 +1906,7 @@ def format_embed_as_text(embed: discord.Embed) -> str:
     return "\n\n".join(parts).strip()
 
 
-STREAK_LEGEND_SUBTEXT = "-# 🟩 Streak Preserved (30+ pts) • ⭐ Perfect Day (100%) • 🛡️ Streak Shield • ▫️ Upcoming"
+STREAK_LEGEND_SUBTEXT = "-# 🟩 Streak Preserved (30+ pts) • ⭐ Perfect Day (100%) • 🛡️ Streak Shield • 🟥 Missed • ▫️ Upcoming"
 
 
 def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
@@ -1952,6 +1952,48 @@ def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.E
         color=0xE67E22 if current_streak > 0 else 0x95A5A6
     )
     embed.set_footer(text="Daily standard: 500 points • 30 pts/day to maintain streak • Max 2 shields")
+    return embed
+
+
+def build_full_calendar_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
+    """Builds the 3-phase full Winter Arc campaign calendar (Oct 1 - Dec 31)."""
+    title = "📅 Winter Arc — Full Calendar"
+
+    name = user.display_name.upper()
+    rank_title = data.get("rank_title", "Initiate").upper()
+    sub_header = f"`{name}` | `OCT 1 – DEC 31` | `{rank_title}`"
+
+    grid_block = f"```text\n{data.get('calendar_text', '')}\n```"
+
+    h = data.get("highlights", {})
+    longest_streak = h.get("longest_streak", 0)
+    active_days = h.get("active_days", 0)
+    total_days = h.get("total_days", 92)
+    consistency_pct = h.get("overall_consistency_pct", 0)
+    total_points = h.get("total_points", 0)
+    avg_points = h.get("avg_points", 0)
+    perfect_days = h.get("perfect_days", 0)
+    shields_used = h.get("shields_used", 0)
+    shields_left = h.get("shields_left", 0)
+
+    highlights_block = (
+        "──────────────────────────────────────────────\n"
+        "🏆 **Overall Highlights:**\n"
+        f"• Overall Consistency: 📅 **{active_days}/{total_days} days active ({consistency_pct}%)**\n"
+        f"• All-Time Longest Streak: 🏔️ **{longest_streak} Days**\n"
+        f"• Campaign Volume: ⚡ **{total_points:,} total pts (Avg: {avg_points:,} pts/day)**\n"
+        f"• Total Perfect Days: ⭐ **{perfect_days} (Per day 100% completion)**\n"
+        f"• Total Shields Used: 🛡️ **{shields_used}x ({shields_left} Left)**"
+    )
+
+    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}"
+
+    embed = discord.Embed(
+        title=title,
+        description=desc,
+        color=0xE67E22 if longest_streak > 0 else 0x95A5A6
+    )
+    embed.set_footer(text="Phases 1–3: Oct 1 – Dec 31 (92 Days) • 500 pts standard • 30 pts/day threshold")
     return embed
 
 
