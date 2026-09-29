@@ -230,7 +230,8 @@ class WinterArcBot(commands.Bot):
                 from config import BOT_TZ
                 from ai import groq_service
                 from levels import check_level_up
-                from ui.embeds import build_quicklog_embed
+                from ui.embeds import build_quicklog_embed, format_embed_as_text
+                from tips import dispatch_tip
 
                 logger.info(f"Processing #{channel_name} message from {message.author}: '{text}'")
                 active_tasks = db.get_active_tasks()
@@ -273,6 +274,10 @@ class WinterArcBot(commands.Bot):
                             level_up_info=level_up_info
                         )
                         await message.reply(embed=embed)
+                        cmd_out = format_embed_as_text(embed)
+                        asyncio.create_task(
+                            dispatch_tip(message.channel, message.author.id, message.author.display_name, message=message)
+                        )
                         asyncio.create_task(
                             groq_service.dispatch_channel_nudge(
                                 channel=message.channel,
@@ -280,6 +285,7 @@ class WinterArcBot(commands.Bot):
                                 user_name=message.author.display_name,
                                 command_name="quick-log",
                                 extra_info=f"Quick logged: {text}",
+                                command_output=cmd_out,
                                 message=message
                             )
                         )

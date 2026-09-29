@@ -676,47 +676,105 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         # 1. Overview
         overview_embed = build_help_embed("overview")
         self.assertIn("Master Command Manual", overview_embed.title)
-        field_texts = " ".join(f"{f.name} {f.value}" for f in overview_embed.fields)
-        self.assertIn("500 pts max", field_texts)
-        self.assertIn("05:00", field_texts)
-        self.assertIn("/quick", field_texts)
-        self.assertIn("/shield", field_texts)
+        self.assertIn("500 points (Perfect Day)", overview_embed.description)
+        self.assertIn("30 pts/day minimum", overview_embed.description)
+        self.assertNotIn("Clean Day", overview_embed.description)
+        self.assertNotIn("Clean Days", overview_embed.description)
+
+        field_map = {f.name: f.value for f in overview_embed.fields}
+        self.assertTrue(any("Daily Disciplines (500 pts max)" in k for k in field_map))
+        self.assertTrue(any("The 4 Official Arc Phases" in k for k in field_map))
+        self.assertTrue(any("Automated Daily Schedule" in k for k in field_map))
+        self.assertTrue(any("Command Directory Cheat Sheet" in k for k in field_map))
+
+        # Check phase breakdown
+        phases_text = [v for k, v in field_map.items() if "The 4 Official Arc Phases" in k][0]
+        self.assertIn("Phase 1: FIRST FROST", phases_text)
+        self.assertIn("Phase 2: THE HUNT", phases_text)
+        self.assertIn("Phase 3: THE ENDGAME", phases_text)
+        self.assertIn("Phase 4: AFTERMATH", phases_text)
+
+        # Check cheat sheet roster
+        cheat_sheet = [v for k, v in field_map.items() if "Command Directory Cheat Sheet" in k][0]
+        for cmd in ["/quick", "/log", "/set", "/grind", "/today", "/tasks", "/streak", "/profile", "/ranks",
+                    "/leaderboard", "/stats", "/history", "/recap", "/shield status", "/shield use",
+                    "/settings", "/enroll", "/leave_arc", "/ping", "/admin"]:
+            self.assertIn(cmd, cheat_sheet)
 
         # 2. Logging
         logging_embed = build_help_embed("logging")
-        self.assertIn("Workout & AI Logging", logging_embed.title)
-        field_names = [f.name for f in logging_embed.fields]
-        self.assertTrue(any("/quick" in name for name in field_names))
-        self.assertTrue(any("#quick-log" in name for name in field_names))
-        self.assertTrue(any("/grind" in name for name in field_names))
+        self.assertIn("Workout & AI Logging Engine", logging_embed.title)
+        self.assertNotIn("Clean Day", logging_embed.description)
+        log_field_map = {f.name: f.value for f in logging_embed.fields}
+        self.assertTrue(any("/quick" in k for k in log_field_map))
+        self.assertTrue(any("#quick-log" in k for k in log_field_map))
+        self.assertTrue(any("/log" in k and "/set" in k for k in log_field_map))
+        self.assertTrue(any("/grind" in k for k in log_field_map))
+        self.assertTrue(any("Reactive AI Coach & Bot Tips" in k for k in log_field_map))
 
-        # 3. Progress
+        ai_tips_text = [v for k, v in log_field_map.items() if "Reactive AI Coach" in k][0]
+        self.assertIn("Amarok", ai_tips_text)
+        self.assertIn("strictly excludes `/set`", ai_tips_text)
+        self.assertIn("10-minute timer", ai_tips_text)
+        self.assertIn("/stats", ai_tips_text)
+        self.assertIn("/recap", ai_tips_text)
+
+        # 3. Progress & Analytics
         progress_embed = build_help_embed("progress")
-        self.assertIn("Progression, Ranks", progress_embed.title)
-        p_names = [f.name for f in progress_embed.fields]
-        self.assertTrue(any("Accountability" in name for name in p_names))
-        self.assertTrue(any("12-Tier" in name for name in p_names))
+        self.assertIn("Progression, Ranks & Analytics", progress_embed.title)
+        self.assertNotIn("Clean Day", progress_embed.description)
+        self.assertIn("Daily goal: 500 points (Perfect Day)", progress_embed.footer.text)
+        prog_field_map = {f.name: f.value for f in progress_embed.fields}
+        self.assertTrue(any("Daily Tracking" in k for k in prog_field_map))
+        self.assertTrue(any("12-Tier Discipline Hierarchy" in k for k in prog_field_map))
+        self.assertTrue(any("Standings, Benchmarks & Analytics" in k for k in prog_field_map))
+
+        tracking_text = [v for k, v in prog_field_map.items() if "Daily Tracking" in k][0]
+        self.assertIn("Perfect Days (100%)", tracking_text)
+        self.assertNotIn("clean", tracking_text.lower())
+
+        analytics_text = [v for k, v in prog_field_map.items() if "Standings, Benchmarks" in k][0]
+        self.assertIn("/leaderboard", analytics_text)
+        self.assertIn("/stats [phase]", analytics_text)
+        self.assertIn("Server Records & Benchmarks", analytics_text)
+        self.assertIn("peak maxers", analytics_text)
+        self.assertIn("most Perfect Days", analytics_text)
+        self.assertIn("/recap [member]", analytics_text)
+        self.assertIn("Phase Explorer", analytics_text)
+        self.assertIn("/history [days]", analytics_text)
 
         # 4. Shields
         shields_embed = build_help_embed("shields")
-        self.assertIn("Streak Shield", shields_embed.title)
-        s_names = [f.name for f in shields_embed.fields]
-        self.assertTrue(any("How Streak Shields Work" in name for name in s_names))
-        self.assertTrue(any("Shield Commands" in name for name in s_names))
+        self.assertIn("Streak Shield & Recovery System", shields_embed.title)
+        self.assertNotIn("Clean Day", shields_embed.description)
+        shield_field_map = {f.name: f.value for f in shields_embed.fields}
+        self.assertTrue(any("How Streak Shields Work" in k for k in shield_field_map))
+        self.assertTrue(any("Shield Commands" in k for k in shield_field_map))
+        shield_work_text = [v for k, v in shield_field_map.items() if "How Streak Shields Work" in k][0]
+        self.assertIn("30 points", shield_work_text)
+        self.assertIn("7-day streak milestone", shield_work_text)
+        self.assertIn("2 Streak Shields", shield_work_text)
 
         # 5. Settings
         settings_embed = build_help_embed("settings")
-        self.assertIn("Accountability, Settings", settings_embed.title)
-        set_names = [f.name for f in settings_embed.fields]
-        self.assertTrue(any("/settings" in name for name in set_names))
-        self.assertTrue(any("Enrollment" in name for name in set_names))
+        self.assertIn("Accountability, Settings & Utilities", settings_embed.title)
+        set_field_map = {f.name: f.value for f in settings_embed.fields}
+        self.assertTrue(any("/settings" in k for k in set_field_map))
+        self.assertTrue(any("Enrollment" in k for k in set_field_map))
+        dm_text = [v for k, v in set_field_map.items() if "/settings" in k][0]
+        self.assertIn("Morning Kickoff DM (05:00 IST)", dm_text)
+        self.assertIn("Evening Streak Warning DM (21:00 IST)", dm_text)
 
         # 6. Admin
         admin_embed = build_help_embed("admin")
-        self.assertIn("Server Administration", admin_embed.title)
-        adm_names = [f.name for f in admin_embed.fields]
-        self.assertTrue(any("Broadcast Configuration" in name for name in adm_names))
-        self.assertTrue(any("Diagnostics" in name for name in adm_names))
+        self.assertIn("Server Administration & Maintenance", admin_embed.title)
+        adm_field_map = {f.name: f.value for f in admin_embed.fields}
+        self.assertTrue(any("Broadcast Configuration" in k for k in adm_field_map))
+        self.assertTrue(any("Discipline Management" in k for k in adm_field_map))
+        self.assertTrue(any("System Diagnostics" in k for k in adm_field_map))
+        diag_text = [v for k, v in adm_field_map.items() if "Diagnostics" in k][0]
+        self.assertIn("Collect GC & Free RAM", diag_text)
+        self.assertIn("/test_reminder", diag_text)
 
         # 7. HelpView
         view = HelpView()
@@ -727,6 +785,12 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertEqual(len(options), 6)
         option_values = [opt.value for opt in options]
         self.assertEqual(option_values, ["overview", "logging", "progress", "shields", "settings", "admin"])
+
+        # Validate dropdown labels & descriptions
+        progress_opt = next(o for o in options if o.value == "progress")
+        self.assertEqual(progress_opt.label, "Progress & Analytics")
+        self.assertIn("/stats", progress_opt.description)
+        self.assertIn("/recap", progress_opt.description)
 
     def test_27_today_embed_per_task_bars(self):
         from ui.embeds import build_today_embed
@@ -1263,6 +1327,8 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("TestWarrior", embed.description)
         self.assertIn("150 reps", embed.description)
         self.assertIn("12.5 km", embed.description)
+        self.assertIn("⭐ **Perfect Days**: 2", embed.description)
+        self.assertNotIn("Clean Days", embed.description)
 
         # 3. Test build_grind_embed: strictly NO "Verdict:", "Assessment:", "Submission Roasted:", or "Daily Intellectual Friction"
         grind_roasted = {
@@ -1710,7 +1776,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("🥇 <@1001> — **120 pts** (24%)", midnight_msg)
         self.assertIn("🥈 <@1002> — **500 pts** (100%) ⭐", midnight_msg)
         self.assertIn("Great daily effort from the group.", midnight_msg)
-        self.assertIn("🔥 **Clean Sweeps**: **1** member(s) hit 100%.", midnight_msg)
+        self.assertIn("🔥 **Perfect Days**: **1** member(s) hit 100%.", midnight_msg)
 
         # 6. build_weekly_recap_message
         weekly_stats = {
@@ -1758,13 +1824,13 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
             role_ping="@Coldfornt"
         )
         self.assertIn("@Coldfornt [WinterArc] Phase 1 Concluded • FIRST FROST 🏆", phase_msg)
-        self.assertIn("🥇 <@1001> — **14,200 pts** *(28 clean days)*", phase_msg)
-        self.assertIn("🥈 <@1002> — **12,850 pts** *(25 clean days)*", phase_msg)
-        self.assertIn("🥉 <@1003> — **9,400 pts** *(19 clean days)*", phase_msg)
+        self.assertIn("🥇 <@1001> — **14,200 pts** *(28 perfect days)*", phase_msg)
+        self.assertIn("🥈 <@1002> — **12,850 pts** *(25 perfect days)*", phase_msg)
+        self.assertIn("🥉 <@1003> — **9,400 pts** *(19 perfect days)*", phase_msg)
         self.assertIn("4th: <@1004> — **8,100 pts**", phase_msg)
         self.assertIn("5th: <@1005> — **7,500 pts**", phase_msg)
         self.assertIn("• Active Participants: `5`", phase_msg)
-        self.assertIn("• Clean Days Logged: `72`", phase_msg)
+        self.assertIn("• Perfect Days Logged: `72`", phase_msg)
         self.assertIn("• Total Volume: `52,050 pts`", phase_msg)
         self.assertIn("⚡ **Phase 2 (THE HUNT)** begins tomorrow at 00:00 IST.", phase_msg)
         self.assertIn("-# Phase snapshot archived • Streaks carry over uninterrupted", phase_msg)
@@ -1859,14 +1925,405 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("All-Time Server Records", records_embed.title)
         self.assertIn("Achievements & Records", records_embed.description)
         self.assertIn("Server Totals", records_embed.description)
+        self.assertIn("Total Volume", records_embed.description)
+        self.assertIn("Total Perfect Days", records_embed.description)
+        self.assertNotIn("Clean Days", records_embed.description)
+        self.assertNotIn("Combined Volume", records_embed.description)
 
         records_view = ServerRecordsView(author_id=123, current_selection="overall")
         self.assertEqual(len(records_view.children), 4)  # Overall, Phase 1, Phase 2, Phase 3
         self.assertEqual(records_view.children[0].label, "Overall")
 
+    def test_51_tips_system_and_command_output_grounding(self):
+        import time
+        import asyncio
+        import tips
+        import discord
+        from unittest.mock import MagicMock, AsyncMock, patch
+        from ui.embeds import format_embed_as_text
+        from ai import groq_service
+
+        # 1. Test format_embed_as_text
+        test_embed = discord.Embed(
+            title="🏆 Daily Leaderboard",
+            description="Phase 1: FIRST FROST\n🥇 1. Alice - 500 pts\n🥈 2. Bob - 350 pts"
+        )
+        test_embed.add_field(name="Active Phase", value="Phase 1")
+        test_embed.set_footer(text="Updated live")
+        formatted = format_embed_as_text(test_embed)
+        self.assertIn("🏆 Daily Leaderboard", formatted)
+        self.assertIn("🥇 1. Alice - 500 pts", formatted)
+        self.assertIn("Active Phase:\nPhase 1", formatted)
+        self.assertIn("Footer: Updated live", formatted)
+
+        # 2. Test tips timer & probability
+        u1 = 888111
+        u2 = 888222
+        # Initial call: timer not active yet
+        self.assertTrue(tips.should_send_tip(u1, roll_chance=1.0))
+        tip_text = tips.get_tip_for_user(u1)
+        self.assertIn(tip_text, tips.BOT_USAGE_TIPS)
+
+        # 10-minute timer is now active: must skip probability check
+        self.assertFalse(tips.should_send_tip(u1, roll_chance=1.0))
+
+        # Other user is unaffected
+        self.assertTrue(tips.should_send_tip(u2, roll_chance=1.0))
+
+        # Simulate 10 minutes passing (601 seconds)
+        tips._last_tip_timestamps[u1] = time.time() - 601.0
+        self.assertTrue(tips.should_send_tip(u1, roll_chance=1.0))
+        self.assertFalse(tips.should_send_tip(u1, roll_chance=0.0))
+
+        # 3. Test generate_reactive_nudge command_output grounding
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock(message=MagicMock(content="Number one on the board. Don't slack off."))]
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_resp)
+
+        async def run_nudge_test():
+            with patch("ai.groq_service.get_groq_client", return_value=mock_client):
+                res = await groq_service.generate_reactive_nudge(
+                    user_name="Fenrir",
+                    command_name="leaderboard",
+                    progression={"points": 500, "max_points": 500, "streak": 10},
+                    command_output=formatted
+                )
+                self.assertEqual(res, "Number one on the board. Don't slack off.")
+                call_args = mock_client.chat.completions.create.call_args[1]
+                user_msg = [m["content"] for m in call_args["messages"] if m["role"] == "user"][0]
+                self.assertIn("Command Output / Result:", user_msg)
+                self.assertIn("🥇 1. Alice - 500 pts", user_msg)
+                sys_msg = [m["content"] for m in call_args["messages"] if m["role"] == "system"][0]
+                self.assertIn("USE THE COMMAND OUTPUT FOR REPLYING", sys_msg)
+
+        asyncio.run(run_nudge_test())
+
+    def test_52_help_command_execution_and_comprehensive_validation(self):
+        """
+        Validates the slash command /help execution lifecycle,
+        HelpView interactive dropdown transitions across all 6 categories,
+        tip dispatch scheduling, and strict absence of legacy 'Clean Day' text.
+        """
+        import asyncio
+        import discord
+        from unittest.mock import MagicMock, AsyncMock, patch
+        from cogs.warrior import WarriorCog
+        from ui.views import HelpView
+        from ui.embeds import build_help_embed
+
+        mock_bot = MagicMock()
+        cog = WarriorCog(mock_bot)
+
+        # 1. Slash command invocation
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_interaction.user = MagicMock()
+        mock_interaction.user.id = 999555
+        mock_interaction.user.display_name = "DisciplineSeeker"
+        mock_interaction.response = MagicMock()
+        mock_interaction.response.send_message = AsyncMock()
+
+        async def run_help_cmd_test():
+            with patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock) as mock_dispatch:
+                await cog.help_cmd.callback(cog, mock_interaction)
+                mock_interaction.response.send_message.assert_called_once()
+                call_kwargs = mock_interaction.response.send_message.call_args[1]
+                embed = call_kwargs["embed"]
+                view = call_kwargs["view"]
+
+                self.assertIsInstance(view, HelpView)
+                self.assertIn("Master Command Manual", embed.title)
+                self.assertIn("500 points (Perfect Day)", embed.description)
+                self.assertNotIn("Clean Day", embed.description)
+
+        asyncio.run(run_help_cmd_test())
+
+        # 2. Interactive dropdown switching across all 6 categories
+        view = HelpView()
+        categories = ["overview", "logging", "progress", "shields", "settings", "admin"]
+
+        async def test_view_categories():
+            for cat in categories:
+                select_interaction = MagicMock(spec=discord.Interaction)
+                select_interaction.response = MagicMock()
+                select_interaction.response.edit_message = AsyncMock()
+
+                view.select_category._values = [cat]
+
+                await view.select_category.callback(select_interaction)
+                select_interaction.response.edit_message.assert_called_once()
+                edited_embed = select_interaction.response.edit_message.call_args[1]["embed"]
+
+                # Ensure strict absence of legacy 'Clean Day' terminology across every category
+                all_text = f"{edited_embed.title} {edited_embed.description} " + " ".join(
+                    f"{f.name} {f.value}" for f in edited_embed.fields
+                )
+                if edited_embed.footer and edited_embed.footer.text:
+                    all_text += f" {edited_embed.footer.text}"
+
+                self.assertNotIn("clean day", all_text.lower(), f"Found legacy 'clean day' in category '{cat}'")
+                self.assertNotIn("clean sweep", all_text.lower(), f"Found legacy 'clean sweep' in category '{cat}'")
+
+                if cat == "logging":
+                    self.assertIn("Amarok", all_text)
+                    self.assertIn("strictly excludes `/set`", all_text)
+                    self.assertIn("10-minute timer", all_text)
+                    self.assertIn("/quick", all_text)
+                    self.assertIn("/grind", all_text)
+                elif cat == "progress":
+                    self.assertIn("/stats [phase]", all_text)
+                    self.assertIn("Server Records & Benchmarks", all_text)
+                    self.assertIn("peak maxers", all_text)
+                    self.assertIn("most Perfect Days", all_text)
+                    self.assertIn("/recap [member]", all_text)
+                    self.assertIn("Phase Explorer", all_text)
+                    self.assertIn("Perfect Days (100%)", all_text)
+                elif cat == "shields":
+                    self.assertIn("30 points", all_text)
+                    self.assertIn("7-day streak milestone", all_text)
+                    self.assertIn("/shield use", all_text)
+                elif cat == "settings":
+                    self.assertIn("/settings", all_text)
+                    self.assertIn("05:00 IST", all_text)
+                    self.assertIn("21:00 IST", all_text)
+                elif cat == "admin":
+                    self.assertIn("Collect GC & Free RAM", all_text)
+                    self.assertIn("/test_reminder", all_text)
+
+        asyncio.run(test_view_categories())
+
+    def test_53_monthly_streak_and_consistency(self):
+        """
+        Validates the monthly streak and calendar consistency system:
+        - get_user_longest_streak calculation
+        - get_user_monthly_consistency grid generation with Monday start
+        - Other-month padding (▪️) and future month days (▫️)
+        - Highlights calculation (streak, consistency %, perfect days, shields)
+        - build_streak_consistency_embed and build_quick_streak_embed formatting
+        - StreakConsistencyView interactive navigation (calendar, quick, shield, month pagination)
+        - /streak and /consistency slash commands
+        """
+        import asyncio
+        import discord
+        from datetime import date
+        from unittest.mock import MagicMock, AsyncMock, patch
+        import database as db
+        from ui.embeds import (
+            build_streak_consistency_embed,
+            build_quick_streak_embed,
+            STREAK_LEGEND_SUBTEXT,
+        )
+        from ui.views import StreakConsistencyView
+        from cogs.warrior import WarriorCog
+
+        # 1. Setup user in test database
+        user_id = 999777
+        user = db.get_user_by_discord_id(user_id, TEST_DB)
+        if not user:
+            db.enroll_user(user_id, "ConsistencyWarrior", TEST_DB)
+            user = db.get_user_by_discord_id(user_id, TEST_DB)
+        if not db.get_user_by_discord_id(user_id, db.DB_PATH):
+            db.enroll_user(user_id, "ConsistencyWarrior", db.DB_PATH)
+
+        # Seed test data for October 2026
+        # Oct 01 (Thu) - 50 pts (kept)
+        # Oct 02 (Fri) - 100 pts (kept)
+        # Oct 03 (Sat) - 500 pts (perfect day)
+        # Oct 04 (Sun) - 50 pts (kept)
+        # Oct 05 (Mon) - 500 pts (perfect day)
+        # Oct 06 (Tue) - shielded day
+        db.log_activity(user_id, "ConsistencyWarrior", "pushups", 50, log_date="2026-10-01", db_path=TEST_DB)
+        db.finalize_daily_summaries("2026-10-01", TEST_DB)
+
+        db.log_activity(user_id, "ConsistencyWarrior", "pushups", 100, log_date="2026-10-02", db_path=TEST_DB)
+        db.finalize_daily_summaries("2026-10-02", TEST_DB)
+
+        with db.get_connection(TEST_DB) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, '2026-10-03', 500, 1.0, 1, 0);
+            """, (user["id"],))
+            cur.execute("""
+                INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, '2026-10-04', 50, 0.1, 0, 0);
+            """, (user["id"],))
+            cur.execute("""
+                INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, '2026-10-05', 500, 1.0, 1, 0);
+            """, (user["id"],))
+            cur.execute("""
+                INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, '2026-10-06', 0, 0.0, 0, 1);
+            """, (user["id"],))
+            cur.execute("""
+                INSERT OR REPLACE INTO shield_logs (user_id, date, reason)
+                VALUES (?, '2026-10-06', 'Muscle Recovery');
+            """, (user["id"],))
+            conn.commit()
+
+        # 2. Test get_user_longest_streak
+        longest_streak = db.get_user_longest_streak(user_id, TEST_DB)
+        self.assertGreaterEqual(longest_streak, 6)
+
+        # 3. Test get_user_monthly_consistency for October 2026
+        data = db.get_user_monthly_consistency(user_id, year=2026, month=10, db_path=TEST_DB)
+        self.assertEqual(data["year"], 2026)
+        self.assertEqual(data["month"], 10)
+        self.assertEqual(data["month_name"], "October")
+
+        grid = data["calendar_grid"]
+        self.assertIn("Mo  Tu  We  Th  Fr  Sa  Su", grid)
+        self.assertIn("W1", grid)
+        self.assertIn("W2", grid)
+        self.assertIn("W3", grid)
+        self.assertIn("W4", grid)
+        self.assertIn("W5", grid)
+        # Check padding from previous month (Sep 28, 29, 30 are ▪️)
+        self.assertIn("▪️", grid)
+        # Check day completion formatting
+        self.assertIn("days", grid)
+        self.assertIn("pts)", grid)
+
+        h = data["highlights"]
+        self.assertGreaterEqual(h["highest_streak"], 6)
+        self.assertGreaterEqual(h["perfect_days"], 2)  # Oct 03 and Oct 05
+        self.assertGreaterEqual(h["shields_used"], 1)  # Oct 06
+
+        # 4. Test build_streak_consistency_embed
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.display_name = "ConsistencyWarrior"
+        mock_member.id = user_id
+
+        embed = build_streak_consistency_embed(mock_member, data)
+        self.assertEqual(embed.title, "📅 Winter Arc — Streak and Consistency")
+        self.assertIn("CONSISTENCYWARRIOR", embed.description)
+        self.assertIn("OCTOBER 2026", embed.description)
+        self.assertIn("🏆 **Month Highlights:**", embed.description)
+        self.assertIn("• Highest Streak: 🏔️", embed.description)
+        self.assertIn("• Current Streak: 🔥", embed.description)
+        self.assertIn("• Consistency: 📅", embed.description)
+        self.assertIn("• Volume: ⚡", embed.description)
+        self.assertIn("• Perfect Days: ⭐", embed.description)
+        self.assertIn("• Streak Shields Used: 🛡️", embed.description)
+
+        # 5. Test STREAK_LEGEND_SUBTEXT
+        self.assertIn("-#", STREAK_LEGEND_SUBTEXT)
+        self.assertIn("🟩 Streak Preserved (30+ pts)", STREAK_LEGEND_SUBTEXT)
+        self.assertIn("⭐ Perfect Day (100%)", STREAK_LEGEND_SUBTEXT)
+        self.assertIn("🛡️ Streak Shield", STREAK_LEGEND_SUBTEXT)
+        self.assertIn("▫️ Upcoming", STREAK_LEGEND_SUBTEXT)
+
+        # 6. Test build_quick_streak_embed
+        quick_embed = build_quick_streak_embed(
+            mock_member,
+            streak=6,
+            shield_status={"frost_shields": 1, "is_today_shielded": False},
+            stats={"perfect_days": 2}
+        )
+        self.assertEqual(quick_embed.title, "🔥 Winter Arc — Streak Status")
+        self.assertIn("Current Streak**: **6 days", quick_embed.description)
+        self.assertIn("Perfect Days (100%)**: **2", quick_embed.description)
+        self.assertIn("Streak Shields**: **1/2 available", quick_embed.description)
+
+        # 7. Test StreakConsistencyView
+        view = StreakConsistencyView(
+            target_user=mock_member,
+            author_id=user_id,
+            year=2026,
+            month=10,
+            current_view="calendar"
+        )
+        self.assertEqual(len(view.children), 5)
+        btn_labels = [c.label for c in view.children]
+        self.assertIn("📅 Monthly Calendar", btn_labels)
+        self.assertIn("🔥 Quick Streak", btn_labels)
+        self.assertIn("🛡️ Shield Status", btn_labels)
+        self.assertIn("◀ Prev Month", btn_labels)
+        self.assertIn("Next Month ▶", btn_labels)
+
+        # Test month pagination wrapping
+        async def test_view_interactions():
+            inter = MagicMock(spec=discord.Interaction)
+            inter.user.id = user_id
+            inter.response.edit_message = AsyncMock()
+
+            # Flip to next month (Nov 2026)
+            await view._next_month_callback(inter)
+            self.assertEqual(view.month, 11)
+            self.assertEqual(view.year, 2026)
+
+            # Flip backwards 2 months (Oct, then Sep)
+            await view._prev_month_callback(inter)
+            self.assertEqual(view.month, 10)
+            await view._prev_month_callback(inter)
+            self.assertEqual(view.month, 9)
+
+            # Test December to January rollover
+            view.month = 12
+            view.year = 2026
+            await view._next_month_callback(inter)
+            self.assertEqual(view.month, 1)
+            self.assertEqual(view.year, 2027)
+
+            # Test January to December rollover
+            await view._prev_month_callback(inter)
+            self.assertEqual(view.month, 12)
+            self.assertEqual(view.year, 2026)
+
+            # Test quick view switch
+            await view._quick_callback(inter)
+            self.assertEqual(view.current_view, "quick")
+
+            # Test shield view switch
+            await view._shield_callback(inter)
+            self.assertEqual(view.current_view, "shield")
+
+            # Test calendar view switch
+            await view._calendar_callback(inter)
+            self.assertEqual(view.current_view, "calendar")
+
+        asyncio.run(test_view_interactions())
+
+        # 8. Test /streak and /consistency command callbacks
+        mock_bot = MagicMock()
+        cog = WarriorCog(mock_bot)
+
+        async def test_streak_commands():
+            cmd_inter = MagicMock(spec=discord.Interaction)
+            cmd_inter.user = mock_member
+            cmd_inter.response = MagicMock()
+            cmd_inter.response.defer = AsyncMock()
+            cmd_inter.followup = MagicMock()
+            cmd_inter.followup.send = AsyncMock()
+
+            with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+                 patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+                 patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+                # /streak execution
+                await cog.streak_cmd.callback(cog, cmd_inter)
+                cmd_inter.followup.send.assert_called_once()
+                call_kw = cmd_inter.followup.send.call_args[1]
+                self.assertIn(STREAK_LEGEND_SUBTEXT, call_kw["content"])
+                self.assertEqual(call_kw["embed"].title, "📅 Winter Arc — Streak and Consistency")
+                self.assertIsInstance(call_kw["view"], StreakConsistencyView)
+
+                # /consistency execution
+                cmd_inter.followup.send.reset_mock()
+                await cog.consistency_cmd.callback(cog, cmd_inter)
+                cmd_inter.followup.send.assert_called_once()
+                call_kw2 = cmd_inter.followup.send.call_args[1]
+                self.assertIn(STREAK_LEGEND_SUBTEXT, call_kw2["content"])
+                self.assertEqual(call_kw2["embed"].title, "📅 Winter Arc — Streak and Consistency")
+
+        asyncio.run(test_streak_commands())
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
 

@@ -453,7 +453,7 @@ async def generate_phase_ceremony(
         next_str = f"Prepare for {next_phase_info['name']} tomorrow." if next_phase_info else "The Arc stands conquered."
         return f"{phase_info['name']} has concluded. {top_str} Slacking ends now. {next_str}"
 
-    top_summaries = [f"#{idx+1} {w['username']} ({w['total_points']:,} pts, {w.get('perfect_days', 0)} clean days)" for idx, w in enumerate(top_warriors[:3])]
+    top_summaries = [f"#{idx+1} {w['username']} ({w['total_points']:,} pts, {w.get('perfect_days', 0)} perfect days)" for idx, w in enumerate(top_warriors[:3])]
     bottom_summaries = [f"{w['username']} ({w['total_points']} pts)" for w in bottom_warriors[:3] if w['total_points'] == 0 or w['total_points'] < 100]
 
     next_phase_text = (

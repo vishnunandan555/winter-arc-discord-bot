@@ -15,6 +15,7 @@ import math
 import re
 from contextlib import contextmanager
 from datetime import datetime, date, timedelta
+import calendar
 from typing import List, Dict, Any, Optional, Tuple
 
 from config import DB_PATH, MIN_STREAK_POINTS, BOT_TZ
@@ -1847,6 +1848,256 @@ def get_user_overall_recap(discord_id: int, db_path: str = DB_PATH) -> Dict[str,
     }
 
 
+def get_server_records(phase_id: Optional[int] = None, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Computes server-wide benchmarks, records, and cumulative volume for a specific phase
+    or the overall campaign:
+    - Achievements & Records: Longest streak, Daily Maxers (highest single-day points),
+      Most Perfect Days, Most Grinded Member, Single Day Peaks per exercise.
+    - Server Totals: Total points, active contributors, total perfect days,
+      deep work sessions, and total exercise volume.
+    """
+    from phases import get_phase_by_id
+    phase = get_phase_by_id(phase_id) if phase_id is not None else None
+    start_date = phase["start_date"] if phase else None
+    end_date = phase["end_date"] if phase else None
+    today_str = get_today_str()
+    include_today = (start_date is None or (start_date <= today_str <= end_date))
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+
+        date_clause_summ = ""
+        date_params_summ: List[Any] = []
+        date_clause_logs = ""
+        date_params_logs: List[Any] = []
+
+        if start_date and end_date:
+            date_clause_summ = "WHERE s.date >= ? AND s.date <= ?"
+            date_params_summ = [start_date, end_date]
+            date_clause_logs = "WHERE l.date >= ? AND l.date <= ?"
+            date_params_logs = [start_date, end_date]
+
+        # 1. Longest Streak
+        longest_streak_record = None
+        enrolled_users = get_enrolled_users(db_path)
+        if not phase_id:
+            best_streak = 0
+            best_user = None
+            for u in enrolled_users:
+                u_streak = calculate_streak(u["discord_id"], db_path=db_path)
+                if u_streak > best_streak:
+                    best_streak = u_streak
+                    best_user = u
+            if best_user and best_streak > 0:
+                longest_streak_record = {
+                    "discord_id": best_user["discord_id"],
+                    "username": best_user["username"],
+                    "streak": best_streak,
+                }
+        else:
+            cursor.execute(f"""
+                SELECT u.discord_id, u.username, COUNT(s.id) as days_in_phase
+                FROM daily_summaries s
+                JOIN users u ON s.user_id = u.id
+                {date_clause_summ} AND (s.points >= {MIN_STREAK_POINTS} OR s.is_shielded = 1)
+                GROUP BY s.user_id
+                ORDER BY days_in_phase DESC, SUM(s.points) DESC
+                LIMIT 1;
+            """, date_params_summ)
+            s_row = cursor.fetchone()
+            if s_row and int(s_row["days_in_phase"]) > 0:
+                longest_streak_record = {
+                    "discord_id": s_row["discord_id"],
+                    "username": s_row["username"],
+                    "streak": int(s_row["days_in_phase"]),
+                }
+
+        # 2. Daily Maxers (Highest single day score and who hit it)
+        cursor.execute(f"""
+            SELECT u.discord_id, u.username, s.points, s.date
+            FROM daily_summaries s
+            JOIN users u ON s.user_id = u.id
+            {date_clause_summ}
+            ORDER BY s.points DESC
+            LIMIT 50;
+        """, date_params_summ)
+        summ_pts = cursor.fetchall()
+
+        live_pts_map: Dict[int, Dict[str, Any]] = {}
+        if include_today:
+            active_enrolled = get_enrolled_users(db_path)
+            for u in active_enrolled:
+                prog = get_user_daily_progress(u["discord_id"], today_str, db_path)
+                t_pts = prog.get("total_points", 0)
+                if t_pts > 0:
+                    live_pts_map[u["discord_id"]] = {
+                        "discord_id": u["discord_id"],
+                        "username": u["username"],
+                        "points": t_pts,
+                        "date": today_str,
+                    }
+
+        all_day_scores: List[Dict[str, Any]] = [dict(r) for r in summ_pts] + list(live_pts_map.values())
+        max_score = 0
+        max_users: List[Dict[str, Any]] = []
+        if all_day_scores:
+            max_score = max(r["points"] for r in all_day_scores)
+            if max_score > 0:
+                seen_uids = set()
+                for r in all_day_scores:
+                    if r["points"] == max_score and r["discord_id"] not in seen_uids:
+                        seen_uids.add(r["discord_id"])
+                        max_users.append({"discord_id": r["discord_id"], "username": r["username"]})
+
+        # 3. Most Perfect Days
+        cursor.execute(f"""
+            SELECT u.discord_id, u.username, SUM(s.perfect_day) AS perfect_count
+            FROM daily_summaries s
+            JOIN users u ON s.user_id = u.id
+            {date_clause_summ}
+            GROUP BY s.user_id
+            ORDER BY perfect_count DESC
+            LIMIT 1;
+        """, date_params_summ)
+        perf_row = cursor.fetchone()
+        most_perfect_record = None
+        if perf_row and int(perf_row["perfect_count"]) > 0:
+            most_perfect_record = {
+                "discord_id": perf_row["discord_id"],
+                "username": perf_row["username"],
+                "count": int(perf_row["perfect_count"]),
+            }
+
+        # 4. Most Grinded Member
+        grind_date_clause = "WHERE g.date >= ? AND g.date <= ?" if (start_date and end_date) else ""
+        grind_params = [start_date, end_date] if (start_date and end_date) else []
+        cursor.execute(f"""
+            SELECT u.discord_id, u.username, COUNT(g.id) AS sessions, COALESCE(SUM(g.points_awarded), 0) AS total_pts
+            FROM grind_logs g
+            JOIN users u ON g.user_id = u.id
+            {grind_date_clause}
+            {'AND' if grind_date_clause else 'WHERE'} g.points_awarded > 0
+            GROUP BY g.user_id
+            ORDER BY sessions DESC, total_pts DESC
+            LIMIT 1;
+        """, grind_params)
+        grind_row = cursor.fetchone()
+        most_grinded_record = None
+        if grind_row and int(grind_row["sessions"]) > 0:
+            most_grinded_record = {
+                "discord_id": grind_row["discord_id"],
+                "username": grind_row["username"],
+                "sessions": int(grind_row["sessions"]),
+                "points": int(grind_row["total_pts"]),
+            }
+
+        # 5. Single Day Peaks (per exercise)
+        active_tasks = get_active_tasks(db_path)
+        single_day_peaks = []
+        for t in active_tasks:
+            t_params = list(date_params_logs) + [t["id"]]
+            cursor.execute(f"""
+                SELECT u.discord_id, u.username, SUM(l.amount) AS day_total, l.date
+                FROM daily_logs l
+                JOIN users u ON l.user_id = u.id
+                {date_clause_logs} {'AND' if date_clause_logs else 'WHERE'} l.task_id = ?
+                GROUP BY l.user_id, l.date
+                ORDER BY day_total DESC
+                LIMIT 1;
+            """, t_params)
+            p_row = cursor.fetchone()
+            if p_row and float(p_row["day_total"]) > 0:
+                single_day_peaks.append({
+                    "task_name": t["name"],
+                    "unit": t["unit"],
+                    "amount": float(p_row["day_total"]),
+                    "discord_id": p_row["discord_id"],
+                    "username": p_row["username"],
+                    "date": p_row["date"],
+                })
+            else:
+                single_day_peaks.append({
+                    "task_name": t["name"],
+                    "unit": t["unit"],
+                    "amount": 0.0,
+                    "discord_id": None,
+                    "username": None,
+                    "date": None,
+                })
+
+        # 6. Server Totals
+        cursor.execute(f"""
+            SELECT COALESCE(SUM(points), 0) AS total_pts, COALESCE(SUM(perfect_day), 0) AS total_perfect
+            FROM daily_summaries s
+            {date_clause_summ};
+        """, date_params_summ)
+        tot_row = cursor.fetchone()
+        server_total_pts = int(tot_row["total_pts"]) if tot_row else 0
+        server_perfect_days = int(tot_row["total_perfect"]) if tot_row else 0
+
+        if include_today:
+            for l_item in live_pts_map.values():
+                server_total_pts += l_item["points"]
+
+        cursor.execute(f"""
+            SELECT COUNT(DISTINCT user_id) AS cnt
+            FROM (
+                SELECT user_id FROM daily_logs l {date_clause_logs}
+                UNION
+                SELECT user_id FROM daily_summaries s {date_clause_summ}
+            );
+        """, date_params_logs + date_params_summ)
+        active_contrib_row = cursor.fetchone()
+        active_contributors = int(active_contrib_row["cnt"]) if active_contrib_row else 0
+
+        cursor.execute(f"""
+            SELECT COUNT(id) AS cnt, COALESCE(SUM(points_awarded), 0) AS pts
+            FROM grind_logs g
+            {grind_date_clause} {'AND' if grind_date_clause else 'WHERE'} g.points_awarded > 0;
+        """, grind_params)
+        g_tot_row = cursor.fetchone()
+        total_grind_sessions = int(g_tot_row["cnt"]) if g_tot_row else 0
+        total_grind_pts = int(g_tot_row["pts"]) if g_tot_row else 0
+
+        server_task_totals = []
+        for t in active_tasks:
+            t_params = [t["id"]] + list(date_params_logs)
+            cursor.execute(f"""
+                SELECT COALESCE(SUM(l.amount), 0) AS total_volume
+                FROM daily_logs l
+                WHERE l.task_id = ? {'AND l.date >= ? AND l.date <= ?' if start_date and end_date else ''};
+            """, t_params)
+            vol_row = cursor.fetchone()
+            total_vol = float(vol_row["total_volume"]) if vol_row else 0.0
+            server_task_totals.append({
+                "name": t["name"],
+                "unit": t["unit"],
+                "total_volume": total_vol,
+            })
+
+    return {
+        "phase": phase,
+        "phase_id": phase_id,
+        "longest_streak": longest_streak_record,
+        "daily_maxers": {
+            "max_score": max_score,
+            "users": max_users,
+        },
+        "most_perfect_days": most_perfect_record,
+        "most_grinded": most_grinded_record,
+        "single_day_peaks": single_day_peaks,
+        "server_totals": {
+            "total_points": server_total_pts,
+            "active_contributors": active_contributors,
+            "total_perfect_days": server_perfect_days,
+            "deep_work_sessions": total_grind_sessions,
+            "deep_work_points": total_grind_pts,
+            "task_totals": server_task_totals,
+        },
+    }
+
+
 def archive_phase_snapshot(phase_id: int, db_path: str = DB_PATH, backup_dir: str = "backups") -> str:
     """
     Creates a dedicated, isolated SQLite snapshot for the specified phase.
@@ -1988,6 +2239,300 @@ def archive_phase_snapshot(phase_id: int, db_path: str = DB_PATH, backup_dir: st
         s_conn.commit()
 
     return os.path.abspath(snapshot_path)
+
+
+def get_user_longest_streak(discord_id: int, db_path: str = DB_PATH) -> int:
+    """Computes the user's all-time longest streak from historical daily_summaries, shield_logs, and live progress."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user or not user["enrolled"]:
+        return 0
+
+    today = get_today_date()
+    today_str = today.isoformat()
+
+    completed_dates = set()
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        # 1. Past dates meeting streak criteria
+        cursor.execute(f"""
+            SELECT date
+            FROM daily_summaries
+            WHERE user_id = ? AND (points >= {MIN_STREAK_POINTS} OR perfect_day = 1 OR is_shielded = 1);
+        """, (user["id"],))
+        for r in cursor.fetchall():
+            try:
+                completed_dates.add(date.fromisoformat(r["date"]))
+            except Exception:
+                pass
+
+        # 2. Shielded dates
+        cursor.execute("SELECT date FROM shield_logs WHERE user_id = ?;", (user["id"],))
+        for r in cursor.fetchall():
+            try:
+                completed_dates.add(date.fromisoformat(r["date"]))
+            except Exception:
+                pass
+
+    # 3. Check today's live completion
+    today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+    shield_status = get_user_shield_status(discord_id, db_path)
+    if today_prog["total_points"] >= MIN_STREAK_POINTS or today_prog["perfect_day"] or shield_status.get("is_today_shielded"):
+        completed_dates.add(today)
+
+    if not completed_dates:
+        return 0
+
+    sorted_dates = sorted(completed_dates)
+    longest = 1
+    curr = 1
+    for i in range(1, len(sorted_dates)):
+        if sorted_dates[i] == sorted_dates[i - 1] + timedelta(days=1):
+            curr += 1
+            if curr > longest:
+                longest = curr
+        elif sorted_dates[i] > sorted_dates[i - 1] + timedelta(days=1):
+            curr = 1
+
+    current_streak = calculate_streak(discord_id, db_path=db_path)
+    return max(longest, current_streak)
+
+
+def get_user_monthly_consistency(
+    discord_id: int,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    db_path: str = DB_PATH
+) -> Dict[str, Any]:
+    """
+    Constructs the monthly consistency matrix and statistics for the streak dashboard.
+    Returns:
+    - month_name, year
+    - rank_title (e.g. Dedicated, Initiate, etc.)
+    - calendar_grid: Mon-Sun formatted codeblock text with W1..W5 rows, ▪️ for other months, ▫️ for future days
+    - highlights: highest_streak, current_streak, active_days, elapsed_days, consistency_pct,
+                 total_points, avg_points, perfect_days, shields_used, shields_left
+    """
+    today = get_today_date()
+    target_year = year if year else today.year
+    target_month = month if month else today.month
+
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {
+            "user_id": 0,
+            "discord_id": discord_id,
+            "username": "Unknown",
+            "year": target_year,
+            "month": target_month,
+            "month_name": calendar.month_name[target_month],
+            "rank_title": "Initiate",
+            "calendar_grid": "",
+            "highlights": {
+                "highest_streak": 0,
+                "current_streak": 0,
+                "active_days": 0,
+                "elapsed_days": 0,
+                "consistency_pct": 0,
+                "total_points": 0,
+                "avg_points": 0,
+                "perfect_days": 0,
+                "shields_used": 0,
+                "shields_left": 0
+            }
+        }
+
+    # Discipline rank level
+    from levels import get_level_info
+    stats = get_user_stats(discord_id, db_path)
+    lvl_info = get_level_info(stats.get("lifetime_points", 0))
+
+    first_weekday, num_days = calendar.monthrange(target_year, target_month)
+    month_name = calendar.month_name[target_month]
+
+    start_date_str = f"{target_year:04d}-{target_month:02d}-01"
+    end_date_str = f"{target_year:04d}-{target_month:02d}-{num_days:02d}"
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT date, points, perfect_day, completion_rate, is_shielded
+            FROM daily_summaries
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date_str, end_date_str))
+        summaries = {r["date"]: dict(r) for r in cursor.fetchall()}
+
+        cursor.execute("""
+            SELECT date, reason
+            FROM shield_logs
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date_str, end_date_str))
+        shield_records = {r["date"]: dict(r) for r in cursor.fetchall()}
+
+    # Live today if today is in this month
+    today_in_month = (today.year == target_year and today.month == target_month)
+    today_prog = {}
+    today_shielded = False
+    if today_in_month:
+        today_prog = get_user_daily_progress(discord_id, today.isoformat(), db_path)
+        sh_status = get_user_shield_status(discord_id, db_path)
+        today_shielded = sh_status.get("is_today_shielded", False)
+
+    # Build per-day details for days 1..num_days
+    day_details = {}
+    for d in range(1, num_days + 1):
+        d_obj = date(target_year, target_month, d)
+        d_str = d_obj.isoformat()
+
+        if d_obj == today:
+            pts = today_prog.get("total_points", 0)
+            is_perfect = today_prog.get("perfect_day", False)
+            if today_shielded:
+                status = "🛡️"
+                completed = True
+            elif is_perfect:
+                status = "⭐"
+                completed = True
+            elif pts >= MIN_STREAK_POINTS:
+                status = "🟩"
+                completed = True
+            else:
+                status = "⏳"
+                completed = False
+
+            day_details[d] = {
+                "status": status,
+                "points": pts,
+                "completed": completed,
+                "is_perfect": is_perfect,
+                "is_shielded": today_shielded
+            }
+        elif d_str in summaries or d_str in shield_records:
+            # Recorded day in summaries or shield records
+            summ = summaries.get(d_str)
+            sh = shield_records.get(d_str)
+            pts = summ["points"] if summ else 0
+            is_shielded = bool(sh or (summ and summ["is_shielded"]))
+            is_perfect = bool(summ and summ["perfect_day"])
+
+            if is_shielded:
+                status = "🛡️"
+                completed = True
+            elif is_perfect:
+                status = "⭐"
+                completed = True
+            elif pts >= MIN_STREAK_POINTS:
+                status = "🟩"
+                completed = True
+            else:
+                status = "🟥"
+                completed = False
+
+            day_details[d] = {
+                "status": status,
+                "points": pts,
+                "completed": completed,
+                "is_perfect": is_perfect,
+                "is_shielded": is_shielded
+            }
+        elif d_obj > today:
+            # Future day in this month without records
+            day_details[d] = {
+                "status": "▫️",
+                "points": 0,
+                "completed": False,
+                "is_perfect": False,
+                "is_shielded": False
+            }
+        else:
+            # Past day without records (missed)
+            day_details[d] = {
+                "status": "🟥",
+                "points": 0,
+                "completed": False,
+                "is_perfect": False,
+                "is_shielded": False
+            }
+
+    # Group into Monday-Sunday calendar weeks
+    weeks = []
+    current_week = []
+
+    # 1. Leading days from other month
+    for _ in range(first_weekday):
+        current_week.append(("other_month", "▪️", 0, False))
+
+    # 2. Month days
+    for d in range(1, num_days + 1):
+        info = day_details[d]
+        current_week.append(("month_day", info["status"], info["points"], info["completed"]))
+        if len(current_week) == 7:
+            weeks.append(current_week)
+            current_week = []
+
+    # 3. Trailing days from next month
+    if current_week:
+        trailing = 7 - len(current_week)
+        for _ in range(trailing):
+            current_week.append(("other_month", "▪️", 0, False))
+        weeks.append(current_week)
+
+    grid_lines = ["     Mo  Tu  We  Th  Fr  Sa  Su"]
+    for idx, w in enumerate(weeks, 1):
+        month_cells = [c for c in w if c[0] == "month_day"]
+        month_days_count = len(month_cells)
+        completed_count = sum(1 for c in month_cells if c[3])
+        week_pts = sum(c[2] for c in month_cells)
+        emojis_str = "  ".join(c[1] for c in w)
+        grid_lines.append(f"W{idx}   {emojis_str}  — {completed_count}/{month_days_count} days ({week_pts:,} pts)")
+
+    calendar_grid = "\n".join(grid_lines)
+
+    # Highlights
+    active_days = sum(1 for d in day_details.values() if d["completed"])
+    if today_in_month:
+        elapsed_days = min(today.day, num_days)
+    elif date(target_year, target_month, 1) < today:
+        elapsed_days = num_days
+    else:
+        recorded_days = [d for d, v in day_details.items() if v["points"] > 0 or v["completed"]]
+        elapsed_days = max(recorded_days) if recorded_days else 0
+
+    consistency_pct = round((active_days / elapsed_days) * 100) if elapsed_days > 0 else 0
+    total_month_points = sum(d["points"] for d in day_details.values())
+    avg_points = round(total_month_points / elapsed_days) if elapsed_days > 0 else 0
+    perfect_days = sum(1 for d in day_details.values() if d["is_perfect"])
+    shields_used = sum(1 for d in day_details.values() if d["is_shielded"])
+
+    shield_status = get_user_shield_status(discord_id, db_path)
+    shields_left = shield_status.get("frost_shields", 0)
+
+    highest_streak = get_user_longest_streak(discord_id, db_path)
+    current_streak = calculate_streak(discord_id, db_path=db_path)
+
+    return {
+        "user_id": user["id"],
+        "discord_id": user["discord_id"],
+        "username": user["username"],
+        "year": target_year,
+        "month": target_month,
+        "month_name": month_name,
+        "rank_title": lvl_info["title"],
+        "calendar_grid": calendar_grid,
+        "highlights": {
+            "highest_streak": highest_streak,
+            "current_streak": current_streak,
+            "active_days": active_days,
+            "elapsed_days": elapsed_days,
+            "consistency_pct": consistency_pct,
+            "total_points": total_month_points,
+            "avg_points": avg_points,
+            "perfect_days": perfect_days,
+            "shields_used": shields_used,
+            "shields_left": shields_left
+        }
+    }
+
 
 
 

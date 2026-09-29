@@ -91,7 +91,7 @@ def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: O
             pts = entry["total_points"]
             badge = format_rank_badge(idx, pts=pts)
             clean = entry.get("perfect_days", 0)
-            clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
+            clean_str = f" • ⭐ {clean} perfect" if clean > 0 else ""
             lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts**{clean_str}")
 
     embed = discord.Embed(
@@ -124,7 +124,7 @@ def build_overall_leaderboard_embed() -> discord.Embed:
         if entry.get("streak", 0) > 0:
             extras.append(f"🔥 {entry['streak']}d")
         if entry.get("perfect_days", 0) > 0:
-            extras.append(f"⭐ {entry['perfect_days']} clean")
+            extras.append(f"⭐ {entry['perfect_days']} perfect")
         extra_str = f" • {' '.join(extras)}" if extras else ""
 
         lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts** *(Lvl {lvl_info['level']} {lvl_info['title']})*{extra_str}")
@@ -179,7 +179,7 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
             pts = entry["total_points"]
             badge = format_rank_badge(idx, pts=pts)
             clean = entry.get("perfect_days", 0)
-            clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
+            clean_str = f" • ⭐ {clean} perfect" if clean > 0 else ""
             lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts**{clean_str}")
 
     title_text = f"📆 Winter Arc — {month_name} Standings"
@@ -440,7 +440,7 @@ def build_stats_embed(target_user: discord.Member, data: Dict[str, Any]) -> disc
     desc = (
         f"**{target_user.display_name}** • {lvl['badge']} **Level {lvl['level']}: {lvl['title']}**\n\n"
         f"🔥 **Current Streak**: {streak} days\n"
-        f"⭐ **Clean Days**: {clean}\n"
+        f"⭐ **Perfect Days**: {clean}\n"
         f"💎 **Total Points**: {pts:,} pts\n"
         f"📅 **Active Days**: {active}\n\n"
         "**Lifetime Volume**\n"
@@ -645,10 +645,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
 
     if category == "logging":
         embed = discord.Embed(
-            title="⚡ Workout & AI Logging Manual",
+            title="⚡ Workout & AI Logging Engine",
             description=(
                 "Log your physical and mental friction every single day.\n"
-                "Supports natural language parsing, rigid slash commands, and dedicated channel logging."
+                "Supports natural language AI parsing, rapid set increments, count overrides, and verified deep work."
             ),
             color=0x3498DB
         )
@@ -658,89 +658,90 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
                 "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
                 "• **Example**: `/quick text: 40 squats, 30 situps then 20 more squats`\n"
-                "🛡️ *Safeguard*: Unrealistic volume will be rejected automatically."
+                "🛡️ *Safeguard*: Unrealistic single-set volume (>50 reps / >10 km) is rejected automatically to preserve integrity."
             ),
             inline=False
         )
         embed.add_field(
             name="💬 Dedicated `#quick-log` Channel",
             value=(
-                "Type your workout directly in `#quick-log` or `#fast-log` without any slash command prefix!\n"
-                "The bot will automatically parse the message, award your points, and react with 🐺."
+                "Type your completed workout directly in `#quick-log` without any slash command prefix!\n"
+                "The bot automatically parses the message, records your volume, and awards points."
             ),
             inline=False
         )
         embed.add_field(
-            name="📝 Traditional Logging (`/log` & `/set`)",
+            name="📝 Traditional Set Logging (`/log` & `/set`)",
             value=(
-                "• `/log [task] [amount]` — Adds reps or km to your current daily count.\n"
-                "• `/set [task] [amount]` — Overrides today's count directly. Set to `0` to wipe accidental entries."
+                "• `/log [task] [amount]` — Adds reps or km to your current daily count. Realistic single-set limits apply.\n"
+                "• `/set [task] [amount]` — Direct count override. Set to `0` to wipe accidental entries or reset."
             ),
             inline=False
         )
         embed.add_field(
-            name="🧠 `/grind [friction]` — Academic & Engineering Bonus (Gemini AI)",
+            name="🧠 `/grind [text]` — Academic & Engineering Deep Work (Gemini AI)",
             value=(
-                "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep reading).\n"
-                "• **Reward**: Up to **+60 bonus points** awarded directly to today's tally (Limit: 1/day).\n"
-                "• **Example**: `/grind friction: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
-                "🛡️ *Safe Retries*: If the AI service is temporarily offline, your daily attempt is never consumed."
+                "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep technical study).\n"
+                "• **Reward**: Up to **+60 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
+                "• **Example**: `/grind text: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
+                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Casual reading or passive browsing gets roasted."
             ),
             inline=False
         )
         embed.add_field(
-            name="⚡ Reactive Accountability",
+            name="⚡ Reactive AI Coach & Bot Tips",
             value=(
-                "When you log workouts or check progress (`/today`, `/tasks`, `/log`, `/quick`, `/streak`, `/profile`), "
-                "the bot directly reacts with high-energy motivation or calls you out if you're slacking. "
-                "These run asynchronously in the background so commands never experience any lag."
+                "When you run commands or log volume (`/today`, `/tasks`, `/log`, `/quick`, `/profile`, `/ranks`, "
+                "`/leaderboard`, `/stats`, `/history`, `/recap`, `/streak`, `/shield status`, `/shield use`, `/grind`), "
+                "the AI coach Amarok analyzes your results and speaks with sharp accountability (strictly excludes `/set`).\n"
+                "Helpful bot usage tips are also shared periodically across non-admin commands on a 10-minute timer."
             ),
             inline=False
         )
-        embed.set_footer(text="Use the menu below to navigate categories • Day resets at 00:00 IST")
+        embed.set_footer(text="Use the dropdown menu below to navigate categories • Day resets at 00:00 IST")
         return embed
 
     elif category == "progress":
         embed = discord.Embed(
-            title="📊 Progression, Ranks & Leaderboards",
-            description="Track your daily execution, climb the 12 pack ranks, and conquer the 4-phase arc.",
+            title="📊 Progression, Ranks & Analytics",
+            description="Track your daily execution, climb the 12 discipline tiers, and explore community benchmarks.",
             color=0x9B59B6
         )
         embed.add_field(
-            name="🎯 Daily Accountability",
+            name="🎯 Daily Tracking",
             value=(
-                "• `/today [member]` — Clean daily progress card with individual emoji progress bars, points, and completion rate.\n"
-                "• `/tasks [member]` — Extended disciplines overview with individual emoji progress bars, targets, and exercise descriptions.\n"
-                "• `/streak [member]` — Quick check of active streak days, clean days (100%), and Streak Shield protection status."
+                "• `/today [member]` — Live daily progress card with individual emoji progress bars, points breakdown, and live streak status.\n"
+                "• `/tasks [member]` — Extended disciplines overview with targets, units, muscle groups, and live progress bars.\n"
+                "• `/streak [member]` — Quick check of active streak days, Perfect Days (100%), and Streak Shield inventory."
             ),
             inline=False
         )
         embed.add_field(
             name="🎖️ 12-Tier Discipline Hierarchy",
             value=(
-                "• `/profile [member]` — Complete member profile with All-Time Rank (#X of Y), Discipline Rank, Next Level progression, and Daily Progress.\n"
-                "• `/ranks` — Inspect all 12 discipline tiers from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
+                "• `/profile [member]` — Complete member profile with All-Time Standing (#X of Y), Discipline Tier badge, XP to next rank, and daily status.\n"
+                "• `/ranks` — Inspect the full 12-tier discipline roadmap from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
             ),
             inline=False
         )
         embed.add_field(
-            name="🏆 Standings, Phases & History",
+            name="🏆 Standings, Benchmarks & Analytics",
             value=(
-                "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active/completed phases and overall campaign.\n"
                 "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
-                "• `/stats [member]` — Lifetime repetitions per discipline, total kilometers logged, and milestone records.\n"
-                "• `/history [days]` — View point breakdown and AI grind notes over the past 7, 14, or 30 days."
+                "• `/stats [phase]` — **Server Records & Benchmarks**! Explore server-wide PRs, longest streaks, single-day peak maxers, most Perfect Days, and community volume with interactive buttons for Overall, Phase 1, Phase 2, and Phase 3.\n"
+                "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active phases and overall campaign with training volume breakdown.\n"
+                "• `/history [days]` — View point breakdown and completion rates over the past 7, 14, or 30 days."
             ),
             inline=False
         )
-        embed.set_footer(text="Daily goal: 500 points • Apex rank unlocks at 12,000 points")
+        embed.set_footer(text="Daily goal: 500 points (Perfect Day) • Apex tier unlocks at 12,000 points")
         return embed
 
     elif category == "shields":
         embed = discord.Embed(
             title="🛡️ Streak Shield & Recovery System",
             description=(
-                "The Winter Arc demands relentless discipline, but smart recovery prevents collapse.\n"
+                "The Winter Arc demands relentless discipline, but intentional recovery prevents burnout.\n"
                 "Streak Shields protect your unbroken streak during rest days, sickness, travel, or exams."
             ),
             color=0x00D2FF
@@ -751,35 +752,35 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 f"• **Daily Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day (e.g. 5 push-ups, 5 sit-ups, 5 squats, 5 pull-ups, 1 km run) to maintain your streak.\n"
                 "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone**.\n"
                 "• **Inventory Cap**: You can hold a maximum of **2 Streak Shields** at any time.\n"
-                f"• **Auto-Protection**: If you finish a day under {MIN_STREAK_POINTS} points, a shield is automatically consumed at midnight to preserve your streak."
+                f"• **Auto-Protection**: If you miss a day with an active streak, a shield is automatically consumed at midnight as a safety net."
             ),
             inline=False
         )
         embed.add_field(
             name="🎮 Shield Commands",
             value=(
-                "• `/shield status` — View your current shield count (e.g. `1/2`) and countdown days to the next shield unlock.\n"
+                "• `/shield status` — View your current shield count (e.g. `1/2`), protection status for today, and countdown days to the next shield unlock.\n"
                 "• `/shield use [target_date] [reason]` — Consume a shield to protect your streak.\n"
-                "  — `target_date`: Choose `Today` (preemptive) or `Yesterday` (rescue a missed day).\n"
-                "  — `reason`: Optional label (e.g. *Leg day recovery, Travel, Sick*)."
+                "  — `target_date`: Choose `Today` (preemptive rest) or `Yesterday` (rescue a missed day).\n"
+                "  — `reason`: Optional label (e.g. *Muscle Recovery, Travel, Illness*)."
             ),
             inline=False
         )
-        embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak")
+        embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak milestone")
         return embed
 
     elif category == "settings":
         embed = discord.Embed(
             title="⚙️ Accountability, Settings & Utilities",
-            description="Manage your participation and customize automated direct messages.",
+            description="Manage personal reminder alerts and challenge lifecycle commands.",
             color=0x2ECC71
         )
         embed.add_field(
             name="🔔 `/settings` — Personal Direct Messages",
             value=(
                 "Configure automated private DM alerts sent directly to your inbox:\n"
-                "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets and motivation.\n"
-                "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you have unlogged points.\n"
+                "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets, motivation quote, and clean slate.\n"
+                "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you are below 30 points.\n"
                 "*(Requires Discord privacy settings to allow DMs from server members)*"
             ),
             inline=False
@@ -788,7 +789,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚔️ Enrollment & Utilities",
             value=(
                 "• `/enroll` — Join the Winter Arc challenge and establish your warrior profile.\n"
-                "• `/leave_arc` — Unenroll from active server rosters (lifetime stats preserved).\n"
+                "• `/leave_arc` — Unenroll from active server rosters (lifetime stats and points preserved).\n"
                 "• `/ping` — Check bot response time, gateway latency, and timezone synchronization."
             ),
             inline=False
@@ -824,6 +825,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="🖥️ System Diagnostics & Testing",
             value=(
                 "• `/admin health` — Live RSS RAM monitor, SQLite file sizes, uptime, and one-click **🧹 Collect GC & Free RAM** button.\n"
+                "• `/admin finalize_day` — Manually trigger midnight point locks, streak rolls, and daily summaries.\n"
                 "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, Sunday, DM briefings, or reactive Groq observations (`groq_nudge`)."
             ),
             inline=False
@@ -838,6 +840,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             description=(
                 "**Welcome to the Winter Arc (Oct 1 – Jan 31).**\n"
                 "A 4-phase challenge of daily physical and mental discipline.\n"
+                "Daily Standard: **500 points (Perfect Day)** • **30 pts/day minimum** to keep your streak alive.\n"
                 "Use the interactive dropdown menu below to deep-dive into each subsystem."
             ),
             color=0x2B2D31
@@ -849,7 +852,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• 🧗 **Pull-ups**: 100 reps *(1 pt / rep)*\n"
                 "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
                 "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
-                "• 🏃 **Running**: 10 km *(1 pt / 100m)*\n"
+                "• 🏃 **Running**: 10 km *(1 pt / 100m / 10 pts per km)*\n"
                 "• 🧠 **Grind Bonus**: Up to +60 pts daily (`/grind`)"
             ),
             inline=False
@@ -879,11 +882,11 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚡ Command Directory Cheat Sheet",
             value=(
                 "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
-                "• **Progress**: `/today` • `/tasks` • `/streak` • `/profile` • `/stats` • `/history`\n"
-                "• **Standings & Phases**: `/leaderboard` • `/recap` • `/ranks`\n"
+                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/profile` • `/ranks`\n"
+                "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
                 "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
-                "• **Admin**: `/admin set_channel` • `/admin overview` • `/admin health` • `/test_reminder`"
+                "• **Admin**: `/admin set_channel` • `/admin set_role` • `/admin overview` • `/admin health` • `/test_reminder`"
             ),
             inline=False
         )
@@ -1184,7 +1187,7 @@ def build_midnight_finalization_message(
         podium_lines.append(f"{rank_badge} {user_mention} — **{pts} pts** ({pct}%){perfect_star}")
 
     board_section = "\n".join(podium_lines) if podium_lines else "_No activity logged for this day._"
-    clean_sweeps = f"\n\n🔥 **Clean Sweeps**: **{perfect_count}** member(s) hit 100%." if perfect_count > 0 else ""
+    clean_sweeps = f"\n\n🔥 **Perfect Days**: **{perfect_count}** member(s) hit 100%." if perfect_count > 0 else ""
 
     subtext = "-# Fresh slate is open • Check your board with /today • Rollover at midnight"
 
@@ -1220,7 +1223,7 @@ def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> disc
     if not podium_lines:
         podium_lines.append("_No activity logged for this day._")
 
-    perfect_info = f"\n\n🔥 **Clean Sweeps**: **{perfect_count}** member(s) completed 100%." if perfect_count > 0 else ""
+    perfect_info = f"\n\n🔥 **Perfect Days**: **{perfect_count}** member(s) completed 100%." if perfect_count > 0 else ""
 
     embed = discord.Embed(
         title=f"🌙 Winter Arc — Daily Finalization • {title_date}",
@@ -1242,7 +1245,7 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
     shield_icons = shield_icons.strip()
 
     active_tag = "🟢 **Active Today** (Rest day declared)" if status["is_today_shielded"] else "⚪ **Inactive** (Regular training day)"
-    next_tag = f"**{status['days_until_next_shield']} day(s)** of clean streak until next shield" if shields < status["max_shields"] else "💎 **MAX SHIELDS STORED (2/2)**"
+    next_tag = f"**{status['days_until_next_shield']} day(s)** of streak until next shield" if shields < status["max_shields"] else "💎 **MAX SHIELDS STORED (2/2)**"
 
     history_lines = []
     for h in status.get("recent_uses", []):
@@ -1679,7 +1682,7 @@ def build_phase_podium_embed(
     podium_lines = []
     for idx, u in enumerate(top_3):
         crown = ["🥇", "🥈", "🥉"][idx]
-        podium_lines.append(f"{crown} **{u['username']}** — **{u['total_points']:,} pts** ⭐ {u.get('perfect_days', 0)} clean")
+        podium_lines.append(f"{crown} **{u['username']}** — **{u['total_points']:,} pts** ⭐ {u.get('perfect_days', 0)} perfect")
 
     other_lines = []
     for idx, u in enumerate(leaderboard[3:10], start=4):
@@ -1734,7 +1737,7 @@ def build_phase_conclusion_message(
         d_id = u.get("discord_id")
         user_mention = f"<@{d_id}>" if d_id else f"**{u['username']}**"
         clean = u.get("perfect_days", 0)
-        clean_str = f" *({clean} clean days)*" if clean > 0 else ""
+        clean_str = f" *({clean} perfect days)*" if clean > 0 else ""
         top_lines.append(f"{badge} {user_mention} — **{u['total_points']:,} pts**{clean_str}")
 
     runners_up = []
@@ -1756,7 +1759,7 @@ def build_phase_conclusion_message(
     totals_block = (
         f"**🌐 Community Phase {p_num} Totals**\n"
         f"• Active Participants: `{active_count}`\n"
-        f"• Clean Days Logged: `{total_clean}`\n"
+        f"• Perfect Days Logged: `{total_clean}`\n"
         f"• Total Volume: `{total_pts:,} pts`"
     )
 
@@ -1778,5 +1781,201 @@ def build_phase_conclusion_message(
     return "\n\n".join(sections)
 
 
+def build_server_records_embed(records: Dict[str, Any], phase_id: Optional[int] = None) -> discord.Embed:
+    """Builds the Server Records & Benchmarks embed for Phase 1-3 or Overall."""
+    phase = records.get("phase")
+    is_overall = phase is None
 
+    # Title & Header
+    if not is_overall:
+        p_name = phase.get("name", "PHASE")
+        p_short = phase.get("short_name", f"Phase {phase_id}")
+        p_color = phase.get("color", 0x3498DB)
+        title = f"{p_short}: {p_name} — Server Records"
+        subtitle = f"*Top community benchmarks and combined volume for {p_name}*\n\n"
+        footer_text = f"Phase Window: {phase.get('start_date')} to {phase.get('end_date')} • Live Server Benchmarks"
+    else:
+        title = "Winter Arc — All-Time Server Records"
+        subtitle = "*Cumulative campaign benchmarks across all phases*\n\n"
+        p_color = 0x2C3E50
+        footer_text = "Oct 1 – Jan 31 • Cumulative Arc Performance"
+
+    # 1. Achievements & Records
+    achievements_lines = ["👑 **Achievements & Records**"]
+
+    # Longest Streak
+    ls = records.get("longest_streak")
+    if ls and ls.get("streak", 0) > 0:
+        u_str = f"<@{ls['discord_id']}>" if ls.get("discord_id") else f"**{ls.get('username', 'Nobody')}**"
+        achievements_lines.append(f"🔥 **Longest Streak**: **{ls['streak']} days** — {u_str}")
+    else:
+        achievements_lines.append("🔥 **Longest Streak**: _None recorded yet_")
+
+    # Daily Maxers
+    dm = records.get("daily_maxers", {})
+    max_score = dm.get("max_score", 0)
+    users = dm.get("users", [])
+    if max_score > 0 and users:
+        u_list = [f"<@{u['discord_id']}>" if u.get("discord_id") else f"**{u.get('username')}**" for u in users[:3]]
+        u_str = ", ".join(u_list)
+        if len(users) > 3:
+            u_str += f" *(+{len(users) - 3} more)*"
+        achievements_lines.append(f"⚡ **Daily Maxers**: **{max_score} pts** — {u_str}")
+    else:
+        achievements_lines.append("⚡ **Daily Maxers**: _None yet_")
+
+    # Most Perfect Days
+    mp = records.get("most_perfect_days")
+    if mp and mp.get("count", 0) > 0:
+        u_str = f"<@{mp['discord_id']}>" if mp.get("discord_id") else f"**{mp.get('username')}**"
+        achievements_lines.append(f"⭐ **Most Perfect Days**: **{mp['count']} days** — {u_str}")
+    else:
+        achievements_lines.append("⭐ **Most Perfect Days**: _None yet_")
+
+    # Most Grinded Member
+    mg = records.get("most_grinded")
+    if mg and mg.get("sessions", 0) > 0:
+        u_str = f"<@{mg['discord_id']}>" if mg.get("discord_id") else f"**{mg.get('username')}**"
+        achievements_lines.append(f"🧠 **Most Grinded Member**: **{mg['sessions']} sessions** *(+{mg['points']:,} pts)* — {u_str}")
+    else:
+        achievements_lines.append("🧠 **Most Grinded Member**: _None yet_")
+
+    # Single Day Peaks
+    peak_lines = []
+    for p in records.get("single_day_peaks", []):
+        name = p["task_name"]
+        icon = TASK_ICONS.get(name.lower(), "🎯")
+        unit = p["unit"]
+        amt = format_num(p["amount"])
+        if p.get("amount", 0) > 0 and p.get("discord_id"):
+            u_str = f"<@{p['discord_id']}>"
+            peak_lines.append(f"• {icon} **{name}**: `{amt:,} {unit}` — {u_str}")
+        else:
+            peak_lines.append(f"• {icon} **{name}**: `0 {unit}`")
+
+    single_day_peaks_block = "\n\n**Single Day Peaks**\n" + "\n".join(peak_lines)
+
+    # 2. Server Totals
+    st = records.get("server_totals", {})
+    totals_lines = [
+        "────────────────────────────────────────\n",
+        "🌐 **Server Totals**",
+        f"💎 **Total Points**: **{st.get('total_points', 0):,} pts**",
+        f"👥 **Active Contributors**: **{st.get('active_contributors', 0)} members**",
+        f"⭐ **Total Perfect Days**: **{st.get('total_perfect_days', 0)} perfect days**",
+        f"🧠 **Deep Work Sessions**: **{st.get('deep_work_sessions', 0)} logs** *(+{st.get('deep_work_points', 0):,} pts)*",
+    ]
+
+    vol_lines = []
+    for t in st.get("task_totals", []):
+        icon = TASK_ICONS.get(t["name"].lower(), "🎯")
+        val = format_num(t["total_volume"])
+        vol_lines.append(f"• {icon} **{t['name']}**: `{val:,} {t['unit']}`")
+
+    volume_block = "\n\n**Total Volume**\n" + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged yet._")
+
+    desc = (
+        subtitle
+        + "\n".join(achievements_lines)
+        + single_day_peaks_block
+        + "\n\n"
+        + "\n".join(totals_lines)
+        + volume_block
+    )
+
+    embed = discord.Embed(
+        title=title,
+        description=desc,
+        color=p_color
+    )
+    embed.set_footer(text=footer_text)
+    return embed
+
+
+def format_embed_as_text(embed: discord.Embed) -> str:
+    """Extracts all text fields from a Discord Embed into a clean unedited string representation."""
+    parts = []
+    if embed.title:
+        parts.append(embed.title)
+    if embed.description:
+        parts.append(embed.description)
+    for field in embed.fields:
+        parts.append(f"{field.name}:\n{field.value}")
+    if embed.footer and embed.footer.text:
+        parts.append(f"Footer: {embed.footer.text}")
+    return "\n\n".join(parts).strip()
+
+
+STREAK_LEGEND_SUBTEXT = "-# 🟩 Streak Preserved (30+ pts) • ⭐ Perfect Day (100%) • 🛡️ Streak Shield • ▫️ Upcoming"
+
+
+def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
+    """Builds the monthly habit calendar, streak matrix, and consistency highlights embed."""
+    title = "📅 Winter Arc — Streak and Consistency"
+
+    name = user.display_name.upper()
+    month_str = data.get("month_name", "Month").upper()
+    year_str = str(data.get("year", 2026))
+    rank_title = data.get("rank_title", "Initiate").upper()
+    sub_header = f"`{name}` | `{month_str} {year_str}` | `{rank_title}`"
+
+    grid_block = f"```text\n{data.get('calendar_grid', '')}\n```"
+
+    h = data.get("highlights", {})
+    highest_streak = h.get("highest_streak", 0)
+    current_streak = h.get("current_streak", 0)
+    active_days = h.get("active_days", 0)
+    elapsed_days = h.get("elapsed_days", 0)
+    consistency_pct = h.get("consistency_pct", 0)
+    total_points = h.get("total_points", 0)
+    avg_points = h.get("avg_points", 0)
+    perfect_days = h.get("perfect_days", 0)
+    shields_used = h.get("shields_used", 0)
+    shields_left = h.get("shields_left", 0)
+
+    highlights_block = (
+        "──────────────────────────────────────────────\n"
+        "🏆 **Month Highlights:**\n"
+        f"• Highest Streak: 🏔️ **{highest_streak} Days**\n"
+        f"• Current Streak: 🔥 **{current_streak} days**\n"
+        f"• Consistency: 📅 **{active_days}/{elapsed_days} days active ({consistency_pct}%)**\n"
+        f"• Volume: ⚡ **{total_points:,} total pts (Avg: {avg_points:,} pts/day)**\n"
+        f"• Perfect Days: ⭐ **{perfect_days} (Per day 100% completion)**\n"
+        f"• Streak Shields Used: 🛡️ **{shields_used}x ({shields_left} Left)**"
+    )
+
+    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}"
+
+    embed = discord.Embed(
+        title=title,
+        description=desc,
+        color=0xE67E22 if current_streak > 0 else 0x95A5A6
+    )
+    embed.set_footer(text="Daily standard: 500 points • 30 pts/day to maintain streak • Max 2 shields")
+    return embed
+
+
+def build_quick_streak_embed(user: Any, streak: int, shield_status: Dict[str, Any], stats: Dict[str, Any]) -> discord.Embed:
+    """Builds the compact quick streak status card."""
+    next_milestone = ((streak // 7) + 1) * 7
+    days_to_milestone = next_milestone - streak
+
+    shields_count = shield_status.get("frost_shields", shield_status.get("inventory", 0))
+    is_shielded = shield_status.get("is_today_shielded", shield_status.get("is_shielded_today", False))
+
+    desc = (
+        f"**{user.display_name}** • Streak Status\n\n"
+        f"🔥 **Current Streak**: **{streak} days**\n"
+        f"⭐ **Perfect Days (100%)**: **{stats.get('perfect_days', 0)}**\n"
+        f"🛡️ **Streak Shields**: **{shields_count}/2 available**\n"
+        f"⏳ **Next Shield Milestone**: **{days_to_milestone} day(s)** (at Day {next_milestone})\n\n"
+        + ("🛡️ *Protected by Streak Shield today!*" if is_shielded else "⚡ *Log at least 30 points today to maintain your streak.*")
+    )
+    embed = discord.Embed(
+        title="🔥 Winter Arc — Streak Status",
+        description=desc,
+        color=0xE67E22 if streak > 0 else 0x95A5A6
+    )
+    embed.set_footer(text="Requires 30+ pts/day to preserve streak • Max 2 Streak Shields")
+    return embed
 

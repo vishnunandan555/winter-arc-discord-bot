@@ -48,7 +48,7 @@ Modelled after the legendary **Saitama training challenge** (100 push-ups, 100 s
 > **High Ceiling. Zero Barrier. Every Rep Counts**:  
 > 500 points a day is a brutal mountain &mdash; and that is the point. You are not expected to hit peak volume on day one. Whether you can only grind out 10 push-ups, 2 pull-ups, or jog a single kilometer today, **log it**. Every single repetition earns points toward your pack rank. The Winter Arc is about locking in, embracing the cold, and stacking volume in silence until you become undeniable.
 > 
-> Maxing out all 500 daily points earns **Clean Day** status and fuels your active streak.
+> Maxing out all 500 daily points earns **Perfect Day** status and fuels your active streak.
 
 ### 2. Dual Logging Engine
 - `/log [task] [amount]`: Progressively adds completed reps or kilometers throughout the day.
@@ -59,7 +59,7 @@ Modelled after the legendary **Saitama training challenge** (100 push-ups, 100 s
 - **Friction & Academic Grind (Google Gemini)**: `/grind [text]` allows warriors to submit daily deep work, studying, or engineering friction to receive verified bonus points (1x per day, +10 to +60 pts).
 
 ### 4. Streak System & Streak Shield Defense
-- Daily streaks advance with consecutive Clean Days (at least 30 points).
+- Daily streaks advance with consecutive active days (at least 30 points) or Perfect Days (500 points).
 - To prevent injury or demoralization from illness, members earn **Streak Shields** by achieving 7-day streak milestones. Activating a shield with `/shield use` protects an active streak across a necessary recovery day.
 
 ### 5. Automated Cadence

@@ -143,7 +143,7 @@ class HelpView(discord.ui.View):
         options=[
             discord.SelectOption(label="Manual Overview", value="overview", description="Rules, 4 phases, 500 daily targets & schedule", emoji="📜"),
             discord.SelectOption(label="Workout & AI Logging", value="logging", description="/quick, /log, /set, /grind & #quick-log", emoji="⚡"),
-            discord.SelectOption(label="Progress & Ranks", value="progress", description="/today, /profile, /leaderboard, /recap, /ranks", emoji="📊"),
+            discord.SelectOption(label="Progress & Analytics", value="progress", description="/today, /profile, /leaderboard, /stats, /recap, /ranks", emoji="📊"),
             discord.SelectOption(label="Streak Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
             discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /enroll, /leave_arc", emoji="⚙️"),
             discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
@@ -218,5 +218,228 @@ class RecapView(discord.ui.View):
         stats = db.get_user_overall_recap(self.target_user.id)
         embed = build_recap_embed(self.target_user, stats, is_overall=True)
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+class ServerRecordsView(discord.ui.View):
+    """
+    Interactive view for /stats allowing members to switch between
+    Overall (All-Time) and Phases 1, 2, 3 server benchmarks.
+    Overall is the first button and default view.
+    """
+    def __init__(self, author_id: int, current_selection: str = "overall"):
+        super().__init__(timeout=300)
+        self.author_id = author_id
+        self.current_selection = current_selection
+        self._build_buttons()
+
+    def _build_buttons(self):
+        self.clear_items()
+
+        # 1. Overall button (FIRST button, default)
+        is_overall = (self.current_selection == "overall")
+        overall_btn = discord.ui.Button(
+            label="Overall",
+            style=discord.ButtonStyle.primary if is_overall else discord.ButtonStyle.secondary,
+            custom_id="records_overall",
+            disabled=is_overall
+        )
+        overall_btn.callback = self._overall_callback
+        self.add_item(overall_btn)
+
+        # 2. Phase 1, Phase 2, Phase 3 buttons
+        from phases import PHASES
+        phase_list = [p for p in PHASES if p["id"] <= 3]
+        for p in phase_list:
+            btn_id = f"phase_{p['id']}"
+            is_active = (self.current_selection == btn_id)
+            btn = discord.ui.Button(
+                label=p['short_name'],
+                style=discord.ButtonStyle.primary if is_active else discord.ButtonStyle.secondary,
+                custom_id=f"records_{btn_id}",
+                disabled=is_active
+            )
+            btn.callback = self._make_phase_callback(p["id"], btn_id)
+            self.add_item(btn)
+
+    def _make_phase_callback(self, phase_id: int, btn_id: str):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author_id:
+                await interaction.response.send_message("Only the member who ran /stats can navigate these records.", ephemeral=True)
+                return
+            self.current_selection = btn_id
+            self._build_buttons()
+            import database as db
+            from ui.embeds import build_server_records_embed
+            data = db.get_server_records(phase_id)
+            embed = build_server_records_embed(data, phase_id=phase_id)
+            await interaction.response.edit_message(embed=embed, view=self)
+        return callback
+
+    async def _overall_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran /stats can navigate these records.", ephemeral=True)
+            return
+        self.current_selection = "overall"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_server_records_embed
+        data = db.get_server_records(None)
+        embed = build_server_records_embed(data, phase_id=None)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
+class StreakConsistencyView(discord.ui.View):
+    """
+    Interactive view for /streak and /consistency allowing members to:
+    - View the full monthly calendar consistency matrix
+    - Toggle back to the compact quick streak status card
+    - Inspect Streak Shield protection and recovery details
+    - Flip between past, current, and upcoming challenge months
+    """
+    def __init__(
+        self,
+        target_user: Any,
+        author_id: int,
+        year: int,
+        month: int,
+        current_view: str = "calendar"
+    ):
+        super().__init__(timeout=300)
+        self.target_user = target_user
+        self.author_id = author_id
+        self.year = year
+        self.month = month
+        self.current_view = current_view
+        self._build_buttons()
+
+    def _build_buttons(self):
+        self.clear_items()
+
+        # Row 0: View switches
+        is_cal = (self.current_view == "calendar")
+        cal_btn = discord.ui.Button(
+            label="📅 Monthly Calendar",
+            style=discord.ButtonStyle.primary if is_cal else discord.ButtonStyle.secondary,
+            custom_id="streak_view_calendar",
+            disabled=is_cal,
+            row=0
+        )
+        cal_btn.callback = self._calendar_callback
+        self.add_item(cal_btn)
+
+        is_quick = (self.current_view == "quick")
+        quick_btn = discord.ui.Button(
+            label="🔥 Quick Streak",
+            style=discord.ButtonStyle.primary if is_quick else discord.ButtonStyle.secondary,
+            custom_id="streak_view_quick",
+            disabled=is_quick,
+            row=0
+        )
+        quick_btn.callback = self._quick_callback
+        self.add_item(quick_btn)
+
+        is_shield = (self.current_view == "shield")
+        shield_btn = discord.ui.Button(
+            label="🛡️ Shield Status",
+            style=discord.ButtonStyle.primary if is_shield else discord.ButtonStyle.secondary,
+            custom_id="streak_view_shield",
+            disabled=is_shield,
+            row=0
+        )
+        shield_btn.callback = self._shield_callback
+        self.add_item(shield_btn)
+
+        # Row 1: Month navigation (only relevant for calendar)
+        prev_btn = discord.ui.Button(
+            label="◀ Prev Month",
+            style=discord.ButtonStyle.secondary,
+            custom_id="streak_prev_month",
+            row=1
+        )
+        prev_btn.callback = self._prev_month_callback
+        self.add_item(prev_btn)
+
+        next_btn = discord.ui.Button(
+            label="Next Month ▶",
+            style=discord.ButtonStyle.secondary,
+            custom_id="streak_next_month",
+            row=1
+        )
+        next_btn.callback = self._next_month_callback
+        self.add_item(next_btn)
+
+    async def _calendar_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
+            return
+        self.current_view = "calendar"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_streak_consistency_embed, STREAK_LEGEND_SUBTEXT
+        data = db.get_user_monthly_consistency(self.target_user.id, year=self.year, month=self.month)
+        embed = build_streak_consistency_embed(self.target_user, data)
+        await interaction.response.edit_message(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=self)
+
+    async def _quick_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
+            return
+        self.current_view = "quick"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_quick_streak_embed
+        today_str = db.get_today_str()
+        streak = db.calculate_streak(self.target_user.id, today_str)
+        shield_status = db.get_user_shield_status(self.target_user.id)
+        stats = db.get_user_stats(self.target_user.id)
+        embed = build_quick_streak_embed(self.target_user, streak, shield_status, stats)
+        await interaction.response.edit_message(content=None, embed=embed, view=self)
+
+    async def _shield_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
+            return
+        self.current_view = "shield"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_shield_status_embed
+        status = db.get_user_shield_status(self.target_user.id)
+        embed = build_shield_status_embed(self.target_user, status)
+        await interaction.response.edit_message(content=None, embed=embed, view=self)
+
+    async def _prev_month_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
+            return
+        if self.month == 1:
+            self.month = 12
+            self.year -= 1
+        else:
+            self.month -= 1
+        self.current_view = "calendar"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_streak_consistency_embed, STREAK_LEGEND_SUBTEXT
+        data = db.get_user_monthly_consistency(self.target_user.id, year=self.year, month=self.month)
+        embed = build_streak_consistency_embed(self.target_user, data)
+        await interaction.response.edit_message(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=self)
+
+    async def _next_month_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
+            return
+        if self.month == 12:
+            self.month = 1
+            self.year += 1
+        else:
+            self.month += 1
+        self.current_view = "calendar"
+        self._build_buttons()
+        import database as db
+        from ui.embeds import build_streak_consistency_embed, STREAK_LEGEND_SUBTEXT
+        data = db.get_user_monthly_consistency(self.target_user.id, year=self.year, month=self.month)
+        embed = build_streak_consistency_embed(self.target_user, data)
+        await interaction.response.edit_message(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=self)
+
 
 

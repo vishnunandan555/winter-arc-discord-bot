@@ -216,7 +216,7 @@ REACTIVE_STOIC_FALLBACKS = [
     "Stop checking your numbers and go put more work on the board.",
     "The day is slipping away. Finish your remaining disciplines before midnight.",
     "Think of how long you have put this off. Put the work on the board.",
-    "Good pace so far, but don't get comfortable until you hit clean day.",
+    "Good pace so far, but don't get comfortable until you hit a Perfect Day.",
     "No man is more unhappy than he who never faces adversity. Keep pushing.",
 ]
 
@@ -225,10 +225,11 @@ async def generate_reactive_nudge(
     user_name: str,
     command_name: str,
     progression: Dict[str, Any],
+    command_output: str = "",
 ) -> Optional[str]:
     """
     Generates an ultra-fast, contextual 1-2 sentence high-energy reaction
-    based on the user's live progression snapshot using Groq.
+    based on the user's live progression snapshot and exact command output using Groq.
     Direct, motivating or roasting, grounded in actual numbers, with occasional
     familiar stoic discipline wisdom woven in. Zero AI slop, zero fantasy melodrama.
     """
@@ -252,13 +253,16 @@ async def generate_reactive_nudge(
         "   - ZERO POINTS OR STAT-CHECKING GETS FLATTENED: If user has 0 points and is just checking /today or /profile without moving, roast them for wasting daylight.\n"
         "     * Examples: 'Zero points on the board and you are admiring your stats? Drop and start moving.'\n"
         "     * 'You opened Discord to stare at a flat zero. Stop scrolling and put reps on the board.'\n"
-        "2. NO ROBOTIC PERCENTAGE MATH: NEVER cite exact mathematical percentages like 'you are 90% behind' or '10% complete'. Speak like an intense training partner in the gym.\n"
-        "3. MOMENTUM & CLOSING OUT THE BOARD:\n"
-        "   - If they have solid progress across tasks, push them aggressively to lock in a clean day before midnight.\n"
-        "     * Example: 'Four disciplines down. You are too close to a clean day to leave squats unfinished tonight.'\n"
-        "4. OCCASIONAL STOIC WISDOM: Roughly 20% of the time, weave in a razor-sharp stoic or warrior truth (Marcus Aurelius, Seneca, Epictetus, Musashi) to cut through excuses.\n"
-        "5. NO FANTASY ROLEPLAY: Strictly ban medieval wolf/gothic metaphors ('the moon calls', 'the shadows', 'the crucible'). Keep it raw, modern, and athletic.\n"
-        "6. LENGTH & FORMAT: Exactly 1 to 2 short sentences (STRICTLY under 25 words total). Output ONLY plain text, no quotes, no prefix, no emojis."
+        "2. USE THE COMMAND OUTPUT FOR REPLYING:\n"
+        "   - You are provided with the exact command output/result shown to the user (e.g. leaderboard standings, server stats, task list, streak status, history, etc.).\n"
+        "   - Use the command output and context directly to ground your reaction, commenting on what they saw, where they rank, or what they just achieved.\n"
+        "3. NO ROBOTIC PERCENTAGE MATH: NEVER cite exact mathematical percentages like 'you are 90% behind' or '10% complete'. Speak like an intense training partner in the gym.\n"
+        "4. MOMENTUM & CLOSING OUT THE BOARD:\n"
+        "   - If they have solid progress across tasks, push them aggressively to lock in a Perfect Day before midnight.\n"
+        "     * Example: 'Four disciplines down. You are too close to a Perfect Day to leave squats unfinished tonight.'\n"
+        "5. OCCASIONAL STOIC WISDOM: Roughly 20% of the time, weave in a razor-sharp stoic or warrior truth (Marcus Aurelius, Seneca, Epictetus, Musashi) to cut through excuses.\n"
+        "6. NO FANTASY ROLEPLAY: Strictly ban medieval wolf/gothic metaphors ('the moon calls', 'the shadows', 'the crucible'). Keep it raw, modern, and athletic.\n"
+        "7. LENGTH & FORMAT: Exactly 1 to 2 short sentences (STRICTLY under 30 words total). Output ONLY plain text, no quotes, no prefix, no emojis."
     )
 
     pts = progression.get("points", 0)
@@ -282,6 +286,8 @@ async def generate_reactive_nudge(
         user_prompt += f"Completed: {', '.join(completed[:3])}\n"
     if pending:
         user_prompt += f"Pending: {', '.join(pending[:3])}\n"
+    if command_output:
+        user_prompt += f"\nCommand Output / Result:\n{command_output}\n"
 
     try:
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for reactive observation: {user_name} on /{command_name}...")
@@ -293,7 +299,7 @@ async def generate_reactive_nudge(
             ],
             model=GROQ_MODEL,
             temperature=0.8,
-            max_tokens=60,
+            max_tokens=80,
         )
         latency = time.time() - start_t
 
@@ -312,7 +318,7 @@ async def generate_reactive_nudge(
 
 
 _last_nudge_timestamps: Dict[int, float] = {}
-NUDGE_COOLDOWN_SECONDS: float = 3600.0  # 1 hour per user
+NUDGE_COOLDOWN_SECONDS: float = 1800.0  # 30 minutes per user
 
 
 def should_trigger_nudge(user_id: int, force: bool = False, roll_chance: float = 0.35) -> bool:
@@ -350,6 +356,7 @@ async def dispatch_interaction_nudge(
     command_name: str,
     progression: Optional[Dict[str, Any]] = None,
     extra_info: str = "",
+    command_output: str = "",
     force: bool = False,
 ):
     """
@@ -388,6 +395,7 @@ async def dispatch_interaction_nudge(
             user_name=user_name,
             command_name=command_name,
             progression=progression,
+            command_output=command_output,
         )
         if nudge:
             content = f"<@{user_id}> {nudge}"
@@ -422,6 +430,7 @@ async def dispatch_channel_nudge(
     command_name: str,
     progression: Optional[Dict[str, Any]] = None,
     extra_info: str = "",
+    command_output: str = "",
     force: bool = False,
     message: Optional[Any] = None,
 ):
@@ -461,6 +470,7 @@ async def dispatch_channel_nudge(
             user_name=user_name,
             command_name=command_name,
             progression=progression,
+            command_output=command_output,
         )
         if nudge:
             if message and hasattr(message, "reply"):
