@@ -96,7 +96,7 @@ class SettingsView(discord.ui.View):
 
     async def _guard_user(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ These settings belong to another warrior. Run `/settings` to manage yours.", ephemeral=True)
+            await interaction.response.send_message("❌ These settings belong to another member. Run `/settings` to manage yours.", ephemeral=True)
             return False
         return True
 
@@ -141,9 +141,9 @@ class HelpView(discord.ui.View):
         min_values=1,
         max_values=1,
         options=[
-            discord.SelectOption(label="Manual Overview", value="overview", description="Rules, 500 daily targets, schedule & cheat sheet", emoji="📜"),
+            discord.SelectOption(label="Manual Overview", value="overview", description="Rules, 4 phases, 500 daily targets & schedule", emoji="📜"),
             discord.SelectOption(label="Workout & AI Logging", value="logging", description="/quick, /log, /set, /grind & #quick-log", emoji="⚡"),
-            discord.SelectOption(label="Progress & Ranks", value="progress", description="/today, /profile, /leaderboard, /ranks", emoji="📊"),
+            discord.SelectOption(label="Progress & Ranks", value="progress", description="/today, /profile, /leaderboard, /recap, /ranks", emoji="📊"),
             discord.SelectOption(label="Frost Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
             discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /enroll, /leave_arc", emoji="⚙️"),
             discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
@@ -170,16 +170,15 @@ class RecapView(discord.ui.View):
 
     def _build_buttons(self):
         self.clear_items()
-        from phases import get_unlocked_phases
-        unlocked = get_unlocked_phases()
+        from phases import PHASES
 
-        # Add button for each unlocked phase
-        for p in unlocked:
+        # Add button for Phase 1, Phase 2, Phase 3 (no emojis)
+        phase_list = [p for p in PHASES if p["id"] <= 3]
+        for p in phase_list:
             btn_id = f"phase_{p['id']}"
             is_active = (self.current_selection == btn_id)
             btn = discord.ui.Button(
-                label=f"{p['short_name']}: {p['name']}",
-                emoji=p["badge"],
+                label=p['short_name'],
                 style=discord.ButtonStyle.primary if is_active else discord.ButtonStyle.secondary,
                 custom_id=f"recap_{btn_id}",
                 disabled=is_active
@@ -187,11 +186,10 @@ class RecapView(discord.ui.View):
             btn.callback = self._make_phase_callback(p["id"], btn_id)
             self.add_item(btn)
 
-        # Add Overall button
+        # Add Overall button (no emojis)
         is_overall = (self.current_selection == "overall")
         overall_btn = discord.ui.Button(
             label="Overall",
-            emoji="📜",
             style=discord.ButtonStyle.primary if is_overall else discord.ButtonStyle.secondary,
             custom_id="recap_overall",
             disabled=is_overall

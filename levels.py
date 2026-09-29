@@ -1,5 +1,5 @@
 """
-levels.py - 12-Level Winter Pack Progression System for Winter Arc Bot
+levels.py - 12-Level Progression System for Winter Arc Bot
 
 Calibrated around 12,000 Lifetime Points for Level 12 (Apex) across a 90-day arc (~133 pts/day).
 Provides level lookup, progress bar rendering, and rank-up detection.
@@ -12,66 +12,66 @@ APEX_THRESHOLD = 12000
 RANKS: List[Dict[str, Any]] = [
     {
         "level": 1,
-        "title": "Lone Stray",
+        "title": "Initiate",
         "min_pts": 0,
         "max_pts": 499,
-        "badge": "🐾",
+        "badge": "🥉",
         "color": 0x7F8C8D,  # Slate Grey
-        "description": "Stepping into the cold alone. The beginning of the pack.",
+        "description": "The journey begins. First steps on the board.",
     },
     {
         "level": 2,
-        "title": "Stray",
+        "title": "Novice",
         "min_pts": 500,
         "max_pts": 1199,
-        "badge": "🐺",
+        "badge": "🥉",
         "color": 0x95A5A6,  # Ash Grey
-        "description": "Surviving the first week. Early pack recognition.",
+        "description": "Surviving week one. Developing the daily habit.",
     },
     {
         "level": 3,
-        "title": "Scout",
+        "title": "Challenger",
         "min_pts": 1200,
         "max_pts": 1999,
-        "badge": "🏹",
+        "badge": "🥈",
         "color": 0x3498DB,  # Frost Blue
-        "description": "Routine is setting in. Navigating the cold effortlessly.",
+        "description": "Routine taking root. Consistency building.",
     },
     {
         "level": 4,
-        "title": "Prowler",
+        "title": "Dedicated",
         "min_pts": 2000,
         "max_pts": 2999,
-        "badge": "🐾",
+        "badge": "🥈",
         "color": 0x2980B9,  # Deep Arctic Blue
-        "description": "Body adapting. Soreness fades, momentum builds.",
+        "description": "Body adapting. Soreness fading, rhythm locked.",
     },
     {
         "level": 5,
-        "title": "Tracker",
+        "title": "Disciplined",
         "min_pts": 3000,
         "max_pts": 4199,
-        "badge": "🎯",
+        "badge": "🥇",
         "color": 0x1ABC9C,  # Mountain Pine / Teal
-        "description": "Month 1 locked in. Autopilot engaged.",
+        "description": "Month 1 completed. Execution on autopilot.",
     },
     {
         "level": 6,
-        "title": "Hunter",
+        "title": "Hardened",
         "min_pts": 4200,
         "max_pts": 5499,
-        "badge": "🗡️",
+        "badge": "🥇",
         "color": 0x16A085,  # Dark Teal
-        "description": "Disciplined execution. Zero excuses, daily hunts.",
+        "description": "Daily execution without negotiation.",
     },
     {
         "level": 7,
-        "title": "Savage",
+        "title": "Iron",
         "min_pts": 5500,
         "max_pts": 6999,
         "badge": "⚡",
         "color": 0xE67E22,  # Ember Amber
-        "description": "Halfway through the winter. Mental calluses hardened.",
+        "description": "Halfway mark reached. Resilient momentum.",
     },
     {
         "level": 8,
@@ -80,34 +80,34 @@ RANKS: List[Dict[str, Any]] = [
         "max_pts": 8499,
         "badge": "🛡️",
         "color": 0xD35400,  # Deep Ember
-        "description": "Month 2 milestone. Frontline endurance and pack enforcer.",
+        "description": "Month 2 milestone. Unshakable standard.",
     },
     {
         "level": 9,
-        "title": "Frostborn",
+        "title": "Relentless",
         "min_pts": 8500,
         "max_pts": 9799,
         "badge": "❄️",
         "color": 0x00D2FF,  # Glacial Cyan
-        "description": "The cold holds no power over you. Relentless grit.",
+        "description": "Rain, cold, or fatigue—the work gets done.",
     },
     {
         "level": 10,
-        "title": "Predator",
+        "title": "Veteran",
         "min_pts": 9800,
         "max_pts": 10799,
-        "badge": "🩸",
+        "badge": "🔥",
         "color": 0xE74C3C,  # Crimson Fury
-        "description": "Elite consistency tier. Closing in on the final stretch.",
+        "description": "Final stretch. High standards daily.",
     },
     {
         "level": 11,
-        "title": "Alpha",
+        "title": "Master",
         "min_pts": 10800,
         "max_pts": 11999,
         "badge": "👑",
         "color": 0xF1C40F,  # Golden Crown
-        "description": "Pack leadership achieved. Gateway to the pinnacle.",
+        "description": "Elite consistency. Top tier execution.",
     },
     {
         "level": 12,
@@ -116,7 +116,7 @@ RANKS: List[Dict[str, Any]] = [
         "max_pts": None,
         "badge": "💎",
         "color": 0x9B59B6,  # Royal Amethyst / Diamond
-        "description": "Arc Conquered. Unbroken 90-day mastery of the Winter Arc.",
+        "description": "Arc Conquered. 90-day total discipline.",
     },
 ]
 

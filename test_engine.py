@@ -174,20 +174,20 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         all_r = get_all_ranks()
         self.assertEqual(len(all_r), 12)
 
-        # Level 1: Lone Stray
+        # Level 1: Initiate
         l1 = get_level_info(0)
         self.assertEqual(l1["level"], 1)
-        self.assertEqual(l1["title"], "Lone Stray")
+        self.assertEqual(l1["title"], "Initiate")
 
-        # Level 2: Stray
+        # Level 2: Novice
         l2 = get_level_info(500)
         self.assertEqual(l2["level"], 2)
-        self.assertEqual(l2["title"], "Stray")
+        self.assertEqual(l2["title"], "Novice")
 
-        # Level 7: Savage
+        # Level 7: Iron
         l7 = get_level_info(5500)
         self.assertEqual(l7["level"], 7)
-        self.assertEqual(l7["title"], "Savage")
+        self.assertEqual(l7["title"], "Iron")
 
         # Level 12: Apex
         l12 = get_level_info(12000)
@@ -203,7 +203,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         lvl_up = check_level_up(499, 500)
         self.assertIsNotNone(lvl_up)
         self.assertEqual(lvl_up["level"], 2)
-        self.assertEqual(lvl_up["title"], "Stray")
+        self.assertEqual(lvl_up["title"], "Novice")
 
         # No level up within same tier (500 -> 600)
         no_lvl = check_level_up(500, 600)
@@ -213,7 +213,7 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         big_lvl = check_level_up(0, 2500)
         self.assertIsNotNone(big_lvl)
         self.assertEqual(big_lvl["level"], 4)
-        self.assertEqual(big_lvl["title"], "Prowler")
+        self.assertEqual(big_lvl["title"], "Dedicated")
 
     def test_11_autocomplete_providers(self):
         import asyncio
@@ -582,28 +582,28 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         from unittest.mock import MagicMock
 
         expected_titles = [
-            (0, 1, "Lone Stray"),
-            (499, 1, "Lone Stray"),
-            (500, 2, "Stray"),
-            (1199, 2, "Stray"),
-            (1200, 3, "Scout"),
-            (1999, 3, "Scout"),
-            (2000, 4, "Prowler"),
-            (2999, 4, "Prowler"),
-            (3000, 5, "Tracker"),
-            (4199, 5, "Tracker"),
-            (4200, 6, "Hunter"),
-            (5499, 6, "Hunter"),
-            (5500, 7, "Savage"),
-            (6999, 7, "Savage"),
+            (0, 1, "Initiate"),
+            (499, 1, "Initiate"),
+            (500, 2, "Novice"),
+            (1199, 2, "Novice"),
+            (1200, 3, "Challenger"),
+            (1999, 3, "Challenger"),
+            (2000, 4, "Dedicated"),
+            (2999, 4, "Dedicated"),
+            (3000, 5, "Disciplined"),
+            (4199, 5, "Disciplined"),
+            (4200, 6, "Hardened"),
+            (5499, 6, "Hardened"),
+            (5500, 7, "Iron"),
+            (6999, 7, "Iron"),
             (7000, 8, "Vanguard"),
             (8499, 8, "Vanguard"),
-            (8500, 9, "Frostborn"),
-            (9799, 9, "Frostborn"),
-            (9800, 10, "Predator"),
-            (10799, 10, "Predator"),
-            (10800, 11, "Alpha"),
-            (11999, 11, "Alpha"),
+            (8500, 9, "Relentless"),
+            (9799, 9, "Relentless"),
+            (9800, 10, "Veteran"),
+            (10799, 10, "Veteran"),
+            (10800, 11, "Master"),
+            (11999, 11, "Master"),
             (12000, 12, "Apex"),
             (15000, 12, "Apex"),
         ]
@@ -613,11 +613,11 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
             self.assertEqual(info["level"], exp_lvl, f"Failed level for {pts} pts")
             self.assertEqual(info["title"], exp_title, f"Failed title for {pts} pts")
 
-        # Test next level progress calculations at 180 pts (Level 1: Lone Stray -> Level 2: Stray at 500)
+        # Test next level progress calculations at 180 pts (Level 1: Initiate -> Level 2: Novice at 500)
         info180 = get_level_info(180)
         self.assertEqual(info180["pts_to_next"], 320)
         self.assertEqual(info180["points_in_tier"], 180)
-        self.assertEqual(info180["next_title"], "Stray")
+        self.assertEqual(info180["next_title"], "Novice")
         self.assertEqual(info180["next_level"], 2)
 
         # Profile embed verification: focuses on next level and doesn't mention distant 12,000 pts arc bar
@@ -629,11 +629,11 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         profile_embed = build_profile_embed(mock_user, user_record, streak=5, stats_data=stats_data)
         self.assertIn("Level Progression", profile_embed.description)
-        self.assertIn("Level 2 (Stray)", profile_embed.description)
+        self.assertIn("Level 2 (Novice)", profile_embed.description)
         self.assertIn("180 / 500 PTS", profile_embed.description)
         self.assertIn("320 pts remaining", profile_embed.description)
         self.assertIn("All-Time Rank", profile_embed.description)
-        self.assertIn("Pack Level", profile_embed.description)
+        self.assertIn("Discipline Rank", profile_embed.description)
         self.assertIn("Today's Daily Progress", profile_embed.description)
         self.assertNotIn("90-Day Arc Progress", profile_embed.description)
 
@@ -699,9 +699,9 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
         # 4. Shields
         shields_embed = build_help_embed("shields")
-        self.assertIn("Frost Shield", shields_embed.title)
+        self.assertIn("Streak Shield", shields_embed.title)
         s_names = [f.name for f in shields_embed.fields]
-        self.assertTrue(any("How Frost Shields Work" in name for name in s_names))
+        self.assertTrue(any("How Streak Shields Work" in name for name in s_names))
         self.assertTrue(any("Shield Commands" in name for name in s_names))
 
         # 5. Settings
@@ -1292,6 +1292,18 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertIn("+35 pts earned", embed_accepted.description)
         self.assertIn("Dynamic Programming", embed_accepted.description)
 
+        # 4. Test format_grind_reply (casual human reply format)
+        from ui.embeds import format_grind_reply
+        roasted_reply = format_grind_reply(grind_roasted)
+        self.assertEqual(roasted_reply, "Watching TV isn't deep work. Turn off the screen and write code.")
+        self.assertNotIn("Points Earned", roasted_reply)
+        self.assertNotIn("Logged:", roasted_reply)
+
+        accepted_reply = format_grind_reply(grind_accepted)
+        self.assertIn("Good work tackling graph DP problems.", accepted_reply)
+        self.assertIn("**Points Earned**: 35 pts", accepted_reply)
+        self.assertIn("**Logged**: Dynamic Programming", accepted_reply)
+
     def test_42_humanized_replies_and_broadcast_embeds(self):
         from ui.embeds import build_weekly_state_of_the_pack_embed
         from ai.gemini_service import CURATED_STOIC_FALLBACKS
@@ -1529,6 +1541,304 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         self.assertNotIn("Winter Arc • Consistency Beats Motivation", s_embed.footer.text)
         p_embed = build_profile_embed(mock_user, db.get_user_by_discord_id(u_hist, TEST_DB), 1, db.get_user_stats(u_hist, TEST_DB))
         self.assertNotIn("Winter Arc • Consistency Beats Motivation", p_embed.footer.text)
+
+    def test_45_evening_checkin_broadcast_message(self):
+        import asyncio
+        from ui.embeds import build_evening_checkin_message
+        from ai.gemini_service import generate_evening_alert_data, AUTHENTIC_STOIC_QUOTES, get_default_callout
+
+        warriors = [
+            {"discord_id": 1001, "username": "STRANGER", "points": 0, "streak": 3},
+            {"discord_id": 1002, "username": "Vikram", "points": 50, "streak": 5},
+            {"discord_id": 1003, "username": "Alex", "points": 500, "streak": 12},
+        ]
+
+        quote = '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius'
+        msg = build_evening_checkin_message(
+            warriors_data=warriors,
+            callouts=None, # uses default callouts
+            stoic_quote=quote,
+            role_ping="@Coldfornt"
+        )
+
+        expected_msg = (
+            "@Coldfornt [WinterArc] 3 hours left until midnight rollover. ⏳\n"
+            "If you haven't hit your 30 points yet, get your reps or run logged before midnight to keep your streak alive.\n\n"
+            "- <@1001> — 0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight.\n"
+            "- <@1002> — 50 pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight.\n"
+            "- <@1003> — 500 pts, completely maxed out the board early. Rest up for tomorrow.\n\n"
+            "> \"Waste no more time arguing what a good man should be. Be one.\" — Marcus Aurelius\n\n"
+            "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
+        )
+
+        self.assertEqual(msg, expected_msg)
+
+        # Test generate_evening_alert_data
+        callouts, stoic_quote = asyncio.run(
+            generate_evening_alert_data(warriors, override_quote=quote)
+        )
+        self.assertEqual(stoic_quote, quote)
+        self.assertIn(1001, callouts)
+        self.assertIn(1002, callouts)
+        self.assertIn(1003, callouts)
+        self.assertIn("0 pts on the board", callouts[1001])
+        self.assertIn("50 pts", callouts[1002])
+        self.assertIn("500 pts", callouts[1003])
+
+        # Test random stoic quote pool
+        self.assertTrue(len(AUTHENTIC_STOIC_QUOTES) >= 10)
+        for q in AUTHENTIC_STOIC_QUOTES:
+            self.assertIn("—", q)
+
+    def test_46_clean_replies_and_native_broadcasts(self):
+        from ui.embeds import (
+            format_log_reply,
+            format_set_reply,
+            build_morning_kickoff_message,
+            build_afternoon_checkin_message,
+            build_midnight_finalization_message,
+            build_weekly_recap_message,
+        )
+
+        # 1. format_log_reply
+        log_res = {
+            "new_total": 30,
+            "target": 50,
+            "previous_total": 0,
+            "is_target_reached": False,
+            "daily_points_total": 60,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Push-ups",
+            "shield_awarded": False,
+        }
+        res_str = format_log_reply(log_res, 30)
+        self.assertIn("Logged **+30 reps** to **Push-ups** (30/50 reps)", res_str)
+        self.assertIn("Today: **60/500 pts**", res_str)
+
+        # Target completed + Level up + Shield
+        log_res_up = {
+            "new_total": 50,
+            "target": 50,
+            "previous_total": 30,
+            "is_target_reached": True,
+            "daily_points_total": 100,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Push-ups",
+            "shield_awarded": True,
+        }
+        lvl_up = {"level": 2, "title": "Novice", "badge": "🥉"}
+        res_up_str = format_log_reply(log_res_up, 20, level_up_info=lvl_up)
+        self.assertIn("⭐ Target completed!", res_up_str)
+        self.assertIn("Rank Promotion!", res_up_str)
+        self.assertIn("Level 2 — 🥉 Novice", res_up_str)
+        self.assertIn("Streak Shield Earned!", res_up_str)
+
+        # 2. format_set_reply
+        set_res = {
+            "new_total": 40,
+            "target": 50,
+            "previous_total": 20,
+            "is_target_reached": False,
+            "daily_points_total": 80,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Push-ups",
+        }
+        set_str = format_set_reply(set_res, 40)
+        self.assertIn("Adjusted **Push-ups**: **20** ➔ **40 reps**", set_str)
+
+        # Reset set_reply
+        reset_res = {
+            "new_total": 0,
+            "target": 50,
+            "previous_total": 40,
+            "is_target_reached": False,
+            "daily_points_total": 0,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Push-ups",
+        }
+        reset_str = format_set_reply(reset_res, 0)
+        self.assertIn("Reset **Push-ups** to **0 reps** (was 40 reps)", reset_str)
+
+        # 3. build_morning_kickoff_message
+        active_tasks = [
+            {"name": "Push-ups", "target": 50, "unit": "reps", "max_points": 100},
+            {"name": "Running", "target": 5, "unit": "km", "max_points": 100},
+        ]
+        morning_msg = build_morning_kickoff_message(
+            active_tasks=active_tasks,
+            date_display="Mon, Sep 29",
+            quote="Focus on the work.",
+            role_ping="@Coldfornt"
+        )
+        self.assertIn("@Coldfornt [WinterArc] Mon, Sep 29 🌅", morning_msg)
+        self.assertIn("• **Push-ups**: `50 reps` *(100 pts)*", morning_msg)
+        self.assertIn("• **Running**: `5 km` *(100 pts)*", morning_msg)
+        self.assertIn("> Focus on the work.", morning_msg)
+        self.assertIn("-# Log with /log", morning_msg)
+
+        # 4. build_afternoon_checkin_message
+        enrolled_users = [
+            {"discord_id": 1001, "username": "Vikram"},
+        ]
+        afternoon_msg = build_afternoon_checkin_message(
+            enrolled_users=enrolled_users,
+            today_str="2026-09-29",
+            quote="Stay disciplined.",
+            role_ping="@Coldfornt"
+        )
+        self.assertIn("@Coldfornt [WinterArc] Afternoon Check-in ⏳", afternoon_msg)
+        self.assertIn("- <@1001> —", afternoon_msg)
+        self.assertIn("> Stay disciplined.", afternoon_msg)
+        self.assertIn("-# Log with /log", afternoon_msg)
+
+        # 5. build_midnight_finalization_message
+        lb = [
+            {"discord_id": 1001, "username": "Vikram", "points": 120, "completion_rate": 0.24, "perfect_day": False},
+            {"discord_id": 1002, "username": "Alex", "points": 500, "completion_rate": 1.0, "perfect_day": True},
+        ]
+        midnight_msg = build_midnight_finalization_message(
+            date_str="2026-09-29",
+            leaderboard=lb,
+            ai_recap="Great daily effort from the group.",
+            role_ping="@Coldfornt"
+        )
+        self.assertIn("@Coldfornt [WinterArc] Day Finalized", midnight_msg)
+        self.assertIn("🥇 <@1001> — **120 pts** (24%)", midnight_msg)
+        self.assertIn("🥈 <@1002> — **500 pts** (100%) ⭐", midnight_msg)
+        self.assertIn("Great daily effort from the group.", midnight_msg)
+        self.assertIn("🔥 **Clean Sweeps**: **1** member(s) hit 100%.", midnight_msg)
+
+        # 6. build_weekly_recap_message
+        weekly_stats = {
+            "total_pushups": 1500,
+            "total_pullups": 800,
+            "total_squats": 2000,
+            "total_situps": 1200,
+            "total_km": 42.5,
+        }
+        weekly_top = [
+            {"discord_id": 1001, "username": "Vikram", "points": 3200},
+            {"discord_id": 1002, "username": "Alex", "points": 2800},
+            {"discord_id": 1003, "username": "Sam", "points": 2100},
+        ]
+        recap_msg = build_weekly_recap_message(
+            weekly_stats=weekly_stats,
+            top_warriors=weekly_top,
+            ai_speech="Unstoppable consistency.",
+            role_ping="@Coldfornt"
+        )
+        self.assertIn("@Coldfornt [WinterArc] Weekly Community Recap 📊", recap_msg)
+        self.assertIn("🥇 <@1001> — **3200 pts**", recap_msg)
+        self.assertIn("🥈 <@1002> — **2800 pts**", recap_msg)
+        self.assertIn("🥉 <@1003> — **2100 pts**", recap_msg)
+        self.assertIn("• 💪 Push-ups: `1,500`", recap_msg)
+        self.assertIn("• 🏃 Running: `42.5 km`", recap_msg)
+        self.assertIn("> Unstoppable consistency.", recap_msg)
+
+        # 7. build_phase_conclusion_message
+        from ui.embeds import build_phase_conclusion_message
+        phase_dict = {"id": 1, "name": "FIRST FROST", "short_name": "Phase 1", "total_days": 31}
+        phase_lb = [
+            {"discord_id": 1001, "username": "Vikram", "total_points": 14200, "perfect_days": 28},
+            {"discord_id": 1002, "username": "Alex", "total_points": 12850, "perfect_days": 25},
+            {"discord_id": 1003, "username": "Devin", "total_points": 9400, "perfect_days": 19},
+            {"discord_id": 1004, "username": "Sam", "total_points": 8100},
+            {"discord_id": 1005, "username": "Arjun", "total_points": 7500},
+        ]
+        next_phase = {"id": 2, "name": "THE HUNT", "short_name": "Phase 2"}
+        phase_msg = build_phase_conclusion_message(
+            phase_dict=phase_dict,
+            phase_lb=phase_lb,
+            ceremony_speech="Month 1 filtered out the talkers.",
+            next_phase_dict=next_phase,
+            role_ping="@Coldfornt"
+        )
+        self.assertIn("@Coldfornt [WinterArc] Phase 1 Concluded • FIRST FROST 🏆", phase_msg)
+        self.assertIn("🥇 <@1001> — **14,200 pts** *(28 clean days)*", phase_msg)
+        self.assertIn("🥈 <@1002> — **12,850 pts** *(25 clean days)*", phase_msg)
+        self.assertIn("🥉 <@1003> — **9,400 pts** *(19 clean days)*", phase_msg)
+        self.assertIn("4th: <@1004> — **8,100 pts**", phase_msg)
+        self.assertIn("5th: <@1005> — **7,500 pts**", phase_msg)
+        self.assertIn("• Active Participants: `5`", phase_msg)
+        self.assertIn("• Clean Days Logged: `72`", phase_msg)
+        self.assertIn("• Total Volume: `52,050 pts`", phase_msg)
+        self.assertIn("⚡ **Phase 2 (THE HUNT)** begins tomorrow at 00:00 IST.", phase_msg)
+        self.assertIn("-# Phase snapshot archived • Streaks carry over uninterrupted", phase_msg)
+
+    def test_47_comprehensive_suite_and_edge_cases(self):
+        """Validates all edge cases: volume limits, autocomplete fallbacks, zero overrides, and tier leaps."""
+        from levels import check_level_up, get_level_info, APEX_THRESHOLD
+        from ui.embeds import format_log_reply, format_set_reply, build_shield_status_embed
+
+        # 1. Multi-tier leap crossing (0 -> 7500 pts = Level 1 Initiate -> Level 8 Vanguard)
+        leap = check_level_up(0, 7500)
+        self.assertIsNotNone(leap)
+        self.assertEqual(leap["level"], 8)
+        self.assertEqual(leap["title"], "Vanguard")
+        self.assertEqual(leap["badge"], "🛡️")
+
+        # 2. Apex threshold verification
+        apex_info = get_level_info(APEX_THRESHOLD)
+        self.assertEqual(apex_info["level"], 12)
+        self.assertEqual(apex_info["title"], "Apex")
+        self.assertTrue(apex_info["is_apex"])
+        self.assertEqual(apex_info["tier_pct"], 100)
+
+        # Beyond Apex threshold (15,000 pts)
+        beyond_apex = get_level_info(15000)
+        self.assertEqual(beyond_apex["level"], 12)
+        self.assertTrue(beyond_apex["is_apex"])
+        self.assertEqual(beyond_apex["tier_pct"], 100)
+
+        # 3. Log reply edge cases: target over-completion
+        over_log = {
+            "new_total": 75,
+            "target": 50,
+            "previous_total": 45,
+            "is_target_reached": True,
+            "daily_points_total": 120,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Squats",
+            "shield_awarded": False,
+        }
+        res_over = format_log_reply(over_log, 30)
+        self.assertIn("Logged **+30 reps** to **Squats** (75/50 reps) ⭐ Target completed!", res_over)
+
+        # 4. Set reply edge cases: downward correction
+        down_set = {
+            "new_total": 20,
+            "target": 50,
+            "previous_total": 40,
+            "is_target_reached": False,
+            "daily_points_total": 40,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Pull-ups",
+        }
+        res_down = format_set_reply(down_set, 20)
+        self.assertIn("Adjusted **Pull-ups**: **40** ➔ **20 reps** (20/50 reps)", res_down)
+
+        # 5. Shield Status embed shows Streak Shield
+        from unittest.mock import MagicMock
+        mock_u = MagicMock()
+        mock_u.display_name = "IronWarrior"
+        status_data = {
+            "frost_shields": 2,
+            "max_shields": 2,
+            "is_today_shielded": False,
+            "days_until_next_shield": 0,
+            "current_streak": 14,
+            "recent_uses": [{"date": "2026-09-20", "reason": "Rest day"}],
+        }
+        shield_embed = build_shield_status_embed(mock_u, status_data)
+        self.assertIn("Streak Shield Status", shield_embed.title)
+        self.assertIn("Streak Shields Work", shield_embed.description)
+        self.assertIn("MAX SHIELDS STORED (2/2)", shield_embed.description)
 
 
 if __name__ == "__main__":

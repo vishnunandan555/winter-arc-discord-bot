@@ -34,7 +34,9 @@ from ui.embeds import (
     build_today_embed,
     build_tasks_embed,
     build_log_embed,
+    format_log_reply,
     build_set_embed,
+    format_set_reply,
     build_stats_embed,
     build_history_embed,
     build_profile_embed,
@@ -45,6 +47,7 @@ from ui.embeds import (
     build_shield_activated_embed,
     build_settings_embed,
     build_grind_embed,
+    format_grind_reply,
     build_quicklog_embed,
     build_recap_embed,
 )
@@ -215,6 +218,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                     "streak": streak,
                     "completed_tasks": [t["name"] for t in progress.get("tasks", []) if t.get("completed")],
                     "pending_tasks": [t["name"] for t in progress.get("tasks", []) if not t.get("completed")],
+                    "task_status": [f"{t['name']} ({format_num(t['current_amount'])}/{format_num(t['target'])} {t['unit']})" for t in progress.get("tasks", [])],
                 }
             )
         )
@@ -262,6 +266,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                     "streak": streak,
                     "completed_tasks": [t["name"] for t in progress.get("tasks", []) if t.get("completed")],
                     "pending_tasks": [t["name"] for t in progress.get("tasks", []) if not t.get("completed")],
+                    "task_status": [f"{t['name']} ({format_num(t['current_amount'])}/{format_num(t['target'])} {t['unit']})" for t in progress.get("tasks", [])],
                 }
             )
         )
@@ -330,16 +335,19 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         daily_total = result.get('new_points', result.get('daily_points_total', 0))
         logger.info(f"/log successful for {interaction.user}: {task_canonical} +{amount} (+{pts_added} pts, daily total: {daily_total} pts)")
 
-        embed = build_log_embed(result, amount, level_up_info=level_up_info)
-        await interaction.followup.send(embed=embed)
+        reply_msg = format_log_reply(result, amount, level_up_info=level_up_info)
+        await interaction.followup.send(content=reply_msg)
 
+        task_new = format_num(result['new_total'])
+        task_tgt = format_num(result['target'])
+        unit = result.get('unit', 'reps')
         asyncio.create_task(
             groq_service.dispatch_interaction_nudge(
                 interaction=interaction,
                 user_id=interaction.user.id,
                 user_name=interaction.user.display_name,
                 command_name="log",
-                extra_info=f"Logged {amount} {task_canonical}"
+                extra_info=f"Logged +{format_num(amount)} {unit} to {task_canonical} (discipline total: {task_new}/{task_tgt} {unit})"
             )
         )
 
@@ -399,8 +407,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         pts_new = result.get('new_points', result.get('task_points_total', 0))
         logger.info(f"/set successful for {interaction.user}: {task_canonical} set to {amount} (points: {pts_old} -> {pts_new})")
 
-        embed = build_set_embed(result, amount, level_up_info=level_up_info)
-        await interaction.followup.send(embed=embed)
+        reply_msg = format_set_reply(result, amount, level_up_info=level_up_info)
+        await interaction.followup.send(content=reply_msg)
 
         if level_up_info:
             await safe_react(interaction, "🎉", "🐺")
@@ -560,16 +568,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             f"**{target_user.display_name}** • Streak Status\n\n"
             f"🔥 **Current Streak**: **{streak} days**\n"
             f"⭐ **Clean Days (100%)**: **{stats.get('perfect_days', 0)}**\n"
-            f"🛡️ **Frost Shields**: **{shields_count}/2 available**\n"
+            f"🛡️ **Streak Shields**: **{shields_count}/2 available**\n"
             f"⏳ **Next Shield Milestone**: **{days_to_milestone} day(s)** (at Day {next_milestone})\n\n"
-            + ("🛡️ *Protected by Frost Shield today!*" if is_shielded else "⚡ *Log at least 30 points today to maintain your streak.*")
+            + ("🛡️ *Protected by Streak Shield today!*" if is_shielded else "⚡ *Log at least 30 points today to maintain your streak.*")
         )
         embed = discord.Embed(
             title="🔥 Winter Arc — Streak Status",
             description=desc,
             color=0xE67E22 if streak > 0 else 0x95A5A6
         )
-        embed.set_footer(text="Requires 30+ pts/day to preserve streak • Max 2 Frost Shields")
+        embed.set_footer(text="Requires 30+ pts/day to preserve streak • Max 2 Streak Shields")
         await interaction.followup.send(embed=embed)
         await safe_react(interaction, "🔥", "🐺")
 
@@ -584,15 +592,15 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         )
 
     # ==========================================
-    # Frost Shield & Streak Protection Commands
+    # Streak Shield & Protection Commands
     # ==========================================
 
     shield_group = app_commands.Group(
         name="shield",
-        description="Frost Shield streak protection and recovery controls."
+        description="Streak Shield protection and recovery controls."
     )
 
-    @shield_group.command(name="status", description="View Frost Shield inventory, protection status, and next unlock.")
+    @shield_group.command(name="status", description="View Streak Shield inventory, protection status, and next unlock.")
     async def shield_status_cmd(self, interaction: discord.Interaction):
         if not await require_enrolled(interaction):
             return
@@ -601,7 +609,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_shield_status_embed(interaction.user, status)
         await interaction.response.send_message(embed=embed)
 
-    @shield_group.command(name="use", description="Activate a Frost Shield to protect your streak today or yesterday.")
+    @shield_group.command(name="use", description="Activate a Streak Shield to protect your streak today or yesterday.")
     @app_commands.describe(
         target_date="Target day to protect: 'today' or 'yesterday'",
         reason="Optional reason for recovery day (e.g. Muscle Recovery, Travel, Illness)"
@@ -721,9 +729,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
             return
 
-        prog = db.get_user_daily_progress(interaction.user.id, today_str)
-        embed = build_grind_embed(interaction.user, evaluation, prog["total_points"])
-        await interaction.followup.send(embed=embed)
+        reply_msg = format_grind_reply(evaluation)
+        await interaction.followup.send(reply_msg)
 
         if evaluation["verdict"] == "ACCEPTED":
             await safe_react(interaction, "⚔️", "🧠")
@@ -749,8 +756,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if parsed.get("suspicious"):
             logger.warning(f"/quick rejected for {interaction.user} as suspicious single-set volume: '{text}'")
             await interaction.followup.send(
-                "❌ **Unrealistic Volume Rejected**: Unrealistic volume detected for a single set (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
-                "Log your completed sets individually as you finish them (e.g. '30 pushups, 30 pushups, 30 pushups').",
+                "❌ Max per set is 50 reps (or 10 km). If you did multiple sets, log them separately (e.g. '30 pushups, 30 pushups').",
                 ephemeral=True
             )
             return

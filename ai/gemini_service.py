@@ -9,7 +9,7 @@ Powers:
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
@@ -22,6 +22,16 @@ class GrindEvaluation(BaseModel):
     points: int = Field(description="Points between 0 and 60. 0 if rejected or roasted.")
     key_learning: str = Field(description="Short tag of verified learning (e.g. 'Virtual Memory', 'DP Knapsack') or 'None'")
     commentary: str = Field(description="Exactly 2 to 3 sentences of sharp, direct engineering mentor feedback.")
+
+
+class EveningCalloutItem(BaseModel):
+    discord_id: int = Field(description="The numeric Discord user ID")
+    callout: str = Field(description="Exactly 1 short, punchy sentence calling out their progress.")
+
+
+class EveningAlertPayload(BaseModel):
+    callouts: List[EveningCalloutItem] = Field(description="Callout for each participant")
+    stoic_quote: str = Field(description="An authentic Stoic quote from Marcus Aurelius, Seneca, or Epictetus with author attribution, e.g. '\"Waste no more time arguing what a good man should be. Be one.\" — Marcus Aurelius'")
 
 
 class GeminiServiceError(Exception):
@@ -222,6 +232,36 @@ CURATED_STOIC_FALLBACKS = [
     "The scoreboard doesn't lie. Put in the work before midnight.",
 ]
 
+AUTHENTIC_STOIC_QUOTES = [
+    '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius',
+    '"You have power over your mind - not outside events. Realize this, and you will find strength." — Marcus Aurelius',
+    '"The impediment to action advances action. What stands in the way becomes the way." — Marcus Aurelius',
+    '"Dwell on the beauty of life. Watch the stars, and see yourself running with them." — Marcus Aurelius',
+    '"If it is not right do not do it; if it is not true do not say it." — Marcus Aurelius',
+    '"We suffer more often in imagination than in reality." — Seneca',
+    '"No man is more unhappy than he who never faces adversity. For he is not permitted to prove himself." — Seneca',
+    '"It is not that we have a short time to live, but that we waste a lot of it." — Seneca',
+    '"Associate with people who are likely to improve you." — Seneca',
+    '"Luck is what happens when preparation meets opportunity." — Seneca',
+    '"First say to yourself what you would be; and then do what you have to do." — Epictetus',
+    '"Don\'t explain your philosophy. Embody it." — Epictetus',
+    '"How long are you going to wait before you demand the best for yourself?" — Epictetus',
+    '"Difficulties show a person\'s character." — Epictetus',
+]
+
+
+def get_default_callout(points: int) -> str:
+    """Returns the default, grounded 1-sentence accountability callout based on points."""
+    if points == 0:
+        return "0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight."
+    elif points < 30:
+        needed = 30 - points
+        return f"{points} pts on the board. You need {needed} more points before midnight to save your streak."
+    elif points >= 500:
+        return f"{points} pts, completely maxed out the board early. Rest up for tomorrow."
+    else:
+        return f"{points} pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight."
+
 
 async def generate_reminder_motivation(
     reminder_type: str = "morning",
@@ -300,6 +340,101 @@ async def generate_reminder_motivation(
     except Exception as e:
         logger.warning(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.", exc_info=True)
         return random.choice(CURATED_STOIC_FALLBACKS)
+
+
+async def generate_evening_alert_data(
+    warriors_data: List[Dict[str, Any]],
+    override_quote: Optional[str] = None
+) -> Tuple[Dict[int, str], str]:
+    """
+    Generates personalized 1-sentence accountability callouts for each warrior
+    and selects an authentic stoic quote for the 21:00 IST evening alert.
+
+    Returns:
+        (callouts_by_discord_id: Dict[int, str], stoic_quote: str)
+    """
+    import random
+
+    fallback_callouts: Dict[int, str] = {}
+    for w in warriors_data:
+        pts = w.get("points", 0)
+        d_id = int(w["discord_id"])
+        fallback_callouts[d_id] = get_default_callout(pts)
+
+    fallback_quote = override_quote or random.choice(AUTHENTIC_STOIC_QUOTES)
+
+    if not warriors_data:
+        return fallback_callouts, fallback_quote
+
+    client = get_gemini_client()
+    if not client:
+        return fallback_callouts, fallback_quote
+
+    participant_lines = []
+    for w in warriors_data:
+        d_id = w["discord_id"]
+        u_name = w.get("username", "Warrior")
+        pts = w.get("points", 0)
+        streak = w.get("streak", 0)
+        participant_lines.append(
+            f"- User ID: {d_id} | Username: {u_name} | Points today: {pts} | Streak: {streak}d"
+        )
+
+    system_prompt = (
+        "You are Amarok, a grounded accountability partner in a Discord fitness and study challenge (Winter Arc).\n"
+        "It is 21:00 IST (9:00 PM), exactly 3 hours before midnight rollover.\n"
+        "Generate a personalized, natural 1-sentence accountability callout for each participant based on their progress today, "
+        "and provide an authentic Stoic quote from Marcus Aurelius, Seneca, or Epictetus.\n\n"
+        "CALLOUT GUIDELINES & EXAMPLES:\n"
+        "- 0 points logged today:\n"
+        "  '0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight.'\n"
+        "- 1 to 29 points (needs 30 pts for streak):\n"
+        "  '{pts} pts on the board. You need {needed} more points before midnight to save your streak.'\n"
+        "- 30 to 499 points (streak secured):\n"
+        "  '{pts} pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight.'\n"
+        "- 500 points (maxed out daily limit):\n"
+        "  '500 pts, completely maxed out the board early. Rest up for tomorrow.'\n\n"
+        "CRITICAL RULES:\n"
+        "1. Each callout MUST be EXACTLY 1 short, punchy sentence.\n"
+        "2. State their points clearly at the start (e.g. '0 pts on the board...', '50 pts, streak is safe!...').\n"
+        "3. TONE: Human, direct, authentic Discord peer/coach. ZERO corporate speak, ZERO AI slop, ZERO fantasy melodrama ('wolves', 'pack', 'crucible').\n"
+        "4. The stoic quote MUST be a genuine quote from Marcus Aurelius, Seneca, or Epictetus with author attribution, e.g.:\n"
+        "   \"Waste no more time arguing what a good man should be. Be one.\" — Marcus Aurelius"
+    )
+
+    try:
+        from google.genai import types
+        response = await client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=f"Participants tonight (3 hours before midnight):\n" + "\n".join(participant_lines),
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema=EveningAlertPayload,
+                temperature=0.4,
+            ),
+        )
+
+        data = json.loads(response.text)
+        result_callouts = dict(fallback_callouts)
+        for item in data.get("callouts", []):
+            try:
+                user_id = int(item.get("discord_id"))
+                callout_text = str(item.get("callout", "")).strip()
+                if callout_text and user_id in result_callouts:
+                    result_callouts[user_id] = callout_text
+            except (ValueError, TypeError):
+                continue
+
+        chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
+        if not chosen_quote or "—" not in chosen_quote:
+            chosen_quote = fallback_quote
+
+        return result_callouts, chosen_quote
+
+    except Exception as e:
+        logger.warning(f"Could not generate Gemini evening alert data: {e}. Using deterministic fallbacks.")
+        return fallback_callouts, fallback_quote
 
 
 async def generate_phase_ceremony(

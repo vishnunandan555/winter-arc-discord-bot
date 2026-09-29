@@ -61,7 +61,7 @@ def build_daily_leaderboard_embed() -> discord.Embed:
     )
     footer_text = "Updated live • Resets daily at 00:00 IST"
     if len(data) > 10:
-        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+        footer_text = f"Showing top 10 of {len(data)} participants • {footer_text}"
     embed.set_footer(text=footer_text)
     return embed
 
@@ -104,7 +104,7 @@ def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: O
     )
     footer_text = "Updated live • Ranked by weekly points (Mon–Sun)"
     if len(data) > 10:
-        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+        footer_text = f"Showing top 10 of {len(data)} participants • {footer_text}"
     embed.set_footer(text=footer_text)
     return embed
 
@@ -130,7 +130,7 @@ def build_overall_leaderboard_embed() -> discord.Embed:
         lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts** *(Lvl {lvl_info['level']} {lvl_info['title']})*{extra_str}")
 
     if not lines:
-        lines.append("_No enrolled warriors found._")
+        lines.append("_No enrolled participants found._")
 
     embed = discord.Embed(
         title="🏆 Winter Arc — Overall Standings",
@@ -142,7 +142,7 @@ def build_overall_leaderboard_embed() -> discord.Embed:
     )
     footer_text = "Updated live • Ranked by lifetime points"
     if len(data) > 10:
-        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+        footer_text = f"Showing top 10 of {len(data)} participants • {footer_text}"
     embed.set_footer(text=footer_text)
     return embed
 
@@ -193,7 +193,7 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
     )
     footer_text = "Updated live • Ranked by monthly points"
     if len(data) > 10:
-        footer_text = f"Showing top 10 of {len(data)} warriors • {footer_text}"
+        footer_text = f"Showing top 10 of {len(data)} participants • {footer_text}"
     embed.set_footer(text=footer_text)
     return embed
 
@@ -223,7 +223,7 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     if grind_pts > 0 or progress.get("grind_entry"):
         entry = progress.get("grind_entry") or {}
         learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
-        grind_section = f"\n\n**🧠 Mental / Academic Friction**\n• **Grind Bonus**: +{grind_pts} pts *({learning})*"
+        grind_section = f"\n\n**🧠 Grind Bonus**: +{grind_pts} pts *({learning})*"
         phys_pts = progress.get("physical_points", total_pts - grind_pts)
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
@@ -245,7 +245,7 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
         description=desc,
         color=0x1ABC9C if progress["perfect_day"] else (0x2ECC71 if total_pts >= MIN_STREAK_POINTS else 0x3498DB)
     )
-    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • 500 pts for Perfect Day")
+    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak")
     return embed
 
 
@@ -280,7 +280,7 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
     if grind_pts > 0 or progress.get("grind_entry"):
         entry = progress.get("grind_entry") or {}
         learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
-        grind_section = f"\n\n**🧠 Mental / Academic Friction**\n• **Grind Bonus**: +{grind_pts} pts *({learning})*"
+        grind_section = f"\n\n**🧠 Grind Bonus**: +{grind_pts} pts *({learning})*"
         phys_pts = progress.get("physical_points", total_pts - grind_pts)
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
@@ -303,6 +303,51 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
     )
     embed.set_footer(text=f"Log with /log • Set with /set • {MIN_STREAK_POINTS} pts/day minimum for streak")
     return embed
+
+
+def format_log_reply(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> str:
+    """Formats a clean, casual plain-text reply after logging sets."""
+    cur = format_num(result["new_total"])
+    tgt = format_num(result["target"])
+    amt = format_num(amount)
+    unit = result.get("unit", "reps")
+    task_name = result["task_name"]
+    today_total = format_num(result["daily_points_total"])
+    today_max = format_num(result["daily_points_max"])
+
+    star_msg = " ⭐ Target completed!" if (result["is_target_reached"] and result["previous_total"] < result["target"]) else ""
+    msg = f"Logged **+{amt} {unit}** to **{task_name}** ({cur}/{tgt} {unit}){star_msg} • Today: **{today_total}/{today_max} pts**"
+
+    if level_up_info:
+        msg += f"\n🎉 **Rank Promotion!** You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!"
+    if result.get("shield_awarded"):
+        msg += "\n🛡️ **Streak Shield Earned!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+
+    return msg
+
+
+def format_set_reply(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> str:
+    """Formats a clean, casual plain-text reply after setting/overriding sets."""
+    cur = format_num(result["new_total"])
+    tgt = format_num(result["target"])
+    prev = format_num(result["previous_total"])
+    unit = result.get("unit", "reps")
+    task_name = result["task_name"]
+    today_total = format_num(result["daily_points_total"])
+    today_max = format_num(result["daily_points_max"])
+
+    if amount == 0:
+        msg = f"Reset **{task_name}** to **0 {unit}** (was {prev} {unit}) • Today: **{today_total}/{today_max} pts**"
+    else:
+        star_msg = " ⭐ Target completed!" if (result["is_target_reached"] and result["previous_total"] < result["target"]) else ""
+        msg = f"Adjusted **{task_name}**: **{prev}** ➔ **{cur} {unit}** ({cur}/{tgt} {unit}){star_msg} • Today: **{today_total}/{today_max} pts**"
+
+    if level_up_info:
+        msg += f"\n🎉 **Rank Promotion!** You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!"
+    if result.get("shield_awarded"):
+        msg += "\n🛡️ **Streak Shield Earned!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+
+    return msg
 
 
 def build_log_embed(result: Dict[str, Any], amount: float, level_up_info: Optional[Dict[str, Any]] = None) -> discord.Embed:
@@ -541,20 +586,20 @@ def build_profile_embed(
     desc = (
         f"**{user.display_name}**\n\n"
         f"🏆 **All-Time Rank**: {rank_str}\n"
-        f"🐺 **Pack Level**: **Level {lvl['level']} — {lvl['title']}** {lvl['badge']}\n"
+        f"🎖️ **Discipline Rank**: **Level {lvl['level']} — {lvl['title']}** {lvl['badge']}\n"
         f"*{lvl['description']}*\n\n"
         f"📈 **Level Progression**\n"
         f"{progress_block}\n\n"
         f"🎯 **Today's Daily Progress**\n"
         f"{daily_block}\n\n"
-        f"🔥 **Current Streak**: **{streak} days** • 🛡️ **Frost Shields**: **{user_record.get('frost_shields', 0)}/2**\n"
+        f"🔥 **Current Streak**: **{streak} days** • 🛡️ **Streak Shields**: **{user_record.get('frost_shields', 0)}/2**\n"
         f"💎 **Lifetime Points**: **{pts:,} pts**\n"
         f"{phase_line}"
         f"📅 **Enrolled**: `{joined_date_str}`{days_note}"
     )
 
     embed = discord.Embed(
-        title="🐺 Winter Arc — Warrior Profile",
+        title="❄️ Winter Arc — Profile",
         description=desc,
         color=lvl["color"]
     )
@@ -579,14 +624,14 @@ def build_ranks_embed(current_points: int) -> discord.Embed:
         lines.append(f"{marker}{r['badge']} **Lvl {r['level']}: {r['title']}** — {range_str}")
 
     desc = (
-        "**The 12-Level Winter Pack Hierarchy**\n"
+        "**The 12-Level Progression Hierarchy**\n"
         "Earn lifetime points across the 90-day arc to advance your rank:\n\n"
         + "\n".join(lines)
         + f"\n\nYour Current Standing: {user_lvl['badge']} **Level {user_lvl['level']}: {user_lvl['title']}** ({user_lvl['lifetime_points']:,} pts)"
     )
 
     embed = discord.Embed(
-        title="🐺 Winter Arc — Pack Progression Hierarchy",
+        title="❄️ Winter Arc — 12-Tier Progression Hierarchy",
         description=desc,
         color=user_lvl["color"]
     )
@@ -637,9 +682,9 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="🧠 `/grind [friction]` — Academic & Engineering Bonus (Gemini AI)",
             value=(
                 "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep reading).\n"
-                "• **Reward**: Up to **+50 bonus points** awarded directly to today's tally (Limit: 1/day).\n"
+                "• **Reward**: Up to **+60 bonus points** awarded directly to today's tally (Limit: 1/day).\n"
                 "• **Example**: `/grind friction: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
-                "⚠️ *Zero Slop Policy*: Generic or low-effort submissions will be roasted and awarded 0 points."
+                "🛡️ *Safe Retries*: If the AI service is temporarily offline, your daily attempt is never consumed."
             ),
             inline=False
         )
@@ -658,7 +703,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
     elif category == "progress":
         embed = discord.Embed(
             title="📊 Progression, Ranks & Leaderboards",
-            description="Track your daily execution, climb the 12 pack ranks, and conquer the 90-day arc.",
+            description="Track your daily execution, climb the 12 pack ranks, and conquer the 4-phase arc.",
             color=0x9B59B6
         )
         embed.add_field(
@@ -681,10 +726,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🏆 Standings, Phases & History",
             value=(
-                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
                 "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active/completed phases and overall campaign.\n"
+                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
                 "• `/stats [member]` — Lifetime repetitions per discipline, total kilometers logged, and milestone records.\n"
-                "• `/history [days]` — View point breakdown over the past 7, 14, or 30 days."
+                "• `/history [days]` — View point breakdown and AI grind notes over the past 7, 14, or 30 days."
             ),
             inline=False
         )
@@ -693,19 +738,19 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
 
     elif category == "shields":
         embed = discord.Embed(
-            title="🛡️ Frost Shield & Recovery System",
+            title="🛡️ Streak Shield & Recovery System",
             description=(
                 "The Winter Arc demands relentless discipline, but smart recovery prevents collapse.\n"
-                "Frost Shields protect your unbroken streak during rest days, sickness, travel, or exams."
+                "Streak Shields protect your unbroken streak during rest days, sickness, travel, or exams."
             ),
             color=0x00D2FF
         )
         embed.add_field(
-            name="❄️ How Frost Shields Work & Streaks",
+            name="❄️ How Streak Shields Work & Streaks",
             value=(
                 f"• **Daily Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day (e.g. 5 push-ups, 5 sit-ups, 5 squats, 5 pull-ups, 1 km run) to maintain your streak.\n"
-                "• **Earning Shields**: You earn **+1 Frost Shield for every 7-day streak milestone**.\n"
-                "• **Inventory Cap**: You can hold a maximum of **2 Frost Shields** at any time.\n"
+                "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone**.\n"
+                "• **Inventory Cap**: You can hold a maximum of **2 Streak Shields** at any time.\n"
                 f"• **Auto-Protection**: If you finish a day under {MIN_STREAK_POINTS} points, a shield is automatically consumed at midnight to preserve your streak."
             ),
             inline=False
@@ -791,9 +836,9 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed = discord.Embed(
             title="❄️ Winter Arc — Master Command Manual",
             description=(
-                "**Welcome to the Winter Arc.**\n"
-                "A 90-day crucible of physical and mental discipline.\n"
-                "Use the interactive menu below to deep-dive into each subsystem."
+                "**Welcome to the Winter Arc (Oct 1 – Jan 31).**\n"
+                "A 4-phase challenge of daily physical and mental discipline.\n"
+                "Use the interactive dropdown menu below to deep-dive into each subsystem."
             ),
             color=0x2B2D31
         )
@@ -805,7 +850,17 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
                 "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
                 "• 🏃 **Running**: 10 km *(1 pt / 100m)*\n"
-                "• 🧠 **Grind Bonus**: Up to +50 pts daily (`/grind`)"
+                "• 🧠 **Grind Bonus**: Up to +60 pts daily (`/grind`)"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="❄️ The 4 Official Arc Phases",
+            value=(
+                "• ❄️ **Phase 1: FIRST FROST** (Oct 1 – Oct 31) — Baseline habits & routine shock\n"
+                "• 🐺 **Phase 2: THE HUNT** (Nov 1 – Nov 30) — Deep mid-arc grind when novelty fades\n"
+                "• ⚔️ **Phase 3: THE ENDGAME** (Dec 1 – Dec 31) — Peak winter discipline & final push\n"
+                "• 🌅 **Phase 4: AFTERMATH** (Jan 1 – Jan 31) — Wind-down, identity integration & lifestyle"
             ),
             inline=False
         )
@@ -816,7 +871,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• ☀️ `16:30 IST` — Mid-day Check-in & Roster Standings\n"
                 "• ⚠️ `21:00 IST` — Evening Streak Warning (Save Your Streak)\n"
                 "• 🌑 `00:00 IST` — Midnight Reckoning & Final Day Tally\n"
-                "• 🏆 `Sunday 20:00` — Weekly Roast/Toast & State of the Pack"
+                "• 🏆 `Sunday 20:00` — Weekly Community Recap & State of the Pack"
             ),
             inline=False
         )
@@ -825,15 +880,94 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
                 "• **Progress**: `/today` • `/tasks` • `/streak` • `/profile` • `/stats` • `/history`\n"
-                "• **Standings**: `/leaderboard` • `/ranks`\n"
+                "• **Standings & Phases**: `/leaderboard` • `/recap` • `/ranks`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
                 "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
-                "• **Admin**: `/admin overview` • `/admin health` • `/test_reminder`"
+                "• **Admin**: `/admin set_channel` • `/admin overview` • `/admin health` • `/test_reminder`"
             ),
             inline=False
         )
         embed.set_footer(text="Select a category from the dropdown menu below for complete details")
         return embed
+
+
+def build_morning_kickoff_message(
+    active_tasks: List[Dict[str, Any]],
+    date_display: str,
+    curr_phase: Optional[Dict[str, Any]] = None,
+    phase_progress: Optional[Dict[str, Any]] = None,
+    quote: Optional[str] = None,
+    role_ping: str = ""
+) -> str:
+    """Builds native Discord broadcast for the 07:00 IST morning kickoff."""
+    clean_ping = role_ping.strip()
+    prefix = f"{clean_ping} " if clean_ping else ""
+
+    if curr_phase and phase_progress:
+        phase_header = f"Day {phase_progress['day_num']} of {curr_phase['name']} ({curr_phase['short_name']}) 🌅"
+    else:
+        phase_header = f"{date_display} 🌅"
+
+    header = (
+        f"{prefix}[WinterArc] {phase_header}\n"
+        "A new day is on the board. 500 points available across today's disciplines."
+    )
+
+    task_lines = []
+    for t in active_tasks:
+        tgt = format_num(t["target"])
+        task_lines.append(f"• **{t['name']}**: `{tgt} {t['unit']}` *({t.get('max_points', 100)} pts)*")
+    tasks_section = "\n".join(task_lines) if task_lines else "_No active disciplines configured._"
+
+    quote_text = (quote or '"When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love." — Marcus Aurelius').strip()
+    quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
+
+    subtext = "-# Log with /log or /quick • Deep work with /grind • Rollover at midnight"
+
+    return f"{header}\n\n{tasks_section}\n\n{quote_section}\n\n{subtext}"
+
+
+def build_afternoon_checkin_message(
+    enrolled_users: List[Dict[str, Any]],
+    today_str: str,
+    quote: Optional[str] = None,
+    role_ping: str = ""
+) -> str:
+    """Builds native Discord broadcast for the 16:30 IST afternoon check-in."""
+    clean_ping = role_ping.strip()
+    prefix = f"{clean_ping} " if clean_ping else ""
+
+    header = (
+        f"{prefix}[WinterArc] Afternoon Check-in ⏳\n"
+        "Halfway through the day. Check your numbers and get your remaining sets logged before tonight."
+    )
+
+    member_lines = []
+    sorted_users = []
+    for u in enrolled_users:
+        prog = db.get_user_daily_progress(u["discord_id"], today_str)
+        sorted_users.append({
+            "discord_id": u["discord_id"],
+            "username": u.get("username", "Member"),
+            "points": prog["total_points"],
+            "max_points": prog["max_possible_points"],
+            "pct": int(round(prog["overall_completion_rate"] * 100)),
+            "perfect_day": prog["perfect_day"],
+        })
+    sorted_users.sort(key=lambda x: (x["points"], x["pct"]), reverse=True)
+
+    for m in sorted_users:
+        star = " ⭐" if m["perfect_day"] else ""
+        member_lines.append(f"- <@{m['discord_id']}> — **{m['points']} / {m['max_points']} pts** ({m['pct']}%){star}")
+
+    members_section = "\n".join(member_lines) if member_lines else "- _No enrolled members yet._"
+
+    quote_text = (quote or '"First say to yourself what you would be; and then do what you have to do." — Epictetus').strip()
+    quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
+
+    subtext = "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
+
+    return f"{header}\n\n{members_section}\n\n{quote_section}\n\n{subtext}"
 
 
 def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display: str, quote: Optional[str] = None) -> discord.Embed:
@@ -900,6 +1034,71 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
     return embed
 
 
+def build_evening_checkin_message(
+    warriors_data: List[Dict[str, Any]],
+    callouts: Optional[Dict[int, str]] = None,
+    stoic_quote: Optional[str] = None,
+    role_ping: str = ""
+) -> str:
+    """
+    Builds the native Discord text broadcast for the 21:00 IST evening streak alert (3h before midnight).
+    Formatted with raw pings, per-warrior accountability callouts, authentic stoic quote, and subtext.
+
+    Format:
+    @Role [WinterArc] 3 hours left until midnight rollover. ⏳
+    If you haven't hit your 30 points yet, get your reps or run logged before midnight to keep your streak alive.
+
+    - <@USER_ID> — {callout}
+
+    > "{stoic_quote}" — Author
+
+    -# Log with /log • 30 pts/day minimum for streak • Rollover at midnight
+    """
+    clean_ping = role_ping.strip()
+    header_ping = f"{clean_ping} " if clean_ping else ""
+
+    header = (
+        f"{header_ping}[WinterArc] 3 hours left until midnight rollover. ⏳\n"
+        "If you haven't hit your 30 points yet, get your reps or run logged before midnight to keep your streak alive."
+    )
+
+    if not warriors_data:
+        warriors_section = "- _No enrolled warriors yet._"
+    else:
+        # Sort ascending by points so warriors who need urgency (0 pts, <30 pts) are at the top
+        sorted_warriors = sorted(
+            warriors_data,
+            key=lambda w: (w.get("points", 0), w.get("streak", 0))
+        )
+        lines = []
+        for w in sorted_warriors:
+            d_id = int(w["discord_id"])
+            pts = w.get("points", 0)
+            callout = (callouts or {}).get(d_id)
+            if not callout:
+                if pts == 0:
+                    callout = "0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight."
+                elif pts < 30:
+                    needed = 30 - pts
+                    callout = f"{pts} pts on the board. You need {needed} more points before midnight to save your streak."
+                elif pts >= 500:
+                    callout = f"{pts} pts, completely maxed out the board early. Rest up for tomorrow."
+                else:
+                    callout = f"{pts} pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight."
+            lines.append(f"- <@{d_id}> — {callout}")
+        warriors_section = "\n".join(lines)
+
+    quote = (stoic_quote or '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius').strip()
+    if quote.startswith(">"):
+        quote_section = quote
+    else:
+        quote_section = f"> {quote}"
+
+    subtext = "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
+
+    return f"{header}\n\n{warriors_section}\n\n{quote_section}\n\n{subtext}"
+
+
 def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 21:00 IST evening streak alert channel broadcast embed (3 hours before midnight)."""
     completed_lines = []
@@ -943,6 +1142,59 @@ def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str:
     )
     embed.set_footer(text=f"Log sets with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
     return embed
+
+
+def build_midnight_finalization_message(
+    date_str: str,
+    leaderboard: List[Dict[str, Any]],
+    ai_recap: Optional[str] = None,
+    role_ping: str = ""
+) -> str:
+    """Builds native Discord broadcast for 00:00 midnight daily finalization."""
+    try:
+        d_obj = date.fromisoformat(date_str)
+        title_date = d_obj.strftime("%A, %B %d")
+    except Exception:
+        title_date = date_str
+
+    clean_ping = role_ping.strip()
+    prefix = f"{clean_ping} " if clean_ping else ""
+
+    header = (
+        f"{prefix}[WinterArc] Day Finalized • {title_date} 🌙\n"
+        "Scores are locked in for the day."
+    )
+
+    recap_section = ""
+    if ai_recap:
+        clean_recap = ai_recap.strip()
+        recap_section = clean_recap if clean_recap.startswith(">") else f"> {clean_recap}"
+
+    podium_lines = []
+    perfect_count = 0
+    for idx, entry in enumerate(leaderboard):
+        pts = entry["points"]
+        rank_badge = ["🥇", "🥈", "🥉"][idx] if idx < 3 else f"`#{idx+1}`"
+        perfect_star = " ⭐" if entry["perfect_day"] else ""
+        if entry["perfect_day"]:
+            perfect_count += 1
+        pct = int(round(entry.get("completion_rate", 0) * 100))
+        d_id = entry.get("discord_id")
+        user_mention = f"<@{d_id}>" if d_id else f"**{entry['username']}**"
+        podium_lines.append(f"{rank_badge} {user_mention} — **{pts} pts** ({pct}%){perfect_star}")
+
+    board_section = "\n".join(podium_lines) if podium_lines else "_No activity logged for this day._"
+    clean_sweeps = f"\n\n🔥 **Clean Sweeps**: **{perfect_count}** member(s) hit 100%." if perfect_count > 0 else ""
+
+    subtext = "-# Fresh slate is open • Check your board with /today • Rollover at midnight"
+
+    sections = [header]
+    if recap_section:
+        sections.append(recap_section)
+    sections.append(board_section + clean_sweeps)
+    sections.append(subtext)
+
+    return "\n\n".join(sections)
 
 
 def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> discord.Embed:
@@ -1002,7 +1254,7 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
         f"**Today's Status**: {active_tag}\n"
         f"🔥 **Current Streak**: **{status['current_streak']} days**\n"
         f"⏳ **Next Unlock**: {next_tag}\n\n"
-        "**How Frost Shields Work**\n"
+        "**How Streak Shields Work**\n"
         "• **Earn**: +1 Shield earned every **7 consecutive streak days** *(cap 2)*.\n"
         "• **Manual Rest Day**: `/shield use` consumes 1 shield to protect your streak today.\n"
         "• **Midnight Safety Net**: If you miss your targets with an active streak, 1 shield is automatically consumed at 00:00 IST."
@@ -1012,7 +1264,7 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
         desc += "\n\n**Recent Recovery Days**\n" + "\n".join(history_lines)
 
     embed = discord.Embed(
-        title="🛡️ Winter Arc — Frost Shield Status",
+        title="🛡️ Winter Arc — Streak Shield Status",
         description=desc,
         color=0x00D2FF
     )
@@ -1021,9 +1273,9 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
 
 
 def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -> discord.Embed:
-    """Builds confirmation embed after manually activating a Frost Shield."""
+    """Builds confirmation embed after manually activating a Streak Shield."""
     embed = discord.Embed(
-        title="🛡️ Frost Shield Activated",
+        title="🛡️ Streak Shield Activated",
         description=(
             f"**{user.display_name}**, your streak is protected for **{result['target_date']}**.\n\n"
             f"• **Remaining Shields**: `🛡️ {result['remaining_shields']} / 2`\n"
@@ -1178,6 +1430,18 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
     return embed
 
 
+def format_grind_reply(result: Dict[str, Any]) -> str:
+    """Formats /grind evaluation as a casual conversational Discord message reply."""
+    commentary = (result.get("commentary") or "Session logged.").strip()
+    pts = int(result.get("points", 0))
+    learning = result.get("key_learning")
+
+    if pts > 0:
+        task_label = learning if learning and learning.lower() != "none" else "Deep Work"
+        return f"{commentary}\n\n**Points Earned**: {pts} pts\n**Logged**: {task_label}"
+    return commentary
+
+
 def build_quicklog_embed(
     user: discord.Member,
     log_results: List[Dict[str, Any]],
@@ -1226,6 +1490,55 @@ def build_quicklog_embed(
     )
     embed.set_footer(text="Natural language parsing • 500 daily points available across disciplines")
     return embed
+
+
+def build_weekly_recap_message(
+    weekly_stats: Dict[str, Any],
+    top_warriors: List[Dict[str, Any]],
+    ai_speech: Optional[str] = None,
+    role_ping: str = ""
+) -> str:
+    """Builds native Discord broadcast for Sunday 20:00 weekly recap."""
+    clean_ping = role_ping.strip()
+    prefix = f"{clean_ping} " if clean_ping else ""
+
+    header = (
+        f"{prefix}[WinterArc] Weekly Community Recap 📊\n"
+        "The week is officially in the books."
+    )
+
+    ai_section = ""
+    if ai_speech:
+        clean_ai = ai_speech.strip()
+        ai_section = clean_ai if clean_ai.startswith(">") else f"> {clean_ai}"
+
+    podium_lines = []
+    for idx, w in enumerate(top_warriors[:3]):
+        badge = ["🥇", "🥈", "🥉"][idx] if idx < 3 else f"#{idx+1}"
+        d_id = w.get("discord_id")
+        user_mention = f"<@{d_id}>" if d_id else f"**{w['username']}**"
+        podium_lines.append(f"{badge} {user_mention} — **{w['points']} pts**")
+
+    podium_block = "**🏆 Week's Top 3**\n" + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
+
+    vol_lines = [
+        f"• 💪 Push-ups: `{weekly_stats.get('total_pushups', 0):,}`",
+        f"• 🧗 Pull-ups: `{weekly_stats.get('total_pullups', 0):,}`",
+        f"• 🦵 Squats: `{weekly_stats.get('total_squats', 0):,}`",
+        f"• 🧘 Sit-ups: `{weekly_stats.get('total_situps', 0):,}`",
+        f"• 🏃 Running: `{weekly_stats.get('total_km', 0):,.1f} km`",
+    ]
+    vol_block = "**🌐 Community Workout Volume**\n" + "\n".join(vol_lines)
+
+    subtext = "-# New weekly leaderboard begins tomorrow at 00:00 IST"
+
+    sections = [header]
+    if ai_section:
+        sections.append(ai_section)
+    sections.append(f"{podium_block}\n\n{vol_block}")
+    sections.append(subtext)
+
+    return "\n\n".join(sections)
 
 
 def build_weekly_state_of_the_pack_embed(
@@ -1292,12 +1605,12 @@ def build_recap_embed(
             f"📅 **Active Days**: **{active} days**\n"
             f"🛡️ **Total Shields Consumed**: **{shields}**\n"
             f"🧠 **Deep Work Grinds**: **{grind_count} sessions** *(+{grind_pts:,} pts)*\n\n"
-            f"🏋️ **Total Campaign Volume**\n"
+            f"**Training Volume**\n"
             + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged yet._")
         )
 
         embed = discord.Embed(
-            title="📜 Winter Arc — Overall Campaign Recap",
+            title="Overall Campaign Recap",
             description=desc,
             color=0x2C3E50
         )
@@ -1336,14 +1649,14 @@ def build_recap_embed(
         f"💎 **Phase Points**: **{pts:,} pts**\n"
         f"⭐ **Perfect Days**: **{perfect} days**\n"
         f"📅 **Active Days**: **{active} / {p_total_days} days**\n"
-        f"🛡️ **Frost Shields Used**: **{shields}**\n"
+        f"🛡️ **Streak Shields Used**: **{shields}**\n"
         f"🧠 **Deep Work Sessions**: **{grind_count} logs** *(+{grind_pts:,} pts)*\n\n"
-        f"🏋️ **Discipline Volume in {p_name}**\n"
+        f"**Training Volume**\n"
         + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged in this phase._")
     )
 
     embed = discord.Embed(
-        title=f"{p_badge} Winter Arc — {p_short}: {p_name} Recap",
+        title=f"{p_short}: {p_name} Recap",
         description=desc,
         color=p_color
     )
@@ -1388,6 +1701,82 @@ def build_phase_podium_embed(
     )
     embed.set_footer(text="Data frozen in phase snapshot • Streaks continue into the next phase")
     return embed
+
+
+def build_phase_conclusion_message(
+    phase_dict: Dict[str, Any],
+    phase_lb: List[Dict[str, Any]],
+    ceremony_speech: Optional[str] = None,
+    next_phase_dict: Optional[Dict[str, Any]] = None,
+    role_ping: str = ""
+) -> str:
+    """Builds native Discord broadcast for the monthly Phase Conclusion ceremony."""
+    clean_ping = role_ping.strip()
+    prefix = f"{clean_ping} " if clean_ping else ""
+    p_name = phase_dict.get("name", "Phase")
+    p_num = phase_dict.get("id", 1)
+    p_days = phase_dict.get("total_days", 31)
+
+    header = (
+        f"{prefix}[WinterArc] Phase {p_num} Concluded • {p_name} 🏆\n"
+        f"{p_days} days of baseline execution locked in. Scores are now archived."
+    )
+
+    quote_section = ""
+    if ceremony_speech:
+        clean_speech = ceremony_speech.strip()
+        quote_section = clean_speech if clean_speech.startswith(">") else f"> {clean_speech}"
+
+    top_lines = []
+    top_3 = phase_lb[:3]
+    for idx, u in enumerate(top_3):
+        badge = ["🥇", "🥈", "🥉"][idx]
+        d_id = u.get("discord_id")
+        user_mention = f"<@{d_id}>" if d_id else f"**{u['username']}**"
+        clean = u.get("perfect_days", 0)
+        clean_str = f" *({clean} clean days)*" if clean > 0 else ""
+        top_lines.append(f"{badge} {user_mention} — **{u['total_points']:,} pts**{clean_str}")
+
+    runners_up = []
+    for idx, u in enumerate(phase_lb[3:6], start=4):
+        d_id = u.get("discord_id")
+        user_mention = f"<@{d_id}>" if d_id else f"**{u['username']}**"
+        runners_up.append(f"{idx}th: {user_mention} — **{u['total_points']:,} pts**")
+
+    if runners_up:
+        top_lines.append(" • ".join(runners_up))
+
+    standings_block = f"**🏆 Phase {p_num} Top Standings**\n" + ("\n".join(top_lines) if top_lines else "_No participants recorded._")
+
+    # Community stats
+    total_pts = sum(u.get("total_points", 0) for u in phase_lb)
+    total_clean = sum(u.get("perfect_days", 0) for u in phase_lb)
+    active_count = len(phase_lb)
+
+    totals_block = (
+        f"**🌐 Community Phase {p_num} Totals**\n"
+        f"• Active Participants: `{active_count}`\n"
+        f"• Clean Days Logged: `{total_clean}`\n"
+        f"• Total Volume: `{total_pts:,} pts`"
+    )
+
+    next_block = ""
+    if next_phase_dict:
+        next_block = f"⚡ **{next_phase_dict['short_name']} ({next_phase_dict['name']})** begins tomorrow at 00:00 IST."
+
+    subtext = "-# Phase snapshot archived • Streaks carry over uninterrupted"
+
+    sections = [header]
+    if quote_section:
+        sections.append(quote_section)
+    sections.append(standings_block)
+    sections.append(totals_block)
+    if next_block:
+        sections.append(next_block)
+    sections.append(subtext)
+
+    return "\n\n".join(sections)
+
 
 
 
