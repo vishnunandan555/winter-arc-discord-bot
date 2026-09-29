@@ -13,6 +13,7 @@ from ui.embeds import (
     build_overall_leaderboard_embed,
     build_settings_embed,
     build_help_embed,
+    build_recap_embed,
 )
 
 
@@ -152,4 +153,72 @@ class HelpView(discord.ui.View):
         chosen = select.values[0]
         embed = build_help_embed(category=chosen)
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+class RecapView(discord.ui.View):
+    """
+    Interactive view for /recap allowing warriors to switch between
+    unlocked phases and the overall campaign recap.
+    Only phases that have arrived/active are displayed as buttons.
+    """
+    def __init__(self, target_user: discord.Member, author_id: int, current_selection: str = "phase_1"):
+        super().__init__(timeout=300)
+        self.target_user = target_user
+        self.author_id = author_id
+        self.current_selection = current_selection
+        self._build_buttons()
+
+    def _build_buttons(self):
+        self.clear_items()
+        from phases import get_unlocked_phases
+        unlocked = get_unlocked_phases()
+
+        # Add button for each unlocked phase
+        for p in unlocked:
+            btn_id = f"phase_{p['id']}"
+            is_active = (self.current_selection == btn_id)
+            btn = discord.ui.Button(
+                label=f"{p['short_name']}: {p['name']}",
+                emoji=p["badge"],
+                style=discord.ButtonStyle.primary if is_active else discord.ButtonStyle.secondary,
+                custom_id=f"recap_{btn_id}",
+                disabled=is_active
+            )
+            btn.callback = self._make_phase_callback(p["id"], btn_id)
+            self.add_item(btn)
+
+        # Add Overall button
+        is_overall = (self.current_selection == "overall")
+        overall_btn = discord.ui.Button(
+            label="Overall",
+            emoji="📜",
+            style=discord.ButtonStyle.primary if is_overall else discord.ButtonStyle.secondary,
+            custom_id="recap_overall",
+            disabled=is_overall
+        )
+        overall_btn.callback = self._overall_callback
+        self.add_item(overall_btn)
+
+    def _make_phase_callback(self, phase_id: int, btn_id: str):
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author_id:
+                await interaction.response.send_message("Only the warrior who ran this command can navigate the recap.", ephemeral=True)
+                return
+            self.current_selection = btn_id
+            self._build_buttons()
+            stats = db.get_user_phase_stats(self.target_user.id, phase_id)
+            embed = build_recap_embed(self.target_user, stats, is_overall=False)
+            await interaction.response.edit_message(embed=embed, view=self)
+        return callback
+
+    async def _overall_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.author_id:
+            await interaction.response.send_message("Only the warrior who ran this command can navigate the recap.", ephemeral=True)
+            return
+        self.current_selection = "overall"
+        self._build_buttons()
+        stats = db.get_user_overall_recap(self.target_user.id)
+        embed = build_recap_embed(self.target_user, stats, is_overall=True)
+        await interaction.response.edit_message(embed=embed, view=self)
+
 

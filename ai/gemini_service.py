@@ -24,6 +24,11 @@ class GrindEvaluation(BaseModel):
     commentary: str = Field(description="Exactly 2 to 3 sentences of sharp, direct engineering mentor feedback.")
 
 
+class GeminiServiceError(Exception):
+    """Raised when the Gemini AI evaluation model is unreachable or encounters an API error."""
+    pass
+
+
 _gemini_client = None
 
 
@@ -46,16 +51,12 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     """
     Evaluates a user's daily academic/engineering friction using Gemini.
     Strictly filters out vibe-coding, passive consumption, diet logs, and fluff.
+    Raises GeminiServiceError if the model is unreachable or fails (preserving the user's daily attempt).
     """
     client = get_gemini_client()
     if not client:
-        logger.warning("GEMINI_API_KEY not configured. Falling back to default evaluation.")
-        return {
-            "verdict": "ACCEPTED",
-            "points": 30,
-            "key_learning": "Deep Focus",
-            "commentary": "Solid study session recorded. Baseline points awarded.",
-        }
+        logger.warning("GEMINI_API_KEY not configured. Raising GeminiServiceError.")
+        raise GeminiServiceError("Gemini AI API key is not configured on the bot server. Please inform an admin.")
 
     system_prompt = (
         "You are a focused, straight-shooting engineering mentor and study partner for the Winter Arc challenge.\n"
@@ -117,12 +118,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Error calling Gemini for /grind evaluation: {e}")
-        return {
-            "verdict": "ACCEPTED",
-            "points": 25,
-            "key_learning": "Deep Focus",
-            "commentary": "Your session has been recorded. Baseline points awarded.",
-        }
+        raise GeminiServiceError(f"AI evaluation service is temporarily unavailable ({str(e)}).")
 
 
 async def generate_daily_toast_and_roast(
@@ -304,4 +300,62 @@ async def generate_reminder_motivation(
     except Exception as e:
         logger.warning(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.", exc_info=True)
         return random.choice(CURATED_STOIC_FALLBACKS)
+
+
+async def generate_phase_ceremony(
+    phase_info: Dict[str, Any],
+    top_warriors: List[Dict[str, Any]],
+    bottom_warriors: List[Dict[str, Any]],
+    next_phase_info: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    Generates the official End-of-Phase ceremony proclamation.
+    Celebrates top champions, roasts bottom slackers, and announces the transition to the next phase.
+    """
+    client = get_gemini_client()
+    if not client:
+        top_str = f"Salute to {top_warriors[0]['username']} for dominating {phase_info['name']}." if top_warriors else ""
+        next_str = f"Prepare for {next_phase_info['name']} tomorrow." if next_phase_info else "The Arc stands conquered."
+        return f"{phase_info['name']} has concluded. {top_str} Slacking ends now. {next_str}"
+
+    top_summaries = [f"#{idx+1} {w['username']} ({w['total_points']:,} pts, {w.get('perfect_days', 0)} clean days)" for idx, w in enumerate(top_warriors[:3])]
+    bottom_summaries = [f"{w['username']} ({w['total_points']} pts)" for w in bottom_warriors[:3] if w['total_points'] == 0 or w['total_points'] < 100]
+
+    next_phase_text = (
+        f"Next Phase: {next_phase_info['short_name']} — {next_phase_info['name']} ({next_phase_info['subtitle']}). Starts tomorrow."
+        if next_phase_info else "This was the final phase of the Winter Arc."
+    )
+
+    prompt = (
+        f"Generate the official Discord community address marking the END OF {phase_info['name'].upper()} ({phase_info['short_name']}) in the Winter Arc.\n"
+        f"Phase Data:\n"
+        f"- Concluded Phase: {phase_info['name']} ({phase_info['subtitle']})\n"
+        f"- Top Champions of the Phase: {', '.join(top_summaries) if top_summaries else 'None'}\n"
+        f"- Slackers / Low Effort: {', '.join(bottom_summaries) if bottom_summaries else 'None identified'}\n"
+        f"- {next_phase_text}\n\n"
+        "Requirements:\n"
+        "1. Give powerful, authentic praise to the top 3 champions by name for holding the highest standard.\n"
+        "2. Deliver a sharp, blunt roast to anyone who went ghost or logged zero effort throughout this entire month.\n"
+        "3. Announce the transition to the next phase with cold, commanding authority. No excuses roll over.\n"
+        "4. TONE: Authoritative, raw, respected coach voice. Real and gritty, NOT corny fantasy roleplay.\n"
+        "5. LENGTH: 3 TO 4 SHORT PARAGRAPHS (UNDER 140 WORDS TOTAL)."
+    )
+
+    try:
+        from google.genai import types
+        response = await client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.75,
+                max_output_tokens=300,
+            ),
+        )
+        return response.text.strip()
+    except Exception as e:
+        logger.warning(f"Could not generate Gemini phase ceremony: {e}")
+        top_str = f"Salute to {top_warriors[0]['username']} for dominating {phase_info['name']}." if top_warriors else ""
+        next_str = f"Prepare for {next_phase_info['name']} tomorrow." if next_phase_info else "The Winter Arc stands conquered."
+        return f"{phase_info['name']} has officially closed. {top_str} The standards only rise from here. {next_str}"
+
 

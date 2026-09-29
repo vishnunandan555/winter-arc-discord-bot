@@ -17,11 +17,20 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
         if os.path.exists(TEST_DB):
             os.remove(TEST_DB)
         db.init_db(TEST_DB)
+        cls._created_default_db = False
+        if not os.path.exists(db.DB_PATH):
+            db.init_db(db.DB_PATH)
+            cls._created_default_db = True
 
     @classmethod
     def tearDownClass(cls):
         if os.path.exists(TEST_DB):
             os.remove(TEST_DB)
+        if getattr(cls, "_created_default_db", False) and os.path.exists(db.DB_PATH):
+            try:
+                os.remove(db.DB_PATH)
+            except Exception:
+                pass
 
     def test_01_tasks_seeded(self):
         tasks = db.get_active_tasks(TEST_DB)
@@ -423,15 +432,18 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
 
     def test_17_gemini_grind_evaluator(self):
         import asyncio
-        from ai.gemini_service import evaluate_grind
+        from ai.gemini_service import evaluate_grind, GeminiServiceError
 
-        # Test evaluation structure (works with or without API key via fallback)
-        res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
-        self.assertIn("verdict", res)
-        self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
-        self.assertIn("points", res)
-        self.assertTrue(0 <= res["points"] <= 60)
-        self.assertIn("commentary", res)
+        # Test evaluation structure (works with live API key or asserts GeminiServiceError if unconfigured/quota reached)
+        try:
+            res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
+            self.assertIn("verdict", res)
+            self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
+            self.assertIn("points", res)
+            self.assertTrue(0 <= res["points"] <= 60)
+            self.assertIn("commentary", res)
+        except GeminiServiceError as e:
+            self.assertTrue(len(str(e)) > 0)
     def test_18_bot_state_persistence(self):
         # Initial missing state returns default
         val = db.get_bot_state("non_existent_key", default="fallback", db_path=TEST_DB)
@@ -1311,9 +1323,217 @@ class TestWinterArcRedesignEngine(unittest.TestCase):
             for trope in banned_tropes:
                 self.assertNotIn(trope, quote.lower())
 
+    def test_43_winter_arc_phases_and_recap_system(self):
+        """Verifies phase definitions, calendar bounding, recap queries, snapshot isolation, and UI views."""
+        import phases
+        from unittest.mock import MagicMock
+        from ui.embeds import (
+            build_recap_embed,
+            build_phase_podium_embed,
+            build_monthly_leaderboard_embed,
+            build_profile_embed,
+        )
+        from ui.views import RecapView
+
+        # 1. Verify Phase Metadata & Names
+        self.assertEqual(len(phases.PHASES), 4)
+        p1 = phases.get_phase_by_id(1)
+        p2 = phases.get_phase_by_id(2)
+        p3 = phases.get_phase_by_id(3)
+        p4 = phases.get_phase_by_id(4)
+
+        self.assertEqual(p1["name"], "FIRST FROST")
+        self.assertEqual(p1["total_days"], 31)
+        self.assertEqual(p2["name"], "THE HUNT")
+        self.assertEqual(p2["total_days"], 30)
+        self.assertEqual(p3["name"], "THE ENDGAME")
+        self.assertEqual(p3["total_days"], 31)
+        self.assertEqual(p4["name"], "AFTERMATH")
+        self.assertEqual(p4["total_days"], 31)
+
+        # 2. Verify Calendar Discovery & Unlocking
+        self.assertEqual(phases.get_current_phase("2026-10-15")["id"], 1)
+        self.assertEqual(phases.get_current_phase("2026-11-20")["id"], 2)
+        self.assertEqual(phases.get_current_phase("2026-12-25")["id"], 3)
+        self.assertEqual(phases.get_current_phase("2027-01-10")["id"], 4)
+
+        # Unlocked phases: strictly omits future phases
+        self.assertEqual(len(phases.get_unlocked_phases("2026-10-10")), 1)
+        self.assertEqual(len(phases.get_unlocked_phases("2026-11-05")), 2)
+        self.assertEqual(len(phases.get_unlocked_phases("2026-12-01")), 3)
+        self.assertEqual(len(phases.get_unlocked_phases("2027-01-01")), 4)
+
+        # Last day detection
+        is_last, ph = phases.is_last_day_of_phase("2026-10-31")
+        self.assertTrue(is_last)
+        self.assertEqual(ph["name"], "FIRST FROST")
+
+        is_last_mid, _ = phases.is_last_day_of_phase("2026-10-15")
+        self.assertFalse(is_last_mid)
+
+        # 3. Test Phase Leaderboard, User Phase Stats, and Overall Recap
+        u_phase = 777111
+        db.enroll_user(u_phase, "PhaseWarrior", TEST_DB)
+
+        # Seed activity in October (Phase 1)
+        d_oct1 = "2026-10-05"
+        d_oct2 = "2026-10-06"
+        db.log_activity(u_phase, "PhaseWarrior", "Push-ups", 100, d_oct1, TEST_DB)
+        db.log_activity(u_phase, "PhaseWarrior", "Running", 10, d_oct1, TEST_DB) # 200 pts
+        db.finalize_daily_summaries(d_oct1, TEST_DB)
+
+        db.log_activity(u_phase, "PhaseWarrior", "Squats", 100, d_oct2, TEST_DB) # 100 pts
+        db.finalize_daily_summaries(d_oct2, TEST_DB)
+
+        # Seed activity in November (Phase 2)
+        d_nov = "2026-11-05"
+        db.log_activity(u_phase, "PhaseWarrior", "Sit-ups", 100, d_nov, TEST_DB) # 100 pts
+        db.finalize_daily_summaries(d_nov, TEST_DB)
+
+        # Check Phase 1 Leaderboard (should only contain October 300 pts)
+        p1_lb = db.get_phase_leaderboard(1, TEST_DB)
+        p1_entry = next((e for e in p1_lb if e["discord_id"] == u_phase), None)
+        self.assertIsNotNone(p1_entry)
+        self.assertEqual(p1_entry["total_points"], 300)
+
+        # Check Phase 1 User Stats
+        p1_stats = db.get_user_phase_stats(u_phase, 1, TEST_DB)
+        self.assertEqual(p1_stats["total_points"], 300)
+        self.assertEqual(p1_stats["active_days"], 2)
+        push_vol = next((t["total_volume"] for t in p1_stats["task_totals"] if t["name"] == "Push-ups"), 0)
+        self.assertEqual(push_vol, 100)
+
+        # Check Overall Recap (includes Oct 300 + Nov 100 = 400 pts)
+        overall_recap = db.get_user_overall_recap(u_phase, TEST_DB)
+        self.assertGreaterEqual(overall_recap["lifetime_points"], 400)
+
+        # 4. Test Snapshot Archival
+        import os
+        import sqlite3
+        backup_dir = os.path.join(os.path.dirname(TEST_DB), "test_backups")
+        snapshot_file = db.archive_phase_snapshot(1, TEST_DB, backup_dir=backup_dir)
+        self.assertTrue(os.path.exists(snapshot_file))
+
+        with sqlite3.connect(snapshot_file) as s_conn:
+            s_cur = s_conn.cursor()
+            s_cur.execute("SELECT total_points FROM phase_standings WHERE discord_id = ?;", (u_phase,))
+            row = s_cur.fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], 300)
+
+            # Ensure November records are NOT in October snapshot
+            s_cur.execute("SELECT COUNT(*) FROM daily_summaries WHERE date >= '2026-11-01';")
+            self.assertEqual(s_cur.fetchone()[0], 0)
+
+        # Clean up test snapshot
+        try:
+            import shutil
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        # 5. Test UI Embeds & RecapView
+        mock_user = MagicMock()
+        mock_user.id = u_phase
+        mock_user.display_name = "PhaseWarrior"
+        mock_user.avatar = None
+
+        embed_p1 = build_recap_embed(mock_user, p1_stats, is_overall=False)
+        self.assertIn("FIRST FROST", embed_p1.title)
+        self.assertIn("300 pts", embed_p1.description)
+
+        embed_all = build_recap_embed(mock_user, overall_recap, is_overall=True)
+        self.assertIn("Overall Campaign Recap", embed_all.title)
+
+        podium_embed = build_phase_podium_embed(p1, p1_lb)
+        self.assertIn("FIRST FROST Concluded", podium_embed.title)
+
+        # Monthly leaderboard mentions Phase
+        m_embed = build_monthly_leaderboard_embed(year=2026, month=10)
+        self.assertIn("FIRST FROST", m_embed.title)
+
+        # Profile embed mentions Phase
+        user_record = db.get_user_by_discord_id(u_phase, TEST_DB)
+        stats_data = db.get_user_stats(u_phase, TEST_DB)
+        prof_embed = build_profile_embed(mock_user, user_record, 2, stats_data)
+        self.assertIn("Active Phase", prof_embed.description)
+
+        # RecapView initialization
+        view = RecapView(target_user=mock_user, author_id=mock_user.id, current_selection="phase_1")
+        self.assertTrue(len(view.children) >= 2)
+
+    def test_44_cleanup_fixes_and_robustness(self):
+        """Verifies no-fallback Gemini error handling, formatted history with grind tags, and retroactive sync."""
+        from ai.gemini_service import GeminiServiceError, evaluate_grind
+        from ui.embeds import build_history_embed, build_stats_embed, build_profile_embed
+
+        # 1. Verify GeminiServiceError is raised without fake fallback points when unconfigured or failing
+        import asyncio
+        from unittest.mock import patch, AsyncMock, MagicMock
+        with patch("ai.gemini_service.get_gemini_client", return_value=None):
+            with self.assertRaises(GeminiServiceError):
+                asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
+
+        mock_failing_client = MagicMock()
+        mock_failing_client.aio.models.generate_content = AsyncMock(side_effect=RuntimeError("API quota exhausted"))
+        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client):
+            with self.assertRaises(GeminiServiceError):
+                asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
+
+        # 2. Formatted history with grind log attachment
+        u_hist = 999777
+        db.enroll_user(u_hist, "HistoryWarrior", db_path=TEST_DB)
+        past_d = db.get_today_date() - timedelta(days=2)
+        past_date = past_d.isoformat()
+        db.log_activity(u_hist, "HistoryWarrior", "Push-ups", 50, log_date=past_date, db_path=TEST_DB)
+        db.record_grind_entry(
+            discord_id=u_hist,
+            date_str=past_date,
+            raw_input="Finished dynamic programming problem set",
+            verdict="ACCEPTED",
+            points=30,
+            key_learning="Graph Dynamic Programming",
+            commentary="Strong deep work",
+            db_path=TEST_DB
+        )
+        hist = db.get_user_history(u_hist, days=7, db_path=TEST_DB)
+        matching = [h for h in hist if h["date"] == past_date]
+        self.assertEqual(len(matching), 1)
+        self.assertIsNotNone(matching[0].get("grind_entry"))
+        self.assertEqual(matching[0]["grind_entry"]["points_awarded"], 30)
+
+        # History embed format
+        mock_user = MagicMock()
+        mock_user.id = u_hist
+        mock_user.display_name = "HistoryWarrior"
+        mock_user.avatar = None
+        h_embed = build_history_embed(mock_user, hist)
+        expected_date_str = past_d.strftime("%a, %b %d")
+        self.assertIn(expected_date_str, h_embed.description)
+        self.assertIn("↳ 🧠 *+30 pts grind (Graph Dynamic Programming)*", h_embed.description)
+        self.assertNotIn("Winter Arc • Consistency Beats Motivation", h_embed.footer.text)
+
+        # 3. Retroactive set_activity re-finalizes daily_summaries
+        retro_date = (db.get_today_date() - timedelta(days=3)).isoformat()
+        db.set_activity(u_hist, "HistoryWarrior", "Push-ups", 100, log_date=retro_date, db_path=TEST_DB)
+        with db.get_connection(TEST_DB) as conn:
+            row = conn.cursor().execute(
+                "SELECT points, completion_rate FROM daily_summaries WHERE user_id = (SELECT id FROM users WHERE discord_id = ?) AND date = ?;",
+                (u_hist, retro_date)
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row["points"], 100)
+
+        # 4. Check stats embed and profile embed footers
+        s_embed = build_stats_embed(mock_user, db.get_user_stats(u_hist, TEST_DB))
+        self.assertNotIn("Winter Arc • Consistency Beats Motivation", s_embed.footer.text)
+        p_embed = build_profile_embed(mock_user, db.get_user_by_discord_id(u_hist, TEST_DB), 1, db.get_user_stats(u_hist, TEST_DB))
+        self.assertNotIn("Winter Arc • Consistency Beats Motivation", p_embed.footer.text)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

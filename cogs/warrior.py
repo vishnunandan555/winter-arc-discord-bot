@@ -46,8 +46,9 @@ from ui.embeds import (
     build_settings_embed,
     build_grind_embed,
     build_quicklog_embed,
+    build_recap_embed,
 )
-from ui.views import LeaderboardView, SettingsView, HelpView
+from ui.views import LeaderboardView, SettingsView, HelpView, RecapView
 from ai import gemini_service, groq_service
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
@@ -122,7 +123,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             ),
             color=0x2ECC71
         )
-        embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+        embed.set_footer(text="Day resets at 00:00 IST • Daily standard: 500 points")
         await interaction.response.send_message(embed=embed)
         await safe_react(interaction, "🐺", "⚔️")
 
@@ -505,6 +506,31 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_history_embed(interaction.user, hist)
         await interaction.followup.send(embed=embed)
 
+    @app_commands.command(name="recap", description="Explore detailed performance recaps by phase and overall campaign.")
+    @app_commands.describe(user="The warrior to view the recap for (defaults to yourself)")
+    @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
+    async def recap(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+        target = user or interaction.user
+        if not await require_enrolled(interaction):
+            return
+
+        target_record = db.get_user_by_discord_id(target.id)
+        if not target_record or not target_record.get("enrolled"):
+            name = "You are" if target.id == interaction.user.id else f"{target.display_name} is"
+            await interaction.response.send_message(f"🚫 {name} not enrolled in the Winter Arc.", ephemeral=True)
+            return
+
+        await interaction.response.defer()
+
+        from phases import get_current_phase
+        curr_phase = get_current_phase()
+        phase_id = curr_phase["id"] if curr_phase else 1
+
+        stats = db.get_user_phase_stats(target.id, phase_id)
+        embed = build_recap_embed(target, stats, is_overall=False)
+        view = RecapView(target_user=target, author_id=interaction.user.id, current_selection=f"phase_{phase_id}")
+        await interaction.followup.send(embed=embed, view=view)
+
     @app_commands.command(name="streak", description="Quickly look up current streak and shield protection status.")
     @app_commands.describe(member="Optional: Check another warrior's streak")
     async def streak_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
@@ -543,7 +569,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             description=desc,
             color=0xE67E22 if streak > 0 else 0x95A5A6
         )
-        embed.set_footer(text="Consistency Beats Motivation • 30 pts/day minimum for streak")
+        embed.set_footer(text="Requires 30+ pts/day to preserve streak • Max 2 Frost Shields")
         await interaction.followup.send(embed=embed)
         await safe_react(interaction, "🔥", "🐺")
 
@@ -659,7 +685,25 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.response.defer()
 
         # Evaluate via Gemini
-        evaluation = await gemini_service.evaluate_grind(text)
+        try:
+            evaluation = await gemini_service.evaluate_grind(text)
+        except gemini_service.GeminiServiceError as e:
+            logger.warning(f"/grind evaluation unavailable for {interaction.user}: {e}")
+            await interaction.followup.send(
+                f"⚠️ **AI Evaluation Unavailable**\n{str(e)}\n\n"
+                "ℹ️ *Your daily grind submission has NOT been consumed. You can run `/grind` again when the service is back, or inform an admin.*",
+                ephemeral=True
+            )
+            return
+        except Exception as e:
+            logger.error(f"Unexpected /grind error for {interaction.user}: {e}", exc_info=True)
+            await interaction.followup.send(
+                "⚠️ **Evaluation Error**: Could not complete evaluation due to an unexpected service error.\n\n"
+                "ℹ️ *Your daily grind submission was NOT consumed. Please try again shortly or inform an admin.*",
+                ephemeral=True
+            )
+            return
+
         logger.info(f"/grind evaluated for {interaction.user}: {evaluation.get('verdict')} (+{evaluation.get('points')} pts, tag: {evaluation.get('key_learning')})")
 
         # Record in database

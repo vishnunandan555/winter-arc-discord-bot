@@ -628,6 +628,13 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
         streak = calculate_streak(discord_id, log_date, db_path)
         shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
+    # If updating a past date, re-finalize daily_summaries for that day so historical data stays in sync
+    if log_date != get_today_str():
+        try:
+            finalize_daily_summaries(target_date_str=log_date, db_path=db_path)
+        except Exception:
+            pass
+
     return {
         "user_id": user["id"],
         "discord_id": discord_id,
@@ -1260,16 +1267,48 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
 
     history = []
     today = get_today_date()
+    today_str = today.isoformat()
+    start_d_str = (today - timedelta(days=days)).isoformat()
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT date, points, completion_rate, perfect_day
+            FROM daily_summaries
+            WHERE user_id = ? AND date >= ? AND date < ?;
+        """, (user["id"], start_d_str, today_str))
+        past_summaries = {r["date"]: dict(r) for r in cursor.fetchall()}
+
+        cursor.execute("""
+            SELECT date, verdict, points_awarded, key_learning
+            FROM grind_logs
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_d_str, today_str))
+        grinds_by_date = {r["date"]: dict(r) for r in cursor.fetchall()}
+
     for i in range(days):
         d_str = (today - timedelta(days=i)).isoformat()
-        prog = get_user_daily_progress(discord_id, d_str, db_path)
-        history.append({
-            "date": d_str,
-            "points": prog["total_points"],
-            "max_points": prog["max_possible_points"],
-            "completion_rate": prog["overall_completion_rate"],
-            "perfect_day": prog["perfect_day"],
-        })
+        day_grind = grinds_by_date.get(d_str)
+        if d_str in past_summaries:
+            s = past_summaries[d_str]
+            history.append({
+                "date": d_str,
+                "points": int(s["points"]),
+                "max_points": 500,
+                "completion_rate": float(s["completion_rate"]),
+                "perfect_day": bool(s["perfect_day"]),
+                "grind_entry": day_grind,
+            })
+        else:
+            prog = get_user_daily_progress(discord_id, d_str, db_path)
+            history.append({
+                "date": d_str,
+                "points": prog["total_points"],
+                "max_points": prog["max_possible_points"],
+                "completion_rate": prog["overall_completion_rate"],
+                "perfect_day": prog["perfect_day"],
+                "grind_entry": day_grind or prog.get("grind_entry"),
+            })
 
     return history
 
@@ -1588,5 +1627,367 @@ def get_user_recent_grinds(discord_id: int, limit: int = 3, db_path: str = DB_PA
             LIMIT ?;
         """, (user["id"], limit))
         return [dict(r) for r in cursor.fetchall()]
+
+
+# ==========================================
+# Phase Progression, Standings & Snapshots
+# ==========================================
+
+def get_phase_leaderboard(phase_id: int, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+    """
+    Computes standings for all enrolled users strictly within phase date boundaries.
+    Aggregates finalized daily_summaries within [start_date, end_date] plus today's live progress if today falls in the phase.
+    """
+    from phases import get_phase_by_id
+    phase = get_phase_by_id(phase_id)
+    if not phase:
+        return []
+
+    start_date = phase["start_date"]
+    end_date = phase["end_date"]
+    today_str = get_today_str()
+    include_today = (start_date <= today_str <= end_date)
+
+    enrolled = get_enrolled_users(db_path)
+    if not enrolled:
+        return []
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        exclude_date = today_str if include_today else ""
+        cursor.execute("""
+            SELECT user_id, 
+                   COALESCE(SUM(points), 0) AS total_pts, 
+                   COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                   COUNT(DISTINCT date) AS active_days
+            FROM daily_summaries
+            WHERE date >= ? AND date <= ? AND date != ?
+            GROUP BY user_id;
+        """, (start_date, end_date, exclude_date))
+        summary_map = {r["user_id"]: dict(r) for r in cursor.fetchall()}
+
+    leaderboard = []
+    for u in enrolled:
+        u_id = u["id"]
+        d_id = u["discord_id"]
+        sm = summary_map.get(u_id, {"total_pts": 0, "perfect_days": 0, "active_days": 0})
+        pts = int(sm["total_pts"])
+        perfect = int(sm["perfect_days"])
+        active = int(sm["active_days"])
+
+        if include_today:
+            today_prog = get_user_daily_progress(d_id, today_str, db_path)
+            today_pts = int(today_prog.get("total_points", 0))
+            pts += today_pts
+            if today_prog.get("perfect_day"):
+                perfect += 1
+            if today_pts > 0:
+                active += 1
+
+        leaderboard.append({
+            "user_id": u_id,
+            "discord_id": d_id,
+            "username": u["username"],
+            "total_points": pts,
+            "perfect_days": perfect,
+            "active_days": active,
+        })
+
+    leaderboard.sort(key=lambda x: (x["total_points"], x["perfect_days"]), reverse=True)
+    for idx, item in enumerate(leaderboard, start=1):
+        item["rank"] = idx
+
+    return leaderboard
+
+
+def get_user_phase_stats(discord_id: int, phase_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Returns user's detailed performance for a specific phase:
+    - Phase rank & total participants
+    - Total points earned in phase
+    - Perfect days & active days in phase
+    - Discipline totals (pushups, pullups, etc.) in phase
+    - Shields used in phase
+    - Grind logs in phase
+    """
+    from phases import get_phase_by_id
+    phase = get_phase_by_id(phase_id)
+    if not phase:
+        return {}
+
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {}
+
+    start_date = phase["start_date"]
+    end_date = phase["end_date"]
+    today_str = get_today_str()
+    include_today = (start_date <= today_str <= end_date)
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        exclude_date = today_str if include_today else ""
+        cursor.execute("""
+            SELECT COALESCE(SUM(points), 0) AS total_pts,
+                   COALESCE(SUM(perfect_day), 0) AS perfect_days,
+                   COUNT(DISTINCT date) AS active_days
+            FROM daily_summaries
+            WHERE user_id = ? AND date >= ? AND date <= ? AND date != ?;
+        """, (user["id"], start_date, end_date, exclude_date))
+        row = cursor.fetchone()
+        past_pts = int(row["total_pts"]) if row else 0
+        perfect_days = int(row["perfect_days"]) if row else 0
+        active_days = int(row["active_days"]) if row else 0
+
+        # Discipline volume strictly within phase
+        cursor.execute("""
+            SELECT t.name, t.unit, COALESCE(SUM(l.amount), 0) as total_volume
+            FROM tasks t
+            LEFT JOIN daily_logs l ON t.id = l.task_id AND l.user_id = ? AND l.date >= ? AND l.date <= ?
+            GROUP BY t.id
+            ORDER BY t.id ASC;
+        """, (user["id"], start_date, end_date))
+        task_totals = [dict(r) for r in cursor.fetchall()]
+
+        # Shields used in phase
+        cursor.execute("""
+            SELECT COUNT(*) AS shields_used
+            FROM shield_logs
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date, end_date))
+        s_row = cursor.fetchone()
+        shields_used = int(s_row["shields_used"]) if s_row else 0
+
+        # Grind logs in phase
+        cursor.execute("""
+            SELECT COUNT(*) AS grind_count, COALESCE(SUM(points_awarded), 0) AS grind_points
+            FROM grind_logs
+            WHERE user_id = ? AND date >= ? AND date <= ?;
+        """, (user["id"], start_date, end_date))
+        grind_row = cursor.fetchone()
+        grind_count = int(grind_row["grind_count"]) if grind_row else 0
+        grind_points = int(grind_row["grind_points"]) if grind_row else 0
+
+    total_points = past_pts
+    if include_today:
+        today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+        today_pts = int(today_prog.get("total_points", 0))
+        total_points += today_pts
+        if today_prog.get("perfect_day"):
+            perfect_days += 1
+        if today_pts > 0:
+            active_days += 1
+
+    # Find phase rank
+    lb = get_phase_leaderboard(phase_id, db_path)
+    total_participants = len(lb)
+    phase_rank = 1
+    for item in lb:
+        if item["discord_id"] == discord_id:
+            phase_rank = item["rank"]
+            break
+
+    return {
+        "user_id": user["id"],
+        "discord_id": user["discord_id"],
+        "username": user["username"],
+        "phase": phase,
+        "phase_rank": phase_rank,
+        "total_participants": total_participants,
+        "total_points": total_points,
+        "perfect_days": perfect_days,
+        "active_days": active_days,
+        "shields_used": shields_used,
+        "grind_count": grind_count,
+        "grind_points": grind_points,
+        "task_totals": task_totals,
+    }
+
+
+def get_user_overall_recap(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Summarizes user's overall Winter Arc performance across all phases (Oct 1 to Jan 31).
+    """
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {}
+
+    stats = get_user_stats(discord_id, db_path)
+    all_time_rank, total_warriors = get_user_all_time_rank(discord_id, db_path)
+
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS total_shields FROM shield_logs WHERE user_id = ?;", (user["id"],))
+        s_row = cursor.fetchone()
+        total_shields = int(s_row["total_shields"]) if s_row else 0
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total_grinds, COALESCE(SUM(points_awarded), 0) AS grind_points 
+            FROM grind_logs 
+            WHERE user_id = ?;
+        """, (user["id"],))
+        grow = cursor.fetchone()
+        total_grinds = int(grow["total_grinds"]) if grow else 0
+        grind_points = int(grow["grind_points"]) if grow else 0
+
+    return {
+        "user_id": user["id"],
+        "discord_id": user["discord_id"],
+        "username": user["username"],
+        "all_time_rank": all_time_rank,
+        "total_warriors": total_warriors,
+        "lifetime_points": stats.get("lifetime_points", 0),
+        "current_streak": stats.get("current_streak", 0),
+        "perfect_days": stats.get("perfect_days", 0),
+        "active_days": stats.get("active_days", 0),
+        "total_shields": total_shields,
+        "total_grinds": total_grinds,
+        "grind_points": grind_points,
+        "task_totals": stats.get("task_totals", []),
+    }
+
+
+def archive_phase_snapshot(phase_id: int, db_path: str = DB_PATH, backup_dir: str = "backups") -> str:
+    """
+    Creates a dedicated, isolated SQLite snapshot for the specified phase.
+    Contains user table, tasks, daily_summaries, daily_logs, shield_logs, grind_logs,
+    and a pre-calculated phase_standings table.
+    """
+    from phases import get_phase_by_id
+    phase = get_phase_by_id(phase_id)
+    if not phase:
+        raise ValueError(f"Invalid phase_id: {phase_id}")
+
+    os.makedirs(backup_dir, exist_ok=True)
+    code_name = re.sub(r'[^a-z0-9_]', '', phase["name"].lower().replace(" ", "_"))
+    snapshot_filename = f"phase_{phase['id']}_{code_name}_{phase['year']}.db"
+    snapshot_path = os.path.join(backup_dir, snapshot_filename)
+
+    start_date = phase["start_date"]
+    end_date = phase["end_date"]
+
+    with sqlite3.connect(snapshot_path) as s_conn:
+        s_cursor = s_conn.cursor()
+        s_cursor.execute("PRAGMA journal_mode=WAL;")
+
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                discord_id INTEGER UNIQUE NOT NULL,
+                username TEXT NOT NULL,
+                enrolled BOOLEAN DEFAULT 1,
+                joined_at TIMESTAMP
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                target REAL NOT NULL,
+                unit TEXT NOT NULL,
+                max_points INTEGER NOT NULL
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                points INTEGER NOT NULL,
+                completion_rate REAL NOT NULL,
+                perfect_day BOOLEAN DEFAULT 0,
+                is_shielded BOOLEAN DEFAULT 0
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                task_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                amount REAL NOT NULL,
+                logged_at TIMESTAMP
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS shield_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                reason TEXT
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS grind_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                raw_input TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                points_awarded INTEGER DEFAULT 0,
+                key_learning TEXT,
+                commentary TEXT
+            );
+        """)
+        s_cursor.execute("""
+            CREATE TABLE IF NOT EXISTS phase_standings (
+                rank INTEGER PRIMARY KEY,
+                discord_id INTEGER NOT NULL,
+                username TEXT NOT NULL,
+                total_points INTEGER NOT NULL,
+                perfect_days INTEGER NOT NULL,
+                active_days INTEGER NOT NULL
+            );
+        """)
+
+        with get_connection(db_path) as src_conn:
+            src = src_conn.cursor()
+
+            src.execute("SELECT id, discord_id, username, enrolled, joined_at FROM users;")
+            s_cursor.executemany("INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?);", src.fetchall())
+
+            src.execute("SELECT id, name, description, target, unit, max_points FROM tasks;")
+            s_cursor.executemany("INSERT OR REPLACE INTO tasks VALUES (?, ?, ?, ?, ?, ?);", src.fetchall())
+
+            src.execute("""
+                SELECT id, user_id, date, points, completion_rate, perfect_day, is_shielded
+                FROM daily_summaries
+                WHERE date >= ? AND date <= ?;
+            """, (start_date, end_date))
+            s_cursor.executemany("INSERT OR REPLACE INTO daily_summaries VALUES (?, ?, ?, ?, ?, ?, ?);", src.fetchall())
+
+            src.execute("""
+                SELECT id, user_id, task_id, date, amount, logged_at
+                FROM daily_logs
+                WHERE date >= ? AND date <= ?;
+            """, (start_date, end_date))
+            s_cursor.executemany("INSERT OR REPLACE INTO daily_logs VALUES (?, ?, ?, ?, ?, ?);", src.fetchall())
+
+            src.execute("""
+                SELECT id, user_id, date, reason
+                FROM shield_logs
+                WHERE date >= ? AND date <= ?;
+            """, (start_date, end_date))
+            s_cursor.executemany("INSERT OR REPLACE INTO shield_logs VALUES (?, ?, ?, ?);", src.fetchall())
+
+            src.execute("""
+                SELECT id, user_id, date, raw_input, verdict, points_awarded, key_learning, commentary
+                FROM grind_logs
+                WHERE date >= ? AND date <= ?;
+            """, (start_date, end_date))
+            s_cursor.executemany("INSERT OR REPLACE INTO grind_logs VALUES (?, ?, ?, ?, ?, ?, ?, ?);", src.fetchall())
+
+        lb = get_phase_leaderboard(phase_id, db_path)
+        for row in lb:
+            s_cursor.execute("""
+                INSERT OR REPLACE INTO phase_standings (rank, discord_id, username, total_points, perfect_days, active_days)
+                VALUES (?, ?, ?, ?, ?, ?);
+            """, (row["rank"], row["discord_id"], row["username"], row["total_points"], row["perfect_days"], row["active_days"]))
+
+        s_conn.commit()
+
+    return os.path.abspath(snapshot_path)
+
 
 

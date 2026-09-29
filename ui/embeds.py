@@ -148,13 +148,27 @@ def build_overall_leaderboard_embed() -> discord.Embed:
 
 
 def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[int] = None) -> discord.Embed:
-    """Builds the monthly standings leaderboard (max top 10)."""
+    """Builds the monthly standings leaderboard (max top 10), branded with the active Winter Arc phase."""
     now = datetime.now(BOT_TZ)
     y = year or now.year
     m = month or now.month
     month_name = datetime(y, m, 1).strftime("%B %Y")
     data = db.get_monthly_leaderboard(y, m)
     top_10 = data[:10]
+
+    from phases import get_current_phase, get_phase_progress
+    curr_phase = get_current_phase(datetime(y, m, min(now.day, 28)))
+    is_phase_month = curr_phase and (curr_phase["month"] == m)
+
+    phase_header = f"🏆 **Monthly Leaderboard • {month_name}**"
+    embed_color = 0x9B59B6
+    if is_phase_month:
+        prog = get_phase_progress(curr_phase, now)
+        phase_header = (
+            f"🏆 **{curr_phase['badge']} {curr_phase['short_name']}: {curr_phase['name']} Standings • {month_name}**\n"
+            f"*⏳ {prog['days_remaining']} days remaining in this phase (Day {prog['day_num']} of {prog['total_days']})*"
+        )
+        embed_color = curr_phase["color"]
 
     any_points = any(entry["total_points"] > 0 for entry in top_10)
     lines = []
@@ -168,13 +182,14 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
             clean_str = f" • ⭐ {clean} clean" if clean > 0 else ""
             lines.append(f"{badge} **{entry['username']}** — **{pts:,} pts**{clean_str}")
 
+    title_text = f"📆 Winter Arc — {month_name} Standings"
+    if is_phase_month:
+        title_text = f"{curr_phase['badge']} Winter Arc — {curr_phase['name']} ({month_name})"
+
     embed = discord.Embed(
-        title=f"📆 Winter Arc — {month_name} Standings",
-        description=(
-            f"🏆 **Monthly Leaderboard • {month_name}**\n\n"
-            + "\n".join(lines)
-        ),
-        color=0x9B59B6
+        title=title_text,
+        description=f"{phase_header}\n\n" + "\n".join(lines),
+        color=embed_color
     )
     footer_text = "Updated live • Ranked by monthly points"
     if len(data) > 10:
@@ -392,17 +407,31 @@ def build_stats_embed(target_user: discord.Member, data: Dict[str, Any]) -> disc
         description=desc,
         color=lvl["color"]
     )
-    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    embed.set_footer(text="Lifetime statistics across all disciplines • Updated live")
     return embed
 
 
 def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> discord.Embed:
-    """Builds the point and completion history card."""
+    """Builds the point, completion, and grind history card with human-formatted dates."""
     lines = []
     for d in reversed(hist):
-        pct = int(d["completion_rate"] * 100)
+        pct = int(round(d["completion_rate"] * 100))
         star = " ⭐" if d["perfect_day"] else ""
-        lines.append(f"• `{d['date']}` — **{d['points']} pts** ({pct}%){star}")
+
+        raw_date = d["date"]
+        try:
+            d_obj = date.fromisoformat(raw_date)
+            date_display = d_obj.strftime("%a, %b %d")
+        except Exception:
+            date_display = raw_date
+
+        grind_note = ""
+        g = d.get("grind_entry")
+        if g and g.get("points_awarded", 0) > 0:
+            tag = g.get("key_learning") or "Deep Focus"
+            grind_note = f"\n  ↳ 🧠 *+{g['points_awarded']} pts grind ({tag})*"
+
+        lines.append(f"• **{date_display}** — **{d['points']} pts** ({pct}%){star}{grind_note}")
 
     days_label = f"{len(hist)}-Day " if hist else ""
     embed = discord.Embed(
@@ -410,6 +439,7 @@ def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> dis
         description=f"**{user.display_name}**\n\n" + ("\n\n".join(lines) if lines else "_No history recorded yet._"),
         color=0x34495E
     )
+    embed.set_footer(text="Past finalized days are locked • Rollover occurs at 00:00 IST")
     return embed
 
 
@@ -500,6 +530,14 @@ def build_profile_embed(
         except Exception:
             pass
 
+    # 5. Phase Context
+    from phases import get_current_phase, get_phase_progress
+    curr_phase = get_current_phase()
+    phase_line = ""
+    if curr_phase:
+        p_prog = get_phase_progress(curr_phase)
+        phase_line = f"{curr_phase['badge']} **Active Phase**: **{curr_phase['short_name']}: {curr_phase['name']}** *(Day {p_prog['day_num']}/{p_prog['total_days']} • {p_prog['days_remaining']}d left)*\n"
+
     desc = (
         f"**{user.display_name}**\n\n"
         f"🏆 **All-Time Rank**: {rank_str}\n"
@@ -511,6 +549,7 @@ def build_profile_embed(
         f"{daily_block}\n\n"
         f"🔥 **Current Streak**: **{streak} days** • 🛡️ **Frost Shields**: **{user_record.get('frost_shields', 0)}/2**\n"
         f"💎 **Lifetime Points**: **{pts:,} pts**\n"
+        f"{phase_line}"
         f"📅 **Enrolled**: `{joined_date_str}`{days_note}"
     )
 
@@ -522,7 +561,7 @@ def build_profile_embed(
     if user.avatar:
         embed.set_thumbnail(url=user.avatar.url)
 
-    embed.set_footer(text="Winter Arc • Discipline is Destiny")
+    embed.set_footer(text="Winter Arc • Daily standard: 500 points")
     return embed
 
 
@@ -640,15 +679,16 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="🏆 Standings & History",
+            name="🏆 Standings, Phases & History",
             value=(
-                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly**, and **🌐 All-Time** rankings (top 10).\n"
+                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
+                "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active/completed phases and overall campaign.\n"
                 "• `/stats [member]` — Lifetime repetitions per discipline, total kilometers logged, and milestone records.\n"
                 "• `/history [days]` — View point breakdown over the past 7, 14, or 30 days."
             ),
             inline=False
         )
-        embed.set_footer(text="Consistency beats motivation • Apex rank unlocks at 12,000 points")
+        embed.set_footer(text="Daily goal: 500 points • Apex rank unlocks at 12,000 points")
         return embed
 
     elif category == "shields":
@@ -680,7 +720,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             ),
             inline=False
         )
-        embed.set_footer(text="Shields preserve your streak, but true progress comes from the iron.")
+        embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak")
         return embed
 
     elif category == "settings":
@@ -797,7 +837,18 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
 
 
 def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display: str, quote: Optional[str] = None) -> discord.Embed:
-    """Builds the 05:00 morning kickoff broadcast embed."""
+    """Builds the 05:00 morning kickoff broadcast embed with active phase context."""
+    from phases import get_current_phase, get_phase_progress
+    curr_phase = get_current_phase()
+    title_text = f"🌅 Winter Arc — Daily Kickoff • {date_display}"
+    embed_color = 0x3498DB
+    phase_header = ""
+    if curr_phase:
+        prog = get_phase_progress(curr_phase)
+        title_text = f"{curr_phase['badge']} {curr_phase['short_name']}: {curr_phase['name']} • Daily Kickoff"
+        embed_color = curr_phase["color"]
+        phase_header = f"**{curr_phase['badge']} {curr_phase['name']}** — *Day {prog['day_num']} of {prog['total_days']} ({prog['days_remaining']} days left in phase)*\n\n"
+
     task_lines = []
     for t in active_tasks:
         target_display = format_num(t["target"])
@@ -807,17 +858,18 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
     quote_section = f"\n\n**Daily Focus**:\n> {quote}" if quote else ""
 
     embed = discord.Embed(
-        title=f"🌅 Winter Arc — Daily Kickoff • {date_display}",
+        title=title_text,
         description=(
+            f"{phase_header}"
             "A new day has begun. 500 points available across 5 disciplines.\n\n"
             "**Daily Targets**\n"
             f"{disciplines_block}"
             f"{quote_section}\n\n"
             "Log your sets with `/log` or check progress with `/today`."
         ),
-        color=0x3498DB
+        color=embed_color
     )
-    embed.set_footer(text="Consistency beats motivation • Day resets at 00:00 IST")
+    embed.set_footer(text="Day resets at 00:00 IST • Log early to secure your standing")
     return embed
 
 
@@ -964,7 +1016,7 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
         description=desc,
         color=0x00D2FF
     )
-    embed.set_footer(text="Consistency beats burnout • Rest with purpose")
+    embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak")
     return embed
 
 
@@ -981,7 +1033,7 @@ def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -
         ),
         color=0x2ECC71
     )
-    embed.set_footer(text="Winter Arc • Rest Smart, Strike Harder Tomorrow")
+    embed.set_footer(text="Streak preserved • Resumes tomorrow at 00:00 IST")
     return embed
 
 
@@ -1032,7 +1084,7 @@ def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_displa
         description=desc,
         color=0x00D2FF
     )
-    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    embed.set_footer(text="Log reps in server with /log • Day resets at 00:00 IST")
     return embed
 
 
@@ -1087,7 +1139,7 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
         description=desc,
         color=color
     )
-    embed.set_footer(text="Winter Arc • Discipline is Destiny")
+    embed.set_footer(text="Midnight rollover occurs at 00:00 IST")
     return embed
 
 
@@ -1122,7 +1174,7 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
         description=desc,
         color=color
     )
-    embed.set_footer(text="Winter Arc • Consistency Beats Motivation • Limit: 1 deep work entry/day")
+    embed.set_footer(text="Evaluated by Gemini AI • 1 deep work submission allowed per day")
     return embed
 
 
@@ -1172,7 +1224,7 @@ def build_quicklog_embed(
         description=desc,
         color=0x2ECC71
     )
-    embed.set_footer(text="Winter Arc • Consistency Beats Motivation")
+    embed.set_footer(text="Natural language parsing • 500 daily points available across disciplines")
     return embed
 
 
@@ -1205,7 +1257,137 @@ def build_weekly_state_of_the_pack_embed(
         description=desc,
         color=0xF1C40F
     )
-    embed.set_footer(text="A new week begins tomorrow at 05:00 IST • Consistency Beats Motivation")
+    embed.set_footer(text="New weekly leaderboard begins tomorrow at 00:00 IST")
     return embed
+
+
+def build_recap_embed(
+    user: discord.Member,
+    stats: Dict[str, Any],
+    is_overall: bool = False
+) -> discord.Embed:
+    """Builds the comprehensive recap card for a single phase or overall campaign."""
+    if is_overall:
+        rank_str = f"**#{stats.get('all_time_rank', 1)}** of {stats.get('total_warriors', 1)}"
+        pts = stats.get("lifetime_points", 0)
+        streak = stats.get("current_streak", 0)
+        perfect = stats.get("perfect_days", 0)
+        active = stats.get("active_days", 0)
+        shields = stats.get("total_shields", 0)
+        grind_count = stats.get("total_grinds", 0)
+        grind_pts = stats.get("grind_points", 0)
+
+        vol_lines = []
+        for t in stats.get("task_totals", []):
+            icon = TASK_ICONS.get(t["name"].lower(), "🎯")
+            val = format_num(t["total_volume"])
+            vol_lines.append(f"{icon} **{t['name']}**: `{val:,} {t['unit']}`")
+
+        desc = (
+            f"**{user.display_name}**\n\n"
+            f"🏆 **All-Time Rank**: {rank_str}\n"
+            f"💎 **Total Points**: **{pts:,} pts**\n"
+            f"🔥 **Current Streak**: **{streak} days**\n"
+            f"⭐ **Perfect Days**: **{perfect} days**\n"
+            f"📅 **Active Days**: **{active} days**\n"
+            f"🛡️ **Total Shields Consumed**: **{shields}**\n"
+            f"🧠 **Deep Work Grinds**: **{grind_count} sessions** *(+{grind_pts:,} pts)*\n\n"
+            f"🏋️ **Total Campaign Volume**\n"
+            + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged yet._")
+        )
+
+        embed = discord.Embed(
+            title="📜 Winter Arc — Overall Campaign Recap",
+            description=desc,
+            color=0x2C3E50
+        )
+        embed.set_footer(text="Campaign Duration: Oct 1 – Jan 31 • Cumulative Arc Performance")
+        if user.avatar:
+            embed.set_thumbnail(url=user.avatar.url)
+        return embed
+
+    # Phase-specific recap
+    phase = stats.get("phase", {})
+    p_name = phase.get("name", "Unknown Phase")
+    p_short = phase.get("short_name", "Phase")
+    p_badge = phase.get("badge", "❄️")
+    p_sub = phase.get("subtitle", "")
+    p_total_days = phase.get("total_days", 31)
+    p_color = phase.get("color", 0x3498DB)
+
+    rank_str = f"**#{stats.get('phase_rank', 1)}** of {stats.get('total_participants', 1)}"
+    pts = stats.get("total_points", 0)
+    perfect = stats.get("perfect_days", 0)
+    active = stats.get("active_days", 0)
+    shields = stats.get("shields_used", 0)
+    grind_count = stats.get("grind_count", 0)
+    grind_pts = stats.get("grind_points", 0)
+
+    vol_lines = []
+    for t in stats.get("task_totals", []):
+        icon = TASK_ICONS.get(t["name"].lower(), "🎯")
+        val = format_num(t["total_volume"])
+        vol_lines.append(f"{icon} **{t['name']}**: `{val:,} {t['unit']}`")
+
+    desc = (
+        f"**{user.display_name}**\n"
+        f"*{p_sub}*\n\n"
+        f"🏆 **Phase Rank**: {rank_str}\n"
+        f"💎 **Phase Points**: **{pts:,} pts**\n"
+        f"⭐ **Perfect Days**: **{perfect} days**\n"
+        f"📅 **Active Days**: **{active} / {p_total_days} days**\n"
+        f"🛡️ **Frost Shields Used**: **{shields}**\n"
+        f"🧠 **Deep Work Sessions**: **{grind_count} logs** *(+{grind_pts:,} pts)*\n\n"
+        f"🏋️ **Discipline Volume in {p_name}**\n"
+        + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged in this phase._")
+    )
+
+    embed = discord.Embed(
+        title=f"{p_badge} Winter Arc — {p_short}: {p_name} Recap",
+        description=desc,
+        color=p_color
+    )
+    embed.set_footer(text=f"Phase Window: {phase.get('start_date')} to {phase.get('end_date')} • Historical Phase Snapshot")
+    if user.avatar:
+        embed.set_thumbnail(url=user.avatar.url)
+    return embed
+
+
+def build_phase_podium_embed(
+    phase: Dict[str, Any],
+    leaderboard: List[Dict[str, Any]]
+) -> discord.Embed:
+    """Builds the end-of-phase podium and final standings embed."""
+    p_name = phase.get("name", "PHASE")
+    p_badge = phase.get("badge", "❄️")
+    p_color = phase.get("color", 0x3498DB)
+
+    top_3 = leaderboard[:3]
+    podium_lines = []
+    for idx, u in enumerate(top_3):
+        crown = ["🥇", "🥈", "🥉"][idx]
+        podium_lines.append(f"{crown} **{u['username']}** — **{u['total_points']:,} pts** ⭐ {u.get('perfect_days', 0)} clean")
+
+    other_lines = []
+    for idx, u in enumerate(leaderboard[3:10], start=4):
+        other_lines.append(f"`#{idx:02d}` **{u['username']}** — **{u['total_points']:,} pts**")
+
+    desc = (
+        f"⚔️ **The trial of {p_name} has officially concluded.**\n"
+        f"*{phase.get('subtitle', '')}*\n\n"
+        "👑 **THE PHASE PODIUM**\n"
+        + ("\n".join(podium_lines) if podium_lines else "_No qualifiers._")
+    )
+    if other_lines:
+        desc += "\n\n**Top Warriors**\n" + "\n".join(other_lines)
+
+    embed = discord.Embed(
+        title=f"{p_badge} Winter Arc — {phase.get('short_name', '')}: {p_name} Concluded!",
+        description=desc,
+        color=p_color
+    )
+    embed.set_footer(text="Data frozen in phase snapshot • Streaks continue into the next phase")
+    return embed
+
 
 

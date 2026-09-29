@@ -26,8 +26,10 @@ from ui.embeds import (
     build_dm_morning_embed,
     build_dm_evening_embed,
     build_weekly_state_of_the_pack_embed,
+    build_phase_podium_embed,
 )
 from ai import gemini_service
+from phases import is_last_day_of_phase, get_next_phase, get_current_phase, get_phase_progress
 
 logger = logging.getLogger("winter_arc.scheduler")
 
@@ -352,17 +354,83 @@ class WinterArcScheduler:
 
         if target_channel:
             await target_channel.send(content=f"{role_ping}🌙 **Day Finalized!**", embed=embed)
-            return embed
+        else:
+            for guild in self.bot.guilds:
+                channel, ping = self._get_target_channel_and_ping(guild)
+                if channel:
+                    try:
+                        await channel.send(content=f"{ping}🌙 **Day Finalized!**", embed=embed)
+                    except Exception as e:
+                        logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
+
+        # Check if yesterday concluded a Winter Arc phase
+        is_phase_end, concluded_phase = is_last_day_of_phase(yesterday)
+        if is_phase_end and concluded_phase:
+            logger.info(f"Yesterday ({yesterday}) marked the end of Phase {concluded_phase['id']}: {concluded_phase['name']}! Launching ceremony...")
+            await asyncio.sleep(2)
+            await self.broadcast_phase_conclusion(concluded_phase, target_channel=target_channel, role_ping=role_ping)
+
+        return embed
+
+    async def broadcast_phase_conclusion(self, phase_dict: Dict[str, Any], target_channel: discord.TextChannel = None, role_ping: str = "") -> Optional[discord.Embed]:
+        """
+        Runs the official End-of-Phase ceremony:
+        1. Generates an automated standalone snapshot database for user cards.
+        2. Dispatches Phase Podium Embed.
+        3. Dispatches Gemini AI Phase Proclamation (Top 3 praise, bottom roasts, next phase unlock).
+        """
+        phase_id = phase_dict["id"]
+        logger.info(f"Triggering Phase {phase_id} ({phase_dict['name']}) conclusion ceremony...")
+
+        # 1. Create phase snapshot database
+        try:
+            snapshot_path = db.archive_phase_snapshot(phase_id, db_path=self.db_path)
+            logger.info(f"Phase {phase_id} snapshot successfully archived to {snapshot_path}")
+        except Exception as e:
+            logger.error(f"Failed to create phase {phase_id} snapshot: {e}", exc_info=True)
+
+        # 2. Compute phase leaderboard and next phase info
+        phase_lb = db.get_phase_leaderboard(phase_id, db_path=self.db_path)
+        next_phase = get_next_phase(phase_id)
+        podium_embed = build_phase_podium_embed(phase_dict, phase_lb)
+
+        # 3. Generate Gemini proclamation
+        try:
+            bottom_warriors = [w for w in phase_lb if w["total_points"] < 100]
+            ceremony_speech = await gemini_service.generate_phase_ceremony(
+                phase_info=phase_dict,
+                top_warriors=phase_lb[:3],
+                bottom_warriors=bottom_warriors,
+                next_phase_info=next_phase
+            )
+        except Exception as e:
+            logger.warning(f"Could not generate Gemini phase ceremony speech: {e}")
+            ceremony_speech = ""
+
+        ceremony_msg = (
+            f"{role_ping}📢 **WINTER ARC — {phase_dict['short_name'].upper()}: {phase_dict['name']} HAS CONCLUDED!**\n\n"
+            f"> {ceremony_speech}\n\n"
+            f"⚔️ *Data for this phase has been frozen into an isolated archive. Keep grinding — consistency never stops.*"
+            if ceremony_speech else
+            f"{role_ping}📢 **WINTER ARC — {phase_dict['short_name'].upper()}: {phase_dict['name']} HAS CONCLUDED!**\n\n"
+            f"⚔️ *All warriors who held the standard in {phase_dict['name']} are honored. Prepare for the next phase.*"
+        )
+
+        if target_channel:
+            await target_channel.send(content=f"{role_ping}🏆 **{phase_dict['name']} — Final Standings**", embed=podium_embed)
+            await target_channel.send(content=ceremony_msg)
+            return podium_embed
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    await channel.send(content=f"{ping}🌙 **Day Finalized!**", embed=embed)
+                    await channel.send(content=f"{ping}🏆 **{phase_dict['name']} — Final Standings**", embed=podium_embed)
+                    await channel.send(content=ceremony_msg)
                 except Exception as e:
-                    logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
+                    logger.warning(f"Could not post phase conclusion to {channel.name} in {guild.name}: {e}")
 
-        return embed
+        return podium_embed
 
     async def broadcast_sunday_state_of_the_pack(self, target_channel: discord.TextChannel = None, role_ping: str = "") -> discord.Embed:
         """Broadcasts the weekly Sunday State of the Pack address to dedicated channels."""

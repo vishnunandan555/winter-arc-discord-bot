@@ -210,6 +210,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         app_commands.Choice(name="Evening Streak Alert (21:00 Channel)", value="evening"),
         app_commands.Choice(name="Sunday State of the Pack (20:00 Channel)", value="sunday"),
         app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
+        app_commands.Choice(name="Phase Conclusion Ceremony (Channel)", value="phase_ceremony"),
         app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),
         app_commands.Choice(name="Personal Evening Streak Alert (Direct DM)", value="evening_dm"),
         app_commands.Choice(name="Reactive Groq Observation (Follow-up Nudge)", value="groq_nudge"),
@@ -271,6 +272,11 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "midnight":
             await scheduler.broadcast_midnight_finalization(target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Midnight Podium preview to {channel.mention}.", ephemeral=True)
+        elif reminder_type == "phase_ceremony":
+            from phases import get_current_phase
+            curr_phase = get_current_phase()
+            await scheduler.broadcast_phase_conclusion(curr_phase, target_channel=channel, role_ping=role_ping)
+            await interaction.followup.send(f"✅ Dispatched Phase Conclusion Ceremony for **{curr_phase['name']}** to {channel.mention}.", ephemeral=True)
         elif reminder_type == "morning_dm":
             from ui.embeds import build_dm_morning_embed
             from config import BOT_TZ

@@ -8,6 +8,7 @@ and automated daily check-ins.
 
 import os
 import sys
+import signal
 import asyncio
 import logging
 import discord
@@ -71,7 +72,7 @@ class WinterArcBot(commands.Bot):
 
             if isinstance(error, discord.app_commands.CommandOnCooldown):
                 logger.info(f"Command '/{cmd_name}' by {user_info} rejected: on cooldown ({error.retry_after:.1f}s remaining).")
-                msg = f"⏳ **Patience, Warrior.** You are on cooldown. Try again in `{error.retry_after:.1f}s`."
+                msg = f"⏳ You're on cooldown. Try again in `{error.retry_after:.1f}s`."
                 try:
                     if interaction.response.is_done():
                         await interaction.followup.send(msg, ephemeral=True)
@@ -82,7 +83,7 @@ class WinterArcBot(commands.Bot):
                 return
             elif isinstance(error, discord.app_commands.MissingPermissions):
                 logger.warning(f"Command '/{cmd_name}' by {user_info} rejected: missing permissions in '{guild_name}'.")
-                msg = "🛡️ **Access Denied.** You lack the required permissions to execute this command."
+                msg = "🚫 You need **Administrator** permissions to execute this command."
                 try:
                     if interaction.response.is_done():
                         await interaction.followup.send(msg, ephemeral=True)
@@ -360,9 +361,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    import asyncio
-    import signal
-
     if not DISCORD_TOKEN:
         logger.error("❌ DISCORD_TOKEN is not set in your .env file!")
         sys.exit(1)
