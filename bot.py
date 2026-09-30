@@ -264,89 +264,11 @@ class WinterArcBot(commands.Bot):
                 logger.warning(f"Could not send startup log in {guild.name}: {e}")
 
     async def on_message(self, message: discord.Message):
-        """Auto-parsing for #quick-log channel and subtle mascot reactions."""
+        """Processes commands and handles subtle mascot reactions."""
         if message.author.bot or not message.content:
             return
 
-        # 1. Natural language fast logging for dedicated #quick-log channel
-        channel_name = getattr(message.channel, "name", "").lower()
-        if channel_name in ["quick-log", "quicklog", "fast-log"] and not message.content.startswith("!"):
-            if not db.is_user_enrolled(message.author.id):
-                await message.reply("❌ You must enroll in the Winter Arc first. Run `/enroll` to join.", delete_after=15)
-                return
-
-            text = message.content.strip()
-            if len(text) >= 3:
-                from datetime import datetime
-                from config import BOT_TZ
-                from ai import groq_service
-                from levels import check_level_up
-                from ui.embeds import build_quicklog_embed, format_embed_as_text
-                from tips import dispatch_tip
-
-                logger.info(f"Processing #{channel_name} message from {message.author}: '{text}'")
-                active_tasks = db.get_active_tasks()
-                parsed = await groq_service.parse_quicklog(text, active_tasks)
-                if parsed.get("suspicious"):
-                    logger.warning(f"#{channel_name} entry from {message.author} rejected as suspicious: '{text}'")
-                    await message.reply(
-                        "❌ **Unrealistic Volume Rejected**: Unrealistic volume detected for a single set (e.g. >50 push-ups, >20 pull-ups, >50 squats/sit-ups, >10 km run). "
-                        "Log your completed sets individually."
-                    )
-                    return
-
-                matches = parsed.get("matches", [])
-                if matches:
-                    logger.info(f"#{channel_name} parsed {len(matches)} disciplines for {message.author}: {matches}")
-                    today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
-                    old_points = db.get_user_lifetime_points(message.author.id)
-                    log_results = []
-                    for m in matches:
-                        try:
-                            res = db.log_activity(
-                                discord_id=message.author.id,
-                                username=message.author.name,
-                                task_name=m["task_name"],
-                                amount=m["amount"],
-                                log_date=today_str
-                            )
-                            log_results.append(res)
-                        except Exception as e:
-                            logger.warning(f"Error logging quick message item: {e}")
-
-                    if log_results:
-                        new_points = db.get_user_lifetime_points(message.author.id)
-                        level_up_info = check_level_up(old_points, new_points)
-                        embed = build_quicklog_embed(
-                            user=message.author,
-                            log_results=log_results,
-                            commentary=parsed.get("commentary", "Discipline logged."),
-                            unrecognized=parsed.get("unrecognized", []),
-                            level_up_info=level_up_info
-                        )
-                        await message.reply(embed=embed)
-                        cmd_out = format_embed_as_text(embed)
-                        asyncio.create_task(
-                            dispatch_tip(message.channel, message.author.id, message.author.display_name, message=message)
-                        )
-                        asyncio.create_task(
-                            groq_service.dispatch_channel_nudge(
-                                channel=message.channel,
-                                user_id=message.author.id,
-                                user_name=message.author.display_name,
-                                command_name="quick-log",
-                                extra_info=f"Quick logged: {text}",
-                                command_output=cmd_out,
-                                message=message
-                            )
-                        )
-                        try:
-                            await message.add_reaction("🐺")
-                        except Exception:
-                            pass
-                        return
-
-        # 2. Subtle mascot reactions when replied to or mentioned
+        # Subtle mascot reactions when replied to or mentioned
         is_reply_to_bot = (
             message.reference
             and message.reference.resolved

@@ -151,6 +151,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 "**Daily Disciplines (500 pts max)**\n"
                 f"{disciplines_block}\n\n"
                 "**Core Commands**\n"
+                "• `/help` — All available commands & their guides\n"
                 "• `/today` — View daily progress & streak\n"
                 "• `/log [task] [amount]` — Log completed reps or km\n"
                 "• `/set [task] [amount]` — Set count directly *(or 0 to reset)*\n"

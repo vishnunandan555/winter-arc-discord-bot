@@ -613,7 +613,7 @@ class TestInteractiveViews(WinterArcTestCase):
         self.assertNotIn("Clean Day", logging_embed.description)
         log_field_map = {f.name: f.value for f in logging_embed.fields}
         self.assertTrue(any("/quick" in k for k in log_field_map))
-        self.assertTrue(any("#quick-log" in k for k in log_field_map))
+        self.assertTrue(any("Shorthand" in k or "/quick" in k for k in log_field_map))
         self.assertTrue(any("/log" in k and "/set" in k for k in log_field_map))
         self.assertTrue(any("/grind" in k for k in log_field_map))
         self.assertTrue(any("Reactive AI Coach & Bot Tips" in k for k in log_field_map))

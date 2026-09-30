@@ -663,10 +663,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="💬 Dedicated `#quick-log` Channel",
+            name="⚡ Shorthand & Multi-Discipline Logging",
             value=(
-                "Type your completed workout directly in `#quick-log` without any slash command prefix!\n"
-                "The bot automatically parses the message, records your volume, and awards points."
+                "Combine multiple exercises in a single `/quick` command: e.g. `/quick 40 pushups, 20 squats, 5km run`.\n"
+                "Groq AI automatically extracts reps, sets, and distances in under a second."
             ),
             inline=False
         )
@@ -881,7 +881,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="⚡ Command Directory Cheat Sheet",
             value=(
-                "• **Logging**: `/quick` • `/log` • `/set` • `/grind` • `#quick-log`\n"
+                "• **Logging**: `/quick` • `/log` • `/set` • `/grind`\n"
                 "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/profile` • `/ranks`\n"
                 "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"

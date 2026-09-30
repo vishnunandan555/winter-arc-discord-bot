@@ -23,10 +23,10 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/set`)**: Why `/set`? It provides an instant self-serve fix for honest mistakes—entering `0` wipes an accidental entry clean without needing server admin help.",
     "💡 **Tip (`/set`)**: Pro Tip: While `/log` adds reps to your current count, `/set` replaces today's total and immediately recalculates your daily score.",
 
-    # ⚡ /quick — Natural Language AI Logging & #quick-log
+    # ⚡ /quick — Natural Language AI Logging
     "💡 **Tip (`/quick`)**: How to use: Type `/quick 40 pushups, 20 squats, 5km run` to parse and record multiple exercises in a single message via Groq AI.",
     "💡 **Tip (`/quick`)**: Why `/quick`? Post-workout friction kills consistency. `/quick` extracts reps, sets, and distances from everyday shorthand in under a second.",
-    "💡 **Tip (`/quick`)**: Pro Tip: You can log directly in `#quick-log` by typing your workout plain text (e.g. `50 pushups 3km run`) without typing any slash command!",
+    "💡 **Tip (`/quick`)**: Pro Tip: `/quick` understands natural abbreviations and mixed formatting like `45 push ups, 20 pull-ups, 5.5k run` all in a single command!",
 
     # 🧠 /grind — Academic & Deep Work Friction
     "💡 **Tip (`/grind`)**: How to use: Submit your hardest mental challenge of the day with `/grind [text]` to earn **+10 to +60 bonus points** toward today's score!",
@@ -100,7 +100,7 @@ BOT_USAGE_TIPS: List[str] = [
     # 📖 /help — Master Interactive Manual
     "💡 **Tip (`/help`)**: How to use: Got questions about rules, scoring, or schedules? Run `/help` to open the interactive command directory and master manual.",
     "💡 **Tip (`/help`)**: Why `/help`? Instead of static walls of text, `/help` features a categorized interactive dropdown for fast reference during training.",
-    "💡 **Tip (`/help`)**: Pro Tip: Check the 'AI Logging Guide' category in `/help` to learn all the natural language tricks for `#quick-log` and `/quick`.",
+    "💡 **Tip (`/help`)**: Pro Tip: Check the 'AI Logging Guide' category in `/help` to learn all the natural language formatting tricks for `/quick`.",
 
     # 🏓 /ping — Health & Latency Check
     "💡 **Tip (`/ping`)**: How to use: Check the bot's live gateway WebSocket latency and API response time with `/ping`.",
