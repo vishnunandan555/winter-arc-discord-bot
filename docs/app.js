@@ -11,6 +11,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   initMobileNav();
+  initNavbarScroll();
+  initScrollSpy();
   initCountdownTimer();
   initDiscordSimulator();
   initCommandDirectory();
@@ -66,6 +68,76 @@ function initMobileNav() {
       closeMenu();
     }
   });
+}
+
+/**
+ * Sticky Scrolled Navbar Elevation & Glass Tone
+ */
+function initNavbarScroll() {
+  const navbar = document.getElementById('navbar');
+  if (!navbar) return;
+
+  function updateNavbar() {
+    if (window.scrollY > 20) {
+      navbar.classList.add('navbar-scrolled');
+    } else {
+      navbar.classList.remove('navbar-scrolled');
+    }
+  }
+
+  window.addEventListener('scroll', updateNavbar, { passive: true });
+  updateNavbar();
+}
+
+/**
+ * ScrollSpy: Highlights Active Section in Navigation Menu
+ */
+function initScrollSpy() {
+  const navLinks = document.querySelectorAll('.nav-link');
+  if (!navLinks.length) return;
+
+  const sections = [];
+  navLinks.forEach(link => {
+    const hash = link.getAttribute('href');
+    if (hash && hash.startsWith('#')) {
+      const section = document.querySelector(hash);
+      if (section) {
+        sections.push({ link, section });
+      }
+    }
+  });
+
+  if (!sections.length) return;
+
+  function onScroll() {
+    const scrollPos = window.scrollY + 120;
+
+    let current = null;
+    for (let i = 0; i < sections.length; i++) {
+      const { section } = sections[i];
+      const top = section.offsetTop;
+      const height = section.offsetHeight;
+      if (scrollPos >= top && scrollPos < top + height) {
+        current = sections[i];
+        break;
+      }
+    }
+
+    if (!current && window.scrollY < 200) {
+      current = sections[0];
+    }
+
+    sections.forEach(({ link }) => {
+      if (current && link === current.link) {
+        link.classList.add('active');
+      } else {
+        link.classList.remove('active');
+      }
+    });
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
 }
 
 /**
