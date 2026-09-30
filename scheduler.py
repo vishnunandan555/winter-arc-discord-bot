@@ -484,6 +484,27 @@ class WinterArcScheduler:
 
         allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
 
+        # Build individual channel alert messages for shields used and broken streaks
+        individual_alerts = []
+        for entry in leaderboard:
+            u_id = entry.get("discord_id")
+            if not u_id:
+                continue
+
+            if entry.get("auto_shield_applied"):
+                streak = entry.get("current_streak", 0)
+                shields_left = entry.get("shields_left", 0)
+                if shields_left == 1:
+                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
+                else:
+                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
+                individual_alerts.append(alert)
+
+            elif entry.get("streak_broken"):
+                broken_streak = entry.get("broken_streak_count", 0)
+                alert = f"💔 <@{u_id}> You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
+                individual_alerts.append(alert)
+
         if target_channel:
             msg = build_midnight_finalization_message(
                 date_str=yesterday,
@@ -492,6 +513,11 @@ class WinterArcScheduler:
                 role_ping=role_ping,
             )
             await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            for alert in individual_alerts:
+                try:
+                    await target_channel.send(alert, allowed_mentions=allowed_mentions)
+                except Exception as e:
+                    logger.warning(f"Could not send streak alert to {target_channel.name}: {e}")
         else:
             for guild in self.bot.guilds:
                 channel, ping = self._get_target_channel_and_ping(guild)
@@ -504,6 +530,11 @@ class WinterArcScheduler:
                             role_ping=ping,
                         )
                         await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                        for alert in individual_alerts:
+                            try:
+                                await channel.send(alert, allowed_mentions=allowed_mentions)
+                            except Exception as e:
+                                logger.warning(f"Could not post streak alert to {channel.name} in {guild.name}: {e}")
                     except Exception as e:
                         logger.warning(f"Could not post midnight finalization to {channel.name} in {guild.name}: {e}")
 

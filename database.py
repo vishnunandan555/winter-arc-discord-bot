@@ -881,12 +881,19 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
         streak_qualifies = points >= MIN_STREAK_POINTS or bool(perfect)
         shields_available = u["frost_shields"] or 0
         auto_shield_applied = False
-        if not streak_qualifies and not shielded and shields_available > 0:
+        streak_broken = False
+        broken_streak_count = 0
+
+        if not streak_qualifies and not shielded:
             past_streak = calculate_streak(u["discord_id"], day_before, db_path)
             if past_streak > 0:
-                auto_shield_applied = True
-                shielded = 1
-                shields_available -= 1
+                if shields_available > 0:
+                    auto_shield_applied = True
+                    shielded = 1
+                    shields_available -= 1
+                else:
+                    streak_broken = True
+                    broken_streak_count = past_streak
 
         user_plans.append({
             "id": u["id"],
@@ -898,6 +905,8 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             "is_shielded": bool(shielded),
             "auto_shield_applied": auto_shield_applied,
             "frost_shields": shields_available,
+            "streak_broken": streak_broken,
+            "broken_streak_count": broken_streak_count,
         })
 
     # Stage 2: Single atomic write transaction
@@ -938,6 +947,8 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             "is_shielded": p["is_shielded"],
             "auto_shield_applied": p["auto_shield_applied"],
             "shields_left": p["frost_shields"],
+            "streak_broken": p["streak_broken"],
+            "broken_streak_count": p["broken_streak_count"],
             "current_streak": current_streak,
         })
 

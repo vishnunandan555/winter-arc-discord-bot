@@ -423,6 +423,98 @@ class TestStreakShields(WinterArcTestCase):
 
         asyncio.run(run_shield_cmds())
 
+    def test_midnight_finalization_individual_channel_alerts(self):
+        """Verifies individual separate messages are dispatched in channel for Case 1 (1 shield left), Case 2 (last shield), and Case 3 (streak broken)."""
+        from scheduler import WinterArcScheduler
+
+        user_a = 8801  # will have 1 shield left
+        user_b = 8802  # will have 0 shields left (last shield)
+        user_c = 8803  # will have streak broken (0 shields)
+
+        db.enroll_user(user_a, "WarriorA", self.test_db)
+        db.enroll_user(user_b, "WarriorB", self.test_db)
+        db.enroll_user(user_c, "WarriorC", self.test_db)
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        day_before = (date.today() - timedelta(days=2)).isoformat()
+
+        # Seed past streaks and shield inventories
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            # User A: past streak active, 2 frost shields
+            cursor.execute("UPDATE users SET frost_shields = 2 WHERE discord_id = ?;", (user_a,))
+            cursor.execute("INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded) VALUES ((SELECT id FROM users WHERE discord_id = ?), ?, 500, 1.0, 1, 0);", (user_a, day_before))
+
+            # User B: past streak active, 1 frost shield
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_b,))
+            cursor.execute("INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded) VALUES ((SELECT id FROM users WHERE discord_id = ?), ?, 500, 1.0, 1, 0);", (user_b, day_before))
+
+            # User C: past streak active, 0 frost shields
+            cursor.execute("UPDATE users SET frost_shields = 0 WHERE discord_id = ?;", (user_c,))
+            cursor.execute("INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded) VALUES ((SELECT id FROM users WHERE discord_id = ?), ?, 500, 1.0, 1, 0);", (user_c, day_before))
+            conn.commit()
+
+        # Finalize yesterday
+        leaderboard = db.finalize_daily_summaries(yesterday, self.test_db)
+
+        entry_a = next(e for e in leaderboard if e["discord_id"] == user_a)
+        entry_b = next(e for e in leaderboard if e["discord_id"] == user_b)
+        entry_c = next(e for e in leaderboard if e["discord_id"] == user_c)
+
+        self.assertTrue(entry_a["auto_shield_applied"])
+        self.assertEqual(entry_a["shields_left"], 1)
+
+        self.assertTrue(entry_b["auto_shield_applied"])
+        self.assertEqual(entry_b["shields_left"], 0)
+
+        self.assertFalse(entry_c["auto_shield_applied"])
+        self.assertTrue(entry_c["streak_broken"])
+        self.assertEqual(entry_c["broken_streak_count"], 1)
+
+        # Now verify scheduler channel alerts
+        mock_bot = MagicMock()
+        mock_bot.get_user.return_value = None
+        mock_bot.fetch_user = AsyncMock(return_value=None)
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.name = "winter-arc-general"
+        mock_channel.send = AsyncMock()
+
+        async def run_broadcast():
+            with patch("database.finalize_daily_summaries", return_value=[entry_a, entry_b, entry_c]), \
+                 patch("database.get_enrolled_users", return_value=[{"discord_id": user_a}, {"discord_id": user_b}, {"discord_id": user_c}]), \
+                 patch("database.get_daily_grind_highlights", return_value=[]), \
+                 patch("ai.gemini_service.generate_daily_toast_and_roast", new_callable=AsyncMock, return_value=""), \
+                 patch("export_web_stats.export_stats_to_json"):
+                await scheduler.broadcast_midnight_finalization(target_channel=mock_channel)
+
+            # mock_channel.send should have been called individually for each alert
+            send_calls = [call.kwargs.get("content") or (call.args[0] if call.args else "") for call in mock_channel.send.call_args_list]
+
+            # Find Case 1 alert for User A (1 shield left)
+            msg_a = next((m for m in send_calls if f"<@{user_a}>" in str(m) and "Streak Shield" in str(m)), None)
+            self.assertIsNotNone(msg_a)
+            self.assertIn("Your Streak Shield just saved your", msg_a)
+            self.assertIn("You have **1 shield left**. Lock in today!", msg_a)
+
+            # Find Case 2 alert for User B (last shield)
+            msg_b = next((m for m in send_calls if f"<@{user_b}>" in str(m) and "Streak Shield" in str(m)), None)
+            self.assertIsNotNone(msg_b)
+            self.assertIn("Your Streak Shield just saved your", msg_b)
+            self.assertIn("That was your **last shield**! Make sure to log today or your streak breaks!", msg_b)
+
+            # Find Case 3 alert for User C (streak broken)
+            msg_c = next((m for m in send_calls if f"<@{user_c}>" in str(m) and "broken" in str(m)), None)
+            self.assertIsNotNone(msg_c)
+            self.assertIn("You missed yesterday and had no Streak Shields left.", msg_c)
+            self.assertIn("has broken! Start fresh and rebuild today!", msg_c)
+
+            # Verify that they were sent as distinct messages (not bundled together)
+            self.assertEqual(len(send_calls), 4)  # 1 main message + 3 distinct individual alerts
+
+        asyncio.run(run_broadcast())
+
 
 class TestStreakCalendar(WinterArcTestCase):
     """Verifies monthly consistency calendar, 3-phase full view, and exact legend footers."""
