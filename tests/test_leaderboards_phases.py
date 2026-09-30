@@ -1,0 +1,306 @@
+"""
+tests/test_leaderboards_phases.py - Leaderboards, Phases, Recaps, and Server Records Tests
+"""
+from datetime import date, timedelta
+from unittest.mock import MagicMock
+import os
+import sqlite3
+import shutil
+import database as db
+import phases
+from ui.embeds import (
+    build_recap_embed,
+    build_phase_podium_embed,
+    build_monthly_leaderboard_embed,
+    build_profile_embed,
+    build_shield_status_embed,
+    build_ranks_embed,
+    build_server_records_embed,
+    format_log_reply,
+    format_set_reply,
+)
+from ui.views import RecapView, ServerRecordsView
+from levels import check_level_up, get_level_info, APEX_THRESHOLD
+from tests.base import WinterArcTestCase
+
+
+class TestLeaderboardsPhases(WinterArcTestCase):
+    def test_06_enrolled_leaderboard(self):
+        user_id = 1001
+        db.enroll_user(user_id, "Vishnu", self.test_db)
+        today_str = date.today().isoformat()
+        db.log_activity(user_id, "Vishnu", "Push-ups", 30, today_str, self.test_db)
+
+        lb = db.get_daily_leaderboard(today_str, self.test_db)
+        usernames = [u["username"] for u in lb]
+        self.assertIn("Vishnu", usernames)
+
+    def test_08_overall_leaderboard(self):
+        u1 = 1001
+        u2 = 2002
+        db.enroll_user(u1, "Vishnu", self.test_db)
+        db.enroll_user(u2, "Arjun", self.test_db)
+
+        today = date.today()
+        d1 = (today - timedelta(days=2)).isoformat()
+        db.log_activity(u2, "Arjun", "Push-ups", 100, d1, self.test_db)
+        db.log_activity(u2, "Arjun", "Pull-ups", 100, d1, self.test_db)
+        db.log_activity(u2, "Arjun", "Squats", 100, d1, self.test_db)
+        db.log_activity(u2, "Arjun", "Sit-ups", 100, d1, self.test_db)
+        db.log_activity(u2, "Arjun", "Running", 10, d1, self.test_db)
+        db.finalize_daily_summaries(d1, self.test_db)
+
+        overall = db.get_overall_leaderboard(self.test_db)
+        self.assertGreater(len(overall), 0)
+        usernames = [u["username"] for u in overall]
+        self.assertIn("Arjun", usernames)
+        self.assertIn("Vishnu", usernames)
+        self.assertEqual(overall[0]["username"], "Arjun")
+        self.assertGreaterEqual(overall[0]["total_points"], 500)
+
+    def test_22_batched_leaderboards(self):
+        today_str = date.today().isoformat()
+        daily_lb = db.get_daily_leaderboard(today_str, self.test_db)
+        self.assertIsInstance(daily_lb, list)
+
+        overall_lb = db.get_overall_leaderboard(self.test_db)
+        self.assertIsInstance(overall_lb, list)
+
+        now = date.today()
+        monthly_lb = db.get_monthly_leaderboard(now.year, now.month, self.test_db)
+        self.assertIsInstance(monthly_lb, list)
+
+    def test_40_weekly_and_monthly_leaderboard_standings(self):
+        """Verifies that weekly and monthly leaderboards aggregate past finalized summaries and today's live activity correctly."""
+        u1 = 991106
+        u2 = 991107
+        db.enroll_user(u1, "LeaderOne", self.test_db)
+        db.enroll_user(u2, "LeaderTwo", self.test_db)
+
+        today = db.get_today_date()
+        yesterday = (today - timedelta(days=1)).isoformat()
+        today_str = today.isoformat()
+
+        # Finalized day yesterday: u1 got 500 pts, u2 got 200 pts
+        db.log_activity(u1, "LeaderOne", "Push-ups", 100, yesterday, self.test_db)
+        db.log_activity(u1, "LeaderOne", "Pull-ups", 100, yesterday, self.test_db)
+        db.log_activity(u1, "LeaderOne", "Squats", 100, yesterday, self.test_db)
+        db.log_activity(u1, "LeaderOne", "Sit-ups", 100, yesterday, self.test_db)
+        db.log_activity(u1, "LeaderOne", "Running", 10.0, yesterday, self.test_db)
+
+        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, yesterday, self.test_db)
+        db.log_activity(u2, "LeaderTwo", "Pull-ups", 100, yesterday, self.test_db)
+        db.finalize_daily_summaries(yesterday, self.test_db)
+
+        # Live day today: u1 got 100 pts, u2 got 300 pts
+        db.log_activity(u1, "LeaderOne", "Push-ups", 100, today_str, self.test_db)
+        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, today_str, self.test_db)
+        db.log_activity(u2, "LeaderTwo", "Squats", 100, today_str, self.test_db)
+        db.log_activity(u2, "LeaderTwo", "Sit-ups", 100, today_str, self.test_db)
+
+        # Overall leaderboard: u1 (500 + 100 = 600) vs u2 (200 + 300 = 500)
+        overall = db.get_overall_leaderboard(self.test_db)
+        u1_entry = next((entry for entry in overall if entry["discord_id"] == u1), None)
+        u2_entry = next((entry for entry in overall if entry["discord_id"] == u2), None)
+        self.assertIsNotNone(u1_entry)
+        self.assertIsNotNone(u2_entry)
+        self.assertEqual(u1_entry["total_points"], 600)
+        self.assertEqual(u2_entry["total_points"], 500)
+
+    def test_43_winter_arc_phases_and_recap_system(self):
+        """Verifies phase definitions, calendar bounding, recap queries, snapshot isolation, and UI views."""
+        # 1. Verify Phase Metadata & Names
+        self.assertEqual(len(phases.PHASES), 4)
+        p1 = phases.get_phase_by_id(1)
+        p2 = phases.get_phase_by_id(2)
+        p3 = phases.get_phase_by_id(3)
+        p4 = phases.get_phase_by_id(4)
+
+        self.assertEqual(p1["name"], "FIRST FROST")
+        self.assertEqual(p1["total_days"], 31)
+        self.assertEqual(p2["name"], "THE HUNT")
+        self.assertEqual(p2["total_days"], 30)
+        self.assertEqual(p3["name"], "THE ENDGAME")
+        self.assertEqual(p3["total_days"], 31)
+        self.assertEqual(p4["name"], "AFTERMATH")
+        self.assertEqual(p4["total_days"], 31)
+
+        # 2. Verify Calendar Discovery & Unlocking
+        self.assertEqual(phases.get_current_phase("2026-10-15")["id"], 1)
+        self.assertEqual(phases.get_current_phase("2026-11-20")["id"], 2)
+        self.assertEqual(phases.get_current_phase("2026-12-25")["id"], 3)
+        self.assertEqual(phases.get_current_phase("2027-01-10")["id"], 4)
+
+        self.assertEqual(len(phases.get_unlocked_phases("2026-10-10")), 1)
+        self.assertEqual(len(phases.get_unlocked_phases("2026-11-05")), 2)
+        self.assertEqual(len(phases.get_unlocked_phases("2026-12-01")), 3)
+        self.assertEqual(len(phases.get_unlocked_phases("2027-01-01")), 4)
+
+        is_last, ph = phases.is_last_day_of_phase("2026-10-31")
+        self.assertTrue(is_last)
+        self.assertEqual(ph["name"], "FIRST FROST")
+
+        is_last_mid, _ = phases.is_last_day_of_phase("2026-10-15")
+        self.assertFalse(is_last_mid)
+
+        # 3. Test Phase Leaderboard, User Phase Stats, and Overall Recap
+        u_phase = 777111
+        db.enroll_user(u_phase, "PhaseWarrior", self.test_db)
+
+        d_oct1 = "2026-10-05"
+        d_oct2 = "2026-10-06"
+        db.log_activity(u_phase, "PhaseWarrior", "Push-ups", 100, d_oct1, self.test_db)
+        db.log_activity(u_phase, "PhaseWarrior", "Running", 10, d_oct1, self.test_db)
+        db.finalize_daily_summaries(d_oct1, self.test_db)
+
+        db.log_activity(u_phase, "PhaseWarrior", "Squats", 100, d_oct2, self.test_db)
+        db.finalize_daily_summaries(d_oct2, self.test_db)
+
+        d_nov = "2026-11-05"
+        db.log_activity(u_phase, "PhaseWarrior", "Sit-ups", 100, d_nov, self.test_db)
+        db.finalize_daily_summaries(d_nov, self.test_db)
+
+        p1_lb = db.get_phase_leaderboard(1, self.test_db)
+        p1_entry = next((e for e in p1_lb if e["discord_id"] == u_phase), None)
+        self.assertIsNotNone(p1_entry)
+        self.assertEqual(p1_entry["total_points"], 300)
+
+        p1_stats = db.get_user_phase_stats(u_phase, 1, self.test_db)
+        self.assertEqual(p1_stats["total_points"], 300)
+        self.assertEqual(p1_stats["active_days"], 2)
+        push_vol = next((t["total_volume"] for t in p1_stats["task_totals"] if t["name"] == "Push-ups"), 0)
+        self.assertEqual(push_vol, 100)
+
+        overall_recap = db.get_user_overall_recap(u_phase, self.test_db)
+        self.assertGreaterEqual(overall_recap["lifetime_points"], 400)
+
+        # 4. Test Snapshot Archival
+        backup_dir = os.path.join(os.path.dirname(self.test_db), "test_backups")
+        snapshot_file = db.archive_phase_snapshot(1, self.test_db, backup_dir=backup_dir)
+        self.assertTrue(os.path.exists(snapshot_file))
+
+        with sqlite3.connect(snapshot_file) as s_conn:
+            s_cur = s_conn.cursor()
+            s_cur.execute("SELECT total_points FROM phase_standings WHERE discord_id = ?;", (u_phase,))
+            row = s_cur.fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], 300)
+
+            s_cur.execute("SELECT COUNT(*) FROM daily_summaries WHERE date >= '2026-11-01';")
+            self.assertEqual(s_cur.fetchone()[0], 0)
+
+        try:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        # 5. Test UI Embeds & RecapView
+        mock_user = MagicMock()
+        mock_user.id = u_phase
+        mock_user.display_name = "PhaseWarrior"
+        mock_user.avatar = None
+
+        embed_p1 = build_recap_embed(mock_user, p1_stats, is_overall=False)
+        self.assertIn("FIRST FROST", embed_p1.title)
+        self.assertIn("300 pts", embed_p1.description)
+
+        embed_all = build_recap_embed(mock_user, overall_recap, is_overall=True)
+        self.assertIn("Overall Campaign Recap", embed_all.title)
+
+        podium_embed = build_phase_podium_embed(p1, p1_lb)
+        self.assertIn("FIRST FROST Concluded", podium_embed.title)
+
+        m_embed = build_monthly_leaderboard_embed(year=2026, month=10)
+        self.assertIn("FIRST FROST", m_embed.title)
+
+        user_record = db.get_user_by_discord_id(u_phase, self.test_db)
+        stats_data = db.get_user_stats(u_phase, self.test_db)
+        prof_embed = build_profile_embed(mock_user, user_record, 2, stats_data)
+        self.assertIn("Active Phase", prof_embed.description)
+
+        view = RecapView(target_user=mock_user, author_id=mock_user.id, current_selection="phase_1")
+        self.assertTrue(len(view.children) >= 2)
+
+    def test_47_comprehensive_suite_and_edge_cases(self):
+        """Validates all edge cases: volume limits, autocomplete fallbacks, zero overrides, and tier leaps."""
+        leap = check_level_up(0, 7500)
+        self.assertIsNotNone(leap)
+        self.assertEqual(leap["level"], 8)
+        self.assertEqual(leap["title"], "Vanguard")
+        self.assertEqual(leap["badge"], "🛡️")
+
+        apex_info = get_level_info(APEX_THRESHOLD)
+        self.assertEqual(apex_info["level"], 12)
+        self.assertEqual(apex_info["title"], "Apex")
+        self.assertTrue(apex_info["is_apex"])
+        self.assertEqual(apex_info["tier_pct"], 100)
+
+        beyond_apex = get_level_info(15000)
+        self.assertEqual(beyond_apex["level"], 12)
+        self.assertTrue(beyond_apex["is_apex"])
+        self.assertEqual(beyond_apex["tier_pct"], 100)
+
+        over_log = {
+            "new_total": 75,
+            "target": 50,
+            "previous_total": 45,
+            "is_target_reached": True,
+            "daily_points_total": 120,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Squats",
+            "shield_awarded": False,
+        }
+        res_over = format_log_reply(over_log, 30)
+        self.assertIn("Logged **+30 reps** to **Squats** (75/50 reps) ⭐ Target completed!", res_over)
+
+        down_set = {
+            "new_total": 20,
+            "target": 50,
+            "previous_total": 40,
+            "is_target_reached": False,
+            "daily_points_total": 40,
+            "daily_points_max": 500,
+            "unit": "reps",
+            "task_name": "Pull-ups",
+        }
+        res_down = format_set_reply(down_set, 20)
+        self.assertIn("Adjusted **Pull-ups**: **40** ➔ **20 reps** (20/50 reps)", res_down)
+
+        mock_u = MagicMock()
+        mock_u.display_name = "IronWarrior"
+        status_data = {
+            "frost_shields": 2,
+            "max_shields": 2,
+            "is_today_shielded": False,
+            "days_until_next_shield": 0,
+            "current_streak": 14,
+            "recent_uses": [{"date": "2026-09-20", "reason": "Rest day"}],
+        }
+        shield_embed = build_shield_status_embed(mock_u, status_data)
+        self.assertIn("Streak Shield Status", shield_embed.title)
+        self.assertIn("Streak Shields Work", shield_embed.description)
+        self.assertIn("MAX SHIELDS STORED (2/2)", shield_embed.description)
+
+        ranks_embed = build_ranks_embed(50)
+        self.assertIn("12-Tier Progression Hierarchy", ranks_embed.title)
+        self.assertNotIn("Pack", ranks_embed.title)
+        self.assertIn("🥉 **Lvl 1: Initiate**", ranks_embed.description)
+        self.assertIn("🥉 **Lvl 2: Novice**", ranks_embed.description)
+        self.assertIn("💎 **Lvl 12: Apex**", ranks_embed.description)
+        self.assertNotIn("Lone Stray", ranks_embed.description)
+        self.assertIn("Your Current Standing: 🥉 **Level 1: Initiate** (50 pts)", ranks_embed.description)
+
+        records_data = db.get_server_records(None, db_path=self.test_db)
+        records_embed = build_server_records_embed(records_data, phase_id=None)
+        self.assertIn("All-Time Server Records", records_embed.title)
+        self.assertIn("Achievements & Records", records_embed.description)
+        self.assertIn("Server Totals", records_embed.description)
+        self.assertIn("Total Volume", records_embed.description)
+        self.assertIn("Total Perfect Days", records_embed.description)
+        self.assertNotIn("Clean Days", records_embed.description)
+        self.assertNotIn("Combined Volume", records_embed.description)
+
+        records_view = ServerRecordsView(author_id=123, current_selection="overall")
+        self.assertEqual(len(records_view.children), 4)
+        self.assertEqual(records_view.children[0].label, "Overall")

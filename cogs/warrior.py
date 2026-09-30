@@ -730,7 +730,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             author_id=interaction.user.id,
             current_view="current"
         )
-        await interaction.followup.send(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
         await safe_react(interaction, "🔥", "🐺")
 
         cmd_out = format_embed_as_text(embed)
@@ -750,15 +750,6 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 command_output=cmd_out
             )
         )
-
-    @app_commands.command(name="consistency", description="View habit consistency calendar and overall arc progress.")
-    @app_commands.describe(member="Optional: Check another member's calendar")
-    async def consistency_cmd(
-        self,
-        interaction: discord.Interaction,
-        member: Optional[discord.Member] = None
-    ):
-        return await self.streak_cmd.callback(self, interaction, member=member)
 
     # ==========================================
     # Streak Shield & Protection Commands

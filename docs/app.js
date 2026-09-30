@@ -1,40 +1,75 @@
 /**
  * Winter Arc Showcase & Self-Hosting Manual
- * Interactive UI scripts: live countdown, phase switcher, tabs, copy-to-clipboard, mobile navigation
- * Zero Emojis Policy
+ * Interactive UI Scripts:
+ * - Live Countdown & Seasonal Phase Switcher
+ * - Interactive Discord Client Embed Simulator
+ * - Filterable & Searchable Slash Command Directory
+ * - Multi-Platform Self-Hosting Tabs Controller
+ * - Universal Copy-to-Clipboard with Toast Notifications
+ * - Mobile Navigation Drawer
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   initMobileNav();
-  initCommandTabs();
-  initPlatformTabs();
-  initCopyButtons();
   initCountdownTimer();
+  initDiscordSimulator();
+  initCommandDirectory();
+  initHostingPlatformTabs();
+  initCopyEngine();
 });
 
 /**
- * Mobile Navigation Menu Toggle
+ * Mobile Navigation Drawer Toggle & Backdrop Overlay
  */
 function initMobileNav() {
   const toggleBtn = document.getElementById('mobileToggle');
   const navLinks = document.getElementById('navLinks');
+  const navBackdrop = document.getElementById('navBackdrop');
 
   if (!toggleBtn || !navLinks) return;
 
-  toggleBtn.addEventListener('click', () => {
-    navLinks.classList.toggle('active');
+  function openMenu() {
+    navLinks.classList.add('active');
+    toggleBtn.classList.add('active');
+    if (navBackdrop) navBackdrop.classList.add('active');
+    document.body.classList.add('menu-open');
+  }
+
+  function closeMenu() {
+    navLinks.classList.remove('active');
+    toggleBtn.classList.remove('active');
+    if (navBackdrop) navBackdrop.classList.remove('active');
+    document.body.classList.remove('menu-open');
+  }
+
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (navLinks.classList.contains('active')) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
   });
 
-  // Close menu when clicking on a link
+  if (navBackdrop) {
+    navBackdrop.addEventListener('click', closeMenu);
+  }
+
+  // Auto-close menu when clicking a link
   navLinks.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      navLinks.classList.remove('active');
-    });
+    link.addEventListener('click', closeMenu);
+  });
+
+  // Close on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navLinks.classList.contains('active')) {
+      closeMenu();
+    }
   });
 }
 
 /**
- * Live Winter Arc Seasonal Countdown & Interactive Phase Switcher
+ * Live Countdown Timer & Interactive Seasonal Phase Switcher
  */
 function initCountdownTimer() {
   const timerDays = document.getElementById('timerDays');
@@ -48,17 +83,16 @@ function initCountdownTimer() {
 
   if (!timerDays || !timerHours || !timerMinutes || !timerSeconds) return;
 
-  // Compute current year
+  // Base year setup
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // Phase target timestamps
-  let currentTargetDate = new Date(`${currentYear}-10-01T00:00:00`);
+  // Default target: October 1st
+  let targetDate = new Date(`${currentYear}-10-01T00:00:00`);
 
   function updateClock() {
     const currentTime = new Date().getTime();
-    const targetTime = currentTargetDate.getTime();
-    let diff = targetTime - currentTime;
+    const diff = targetDate.getTime() - currentTime;
 
     if (diff <= 0) {
       timerDays.textContent = '00';
@@ -79,6 +113,10 @@ function initCountdownTimer() {
     timerSeconds.textContent = String(seconds).padStart(2, '0');
   }
 
+  // Update clock every second
+  updateClock();
+  setInterval(updateClock, 1000);
+
   // Phase switcher buttons
   phaseBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -91,7 +129,7 @@ function initCountdownTimer() {
       const sub = btn.getAttribute('data-sub');
 
       if (targetIso) {
-        currentTargetDate = new Date(targetIso);
+        targetDate = new Date(targetIso);
       }
       if (title && titleEl) {
         titleEl.textContent = title;
@@ -106,95 +144,185 @@ function initCountdownTimer() {
       updateClock();
     });
   });
-
-  // Initial call and periodic tick
-  updateClock();
-  setInterval(updateClock, 1000);
 }
 
 /**
- * Slash Command Reference Tabs
+ * Interactive Discord Client Embed Simulator
  */
-function initCommandTabs() {
-  const tabButtons = document.querySelectorAll('.cmd-tab-btn');
-  const tabContents = document.querySelectorAll('.cmd-tab-content');
+function initDiscordSimulator() {
+  const simTabs = document.querySelectorAll('.sim-tab-btn');
+  const embedCards = document.querySelectorAll('.discord-embed-card');
 
-  tabButtons.forEach(btn => {
+  if (!simTabs.length || !embedCards.length) return;
+
+  simTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-tab');
-
-      tabButtons.forEach(b => b.classList.remove('active'));
-      tabContents.forEach(c => c.classList.remove('active'));
-
+      simTabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const targetContent = document.getElementById(targetId);
-      if (targetContent) {
-        targetContent.classList.add('active');
+
+      const simKey = btn.getAttribute('data-sim');
+      const targetCard = document.getElementById(`sim-view-${simKey}`);
+
+      embedCards.forEach(card => card.classList.remove('active'));
+      if (targetCard) {
+        targetCard.classList.add('active');
       }
     });
   });
 }
 
 /**
- * Self-Hosting Platform Tabs (Wispbyte, Linux VPS, Cloud)
+ * Filterable & Searchable Slash Command Directory
  */
-function initPlatformTabs() {
-  const tabButtons = document.querySelectorAll('.plat-tab-btn');
-  const tabContents = document.querySelectorAll('.plat-content');
+function initCommandDirectory() {
+  const searchInput = document.getElementById('commandSearchInput');
+  const clearBtn = document.getElementById('clearSearchBtn');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  const cmdCards = document.querySelectorAll('.commands-grid .cmd-card');
 
-  tabButtons.forEach(btn => {
+  if (!searchInput || !cmdCards.length) return;
+
+  let activeCategory = 'all';
+
+  function filterCommands() {
+    const query = searchInput.value.toLowerCase().trim();
+
+    // Toggle clear button visibility
+    if (clearBtn) {
+      if (query.length > 0) {
+        clearBtn.classList.add('visible');
+      } else {
+        clearBtn.classList.remove('visible');
+      }
+    }
+
+    cmdCards.forEach(card => {
+      const cardCategory = card.getAttribute('data-category');
+      const cardText = card.textContent.toLowerCase();
+
+      const matchesCategory = (activeCategory === 'all' || cardCategory === activeCategory);
+      const matchesSearch = (query === '' || cardText.includes(query));
+
+      if (matchesCategory && matchesSearch) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  // Category filter button listener
+  filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeCategory = btn.getAttribute('data-category');
+      filterCommands();
+    });
+  });
+
+  // Search input listener
+  searchInput.addEventListener('input', filterCommands);
+
+  // Clear button listener
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearBtn.classList.remove('visible');
+      filterCommands();
+      searchInput.focus();
+    });
+  }
+}
+
+/**
+ * Multi-Platform Self-Hosting Tabs Controller
+ */
+function initHostingPlatformTabs() {
+  const platTabs = document.querySelectorAll('.plat-tab-btn');
+  const platPanels = document.querySelectorAll('.plat-content');
+
+  if (!platTabs.length || !platPanels.length) return;
+
+  platTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      platTabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
       const targetId = btn.getAttribute('data-target');
-
-      tabButtons.forEach(b => b.classList.remove('active'));
-      tabContents.forEach(c => c.classList.remove('active'));
-
-      btn.classList.add('active');
-      const targetContent = document.getElementById(targetId);
-      if (targetContent) {
-        targetContent.classList.add('active');
-      }
+      platPanels.forEach(panel => {
+        panel.classList.remove('active');
+        if (panel.id === targetId) {
+          panel.classList.add('active');
+        }
+      });
     });
   });
 }
 
 /**
- * One-Click Copy to Clipboard with Feedback
+ * Universal Copy-to-Clipboard with Toast Feedback
  */
-function initCopyButtons() {
-  const copyButtons = document.querySelectorAll('.copy-btn');
+function initCopyEngine() {
+  const copyButtons = document.querySelectorAll('[data-copy]');
 
   copyButtons.forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
       const textToCopy = btn.getAttribute('data-copy');
       if (!textToCopy) return;
 
       try {
         await navigator.clipboard.writeText(textToCopy);
+        
+        // Button state feedback
         const originalText = btn.textContent;
-        btn.textContent = 'Copied';
-        btn.style.background = '#00e5ff';
-        btn.style.color = '#000000';
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+
+        showToast('Copied to clipboard!');
 
         setTimeout(() => {
           btn.textContent = originalText;
-          btn.style.background = '';
-          btn.style.color = '';
+          btn.classList.remove('copied');
         }, 2000);
       } catch (err) {
-        // Fallback for older browsers or restricted permissions
-        const textArea = document.createElement('textarea');
-        textArea.value = textToCopy;
-        document.body.appendChild(textArea);
-        textArea.select();
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        document.body.appendChild(textarea);
+        textarea.select();
         document.execCommand('copy');
-        document.body.removeChild(textArea);
+        document.body.removeChild(textarea);
 
-        btn.textContent = 'Copied';
-        setTimeout(() => {
-          btn.textContent = 'Copy';
-        }, 2000);
+        showToast('Copied to clipboard!');
       }
     });
   });
+}
+
+/**
+ * Floating Toast Notification
+ */
+function showToast(message) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#00E5FF" stroke-width="2.5">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span>${message}</span>
+  `;
+
+  container.appendChild(toast);
+
+  // Auto-remove after animation finishes (2.5s)
+  setTimeout(() => {
+    if (toast.parentNode === container) {
+      container.removeChild(toast);
+    }
+  }, 2600);
 }

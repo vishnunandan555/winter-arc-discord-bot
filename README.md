@@ -102,8 +102,13 @@ Calibrated around a 90-day arc, culminating at Apex (12,000 Lifetime Points / ~1
 | Command | Purpose |
 | :--- | :--- |
 | `/today [member]` | Inspect daily volume, earned points, completion rate, and streak. |
+| `/streak [member]` | Monospace monthly habit calendar grid, streak statistics, and active shields. |
+| `/tasks` | View active daily physical disciplines, goals, and point values. |
 | `/log [task] [amount]` | Increment today's workout reps or kilometers with autocomplete. |
 | `/set [task] [amount]` | Directly set or correct today's count (or 0 to reset). |
+| `/stats [phase]` | View overall or phase-specific performance statistics and volume. |
+| `/history [days]` | View reverse-chronological log history with points and grind tags. |
+| `/recap [member]` | Detailed phase recap report across all 4 official Arc phases. |
 | `/profile` | View rank card, progress towards next tier, lifetime points, and streak. |
 | `/ranks` | Display the 12-tier discipline hierarchy, point targets, and requirements. |
 | `/leaderboard` | Interactive leaderboard with Daily, Weekly, Monthly, and All-Time standings. |
@@ -111,9 +116,10 @@ Calibrated around a 90-day arc, culminating at Apex (12,000 Lifetime Points / ~1
 | `/grind [text]` | Log academic/engineering friction evaluated by Gemini (+10 to +60 pts). |
 | `/shield status` | Check Streak Shield inventory and active protection state. |
 | `/shield use [reason]` | Activate a Streak Shield on a rest day to defend streak integrity. |
+| `/settings` | Toggle direct message reminders for morning kickoff and evening alerts. |
 | `/enroll` | Join the Winter Arc challenge and receive the server role. |
 | `/leave_arc` | Step away and unenroll from the challenge. |
-| `/help` | View command manual, daily schedule, and rules. |
+| `/help` | View interactive command manual, daily schedule, and rules. |
 | `/ping` | Health check and gateway latency in milliseconds. |
 
 ### Administrator Commands (`/admin`, requires Administrator permissions)
@@ -274,9 +280,18 @@ The site is pre-configured for deployment via GitHub Pages (serving `/docs`) or 
 # Activate virtual environment
 source .venv/bin/activate
 
-# Run automated test suite
-python test_engine.py -v
+# Run full automated test suite via runner
+python test_engine.py
+
+# Or run via standard unittest discovery
+python -m unittest discover tests
+
+# Or run individual modular test suites
+python -m unittest tests/test_streaks_shields.py
+python -m unittest tests/test_ui_embeds_views.py
+python -m unittest tests/test_cogs_bot.py
 
 # Run the bot in development mode
 python bot.py
 ```
+

@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  winter-arc-bot:
+    build: .
+    container_name: winter_arc_bot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./winter_arc.db:/app/winter_arc.db
+      - ./logs:/app/logs

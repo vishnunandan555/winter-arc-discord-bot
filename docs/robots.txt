@@ -1,0 +1,59 @@
+# Robots.txt for Winter Arc Discord Bot Showcase & Documentation
+# Optimized for Web Search Engines and AI Retrieval / LLM Crawlers
+
+User-agent: *
+Allow: /
+
+# OpenAI Crawlers (ChatGPT & SearchGPT)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Perplexity AI Search Crawler
+User-agent: PerplexityBot
+Allow: /
+
+# Anthropic Claude Crawlers
+User-agent: Claude-Web
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# Google Search & Gemini Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# Apple Intelligence Crawler
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+# Microsoft Bing & Copilot Crawler
+User-agent: Bingbot
+Allow: /
+
+# DuckDuckGo
+User-agent: DuckDuckBot
+Allow: /
+
+# CoHere
+User-agent: cohere-ai
+Allow: /
+
+# Common Crawl
+User-agent: CCBot
+Allow: /
+
+# Sitemap Index
+Sitemap: https://vishnunandan555.github.io/winter-arc-discord-bot/sitemap.xml

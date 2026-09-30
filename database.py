@@ -2489,8 +2489,9 @@ def get_user_monthly_consistency(
     # 3. Trailing days from next month
     if current_week:
         trailing = 7 - len(current_week)
+        trailing_status = "▫️" if (date(target_year, target_month, num_days) >= today) else "▪️"
         for _ in range(trailing):
-            current_week.append(("other_month", "▪️", 0, False))
+            current_week.append(("other_month", trailing_status, 0, False))
         weeks.append(current_week)
 
     grid_lines = ["     Mo  Tu  We  Th  Fr  Sa  Su"]

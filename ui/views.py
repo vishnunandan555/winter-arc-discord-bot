@@ -368,10 +368,10 @@ class StreakConsistencyView(RobustView):
         self.current_view = "current"
         self._build_buttons()
         import database as db
-        from ui.embeds import build_streak_consistency_embed, STREAK_LEGEND_SUBTEXT
+        from ui.embeds import build_streak_consistency_embed
         data = db.get_user_monthly_consistency(self.target_user.id)
         embed = build_streak_consistency_embed(self.target_user, data)
-        await interaction.response.edit_message(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=self)
+        await interaction.response.edit_message(content=None, embed=embed, view=self)
 
     async def _calendar_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
@@ -380,10 +380,10 @@ class StreakConsistencyView(RobustView):
         self.current_view = "calendar"
         self._build_buttons()
         import database as db
-        from ui.embeds import build_full_calendar_embed, STREAK_LEGEND_SUBTEXT
+        from ui.embeds import build_full_calendar_embed
         data = db.get_user_full_campaign_calendar(self.target_user.id)
         embed = build_full_calendar_embed(self.target_user, data)
-        await interaction.response.edit_message(content=STREAK_LEGEND_SUBTEXT, embed=embed, view=self)
+        await interaction.response.edit_message(content=None, embed=embed, view=self)
 
 
 

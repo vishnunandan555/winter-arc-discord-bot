@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://vishnunandan555.github.io/winter-arc-discord-bot/</loc>
+    <lastmod>2026-09-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://vishnunandan555.github.io/winter-arc-discord-bot/assets/winter_arc_banner_vector_clean_1360x480.png</image:loc>
+      <image:title>Winter Arc Discord Bot Banner</image:title>
+      <image:caption>Open-Source Self-Hosted Fitness Accountability Discord Bot</image:caption>
+    </image:image>
+    <image:image>
+      <image:loc>https://vishnunandan555.github.io/winter-arc-discord-bot/assets/winter_arc_wolf_crest_badge.png</image:loc>
+      <image:title>Winter Arc Wolf Crest Badge</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://vishnunandan555.github.io/winter-arc-discord-bot/assets/winter_arc_wolf_front.jpg</image:loc>
+      <image:title>Winter Arc Monastic Ethos Wolf Vanguard</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://vishnunandan555.github.io/winter-arc-discord-bot/assets/winter_arc_wolf_profile.jpg</image:loc>
+      <image:title>Winter Arc Apex Rank Profile</image:title>
+    </image:image>
+  </url>
+</urlset>
