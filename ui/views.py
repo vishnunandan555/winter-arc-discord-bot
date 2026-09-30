@@ -386,4 +386,108 @@ class StreakConsistencyView(RobustView):
         await interaction.response.edit_message(content=None, embed=embed, view=self)
 
 
+POST_NUKE_GIFS = [
+    "https://media.tenor.com/bxgD27sR5n0AAAAC/aot-goodbye-eren.gif",
+    "https://media.tenor.com/rDdkpJVCV3UAAAAC/gord%C3%A3o-bomba-nuclear.gif",
+    "https://media.tenor.com/s9YnGFQuqF8AAAAC/fnaf-2-movie-toy-chica.gif"
+]
+_nuke_gif_index = 0
+
+
+def get_next_nuke_gif() -> str:
+    """Rotates sequentially between the 3 post-nuke GIFs."""
+    global _nuke_gif_index
+    gif = POST_NUKE_GIFS[_nuke_gif_index % len(POST_NUKE_GIFS)]
+    _nuke_gif_index += 1
+    return gif
+
+
+class Nuke2FAModal(discord.ui.Modal, title="🔐 Owner 2FA Verification"):
+    """Secure pop-up modal asking for the owner's 2FA challenge answer."""
+
+    answer_input = discord.ui.TextInput(
+        label="Admin's pet dog name? (all small caps)",
+        style=discord.TextStyle.short,
+        placeholder="Enter security answer...",
+        required=True,
+        min_length=1,
+        max_length=50
+    )
+
+    def __init__(self, channel: discord.TextChannel):
+        super().__init__(timeout=120.0)
+        self.channel = channel
+
+    async def on_submit(self, interaction: discord.Interaction):
+        import hashlib
+        from config import NUKE_SECURITY_HASH
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+
+        submitted_answer = self.answer_input.value.strip().lower()
+        submitted_hash = hashlib.sha256(submitted_answer.encode()).hexdigest()
+
+        if not NUKE_SECURITY_HASH or submitted_hash != NUKE_SECURITY_HASH:
+            await interaction.response.send_message(
+                "❌ **2FA Verification Failed**: Incorrect answer. Nuke sequence aborted.",
+                ephemeral=True
+            )
+            asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+            return
+
+        await interaction.response.send_message("💥 **2FA Verified! Initiating channel purge...**", ephemeral=True)
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=5))
+
+        try:
+            # Purge all messages in the channel
+            await self.channel.purge(limit=None)
+
+            # Post clean message with direct GIF in image-only embed (hides the URL completely)
+            gif_url = get_next_nuke_gif()
+            gif_embed = discord.Embed()
+            gif_embed.set_image(url=gif_url)
+            await self.channel.send(content="💥 **NUKED!**", embed=gif_embed)
+        except discord.Forbidden:
+            await self.channel.send(
+                "❌ **Nuke Failed**: Missing Permissions. The bot requires the **Manage Messages** permission in this channel to delete messages.\n"
+                "Please grant the bot's role the **Manage Messages** permission in Server Settings -> Roles or Channel Permissions."
+            )
+        except Exception as e:
+            logger.error(f"Error executing channel nuke in {self.channel.id}: {e}", exc_info=True)
+            await self.channel.send(f"❌ An error occurred during channel purge: `{e}`")
+
+
+class NukeConfirmView(RobustView):
+    """Confirmation view with Yes (proceeds to 2FA Modal) and No buttons for /nuke."""
+
+    def __init__(self, owner_id: int):
+        super().__init__(timeout=60.0)
+        self.owner_id = owner_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("🚫 Only the Server Owner can confirm this action.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="⚠️ Yes, Proceed to 2FA", style=discord.ButtonStyle.danger, custom_id="btn_confirm_nuke")
+    async def confirm_nuke(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("❌ This command can only be used in text channels.", ephemeral=True)
+            return
+
+        # Open the secure 2FA modal directly on the client
+        await interaction.response.send_modal(Nuke2FAModal(channel=channel))
+
+    @discord.ui.button(label="❌ No, Cancel", style=discord.ButtonStyle.secondary, custom_id="btn_cancel_nuke")
+    async def cancel_nuke(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="🛡️ **Nuke operation cancelled.** The channel was not modified.", embed=None, view=None)
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
+
 

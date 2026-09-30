@@ -797,3 +797,30 @@ class TestAutocompleteAndTipsSystem(WinterArcTestCase):
                 self.assertIn("USE THE COMMAND OUTPUT FOR REPLYING", sys_msg)
 
         asyncio.run(run_nudge_test())
+
+    def test_launch_invite_embed_content_and_structure(self):
+        """Verifies the content, formatting, and personalization of the launch invite DM embed."""
+        from ui.embeds import build_launch_invite_embed
+
+        embed = build_launch_invite_embed("SpartanWarrior", channel_id=1554843200814845952)
+        self.assertIn("Winter Arc 2026 // Kicking Off Tomorrow (Oct 1)", embed.title)
+        self.assertIn("Hi **SpartanWarrior**", embed.description)
+        self.assertIn("What We Learned From Last Year", embed.description)
+        self.assertIn("100 Push-ups", embed.description)
+        self.assertIn("30 points", embed.description)
+
+        field_names = [f.name for f in embed.fields]
+        self.assertIn("🗺️ The 4-Phase Roadmap", field_names)
+        self.assertIn("🛡️ Built-in Safety Net: Streak Shields", field_names)
+        self.assertIn("⚡ How to Get Started", field_names)
+        self.assertIn("🔔 Channel Notifications", field_names)
+
+        # Check exclusive channel mention
+        how_to_start = [f.value for f in embed.fields if f.name == "⚡ How to Get Started"][0]
+        self.assertIn("<#1554843200814845952>", how_to_start)
+        self.assertIn("/enroll", how_to_start)
+        self.assertIn("/help", how_to_start)
+
+        notifications_field = [f.value for f in embed.fields if f.name == "🔔 Channel Notifications"][0]
+        self.assertIn("<#1554843200814845952>", notifications_field)
+        self.assertIn("Only @mentions", notifications_field)

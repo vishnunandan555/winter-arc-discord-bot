@@ -30,8 +30,8 @@ class WinterArcBot(commands.Bot):
 
     def __init__(self):
         intents = discord.Intents.default()
-        # Privileged intents (members, message_content) require toggles in Discord Developer Portal.
-        # We leave members disabled and enable message_content only if explicitly configured.
+        # Enable members intent for server roster DMs, invitations, and role assignment
+        intents.members = True
         if os.getenv("ENABLE_MESSAGE_CONTENT_INTENT", "false").lower() in ("true", "1", "yes"):
             intents.message_content = True
 
@@ -40,7 +40,7 @@ class WinterArcBot(commands.Bot):
             intents=intents,
             help_command=None,
             max_messages=100,
-            chunk_guilds_at_startup=False,
+            chunk_guilds_at_startup=True,
         )
         self.scheduler: WinterArcScheduler = None
         self._synced = False
@@ -191,21 +191,14 @@ class WinterArcBot(commands.Bot):
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
         logger.info("=" * 60)
 
-        # Clear guild-specific command copies to prevent duplicate slash commands in Discord UI
+        # Purge guild-scoped command copies to eliminate duplicate slash commands in Discord UI
         for g in self.guilds:
             try:
                 self.tree.clear_commands(guild=g)
                 await self.tree.sync(guild=g)
                 logger.info(f"🧹 Purged guild-scoped command duplicates from '{g.name}'.")
             except Exception as e:
-                logger.warning(f"Could not clear guild commands for {g.name}: {e}")
-
-        # Ensure global commands are synchronized
-        try:
-            synced_global = await self.tree.sync()
-            logger.info(f"Global slash command tree synchronized ({len(synced_global)} commands registered).")
-        except Exception as e:
-            logger.warning(f"Could not sync global commands: {e}")
+                logger.warning(f"Could not purge guild commands for {g.name}: {e}")
 
         await self.change_presence(
             activity=discord.Activity(
@@ -232,10 +225,11 @@ class WinterArcBot(commands.Bot):
                 if ch_id:
                     target_channel = guild.get_channel(ch_id)
 
-                # 2. Check LOG_CHANNEL_ID or DAILY_RESULTS_CHANNEL_ID env vars
+                # 2. Check WINTER_ARC_CHANNEL_ID, LOG_CHANNEL_ID, or DAILY_RESULTS_CHANNEL_ID env vars
                 if not target_channel:
-                    env_log_id = os.getenv("LOG_CHANNEL_ID") or os.getenv("DAILY_RESULTS_CHANNEL_ID")
-                    if env_log_id and env_log_id.strip().isdigit():
+                    from config import DEFAULT_CHANNEL_ID
+                    env_log_id = os.getenv("WINTER_ARC_CHANNEL_ID") or os.getenv("LOG_CHANNEL_ID") or os.getenv("DAILY_RESULTS_CHANNEL_ID") or str(DEFAULT_CHANNEL_ID)
+                    if env_log_id and env_log_id.strip().isdigit() and int(env_log_id.strip()) != 0:
                         target_channel = guild.get_channel(int(env_log_id.strip()))
 
                 # 3. Fallback: discover #server_logs, #winter-arc, or #bot_chat

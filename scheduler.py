@@ -197,10 +197,11 @@ class WinterArcScheduler:
         if channel_id:
             target_channel = guild.get_channel(channel_id)
 
-        # Fallback 1: check DAILY_RESULTS_CHANNEL_ID or LOG_CHANNEL_ID env vars
+        # Fallback 1: check WINTER_ARC_CHANNEL_ID, DAILY_RESULTS_CHANNEL_ID, or LOG_CHANNEL_ID env vars or config
         if not target_channel:
-            env_id = os.getenv("DAILY_RESULTS_CHANNEL_ID") or os.getenv("LOG_CHANNEL_ID")
-            if env_id and env_id.strip().isdigit():
+            from config import DEFAULT_CHANNEL_ID
+            env_id = os.getenv("WINTER_ARC_CHANNEL_ID") or os.getenv("DAILY_RESULTS_CHANNEL_ID") or os.getenv("LOG_CHANNEL_ID") or str(DEFAULT_CHANNEL_ID)
+            if env_id and env_id.strip().isdigit() and int(env_id.strip()) != 0:
                 target_channel = guild.get_channel(int(env_id.strip()))
 
         # Fallback 2: Auto-discover #winter-arc, #bot_chat, or #server_logs

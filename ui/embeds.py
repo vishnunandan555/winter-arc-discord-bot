@@ -2090,3 +2090,83 @@ def build_quick_streak_embed(user: Any, streak: int, shield_status: Dict[str, An
     embed.set_footer(text="Requires 30+ pts/day to preserve streak • Max 2 Streak Shields")
     return embed
 
+
+def build_launch_invite_embed(username: str, channel_id: int = 1554843200814845952) -> discord.Embed:
+    """Builds the personalized, stylized launch invitation DM embed for Winter Arc."""
+    ch_mention = f"<#{channel_id}>" if channel_id else "the dedicated Winter Arc channel"
+
+    embed = discord.Embed(
+        title="❄️ Winter Arc 2026 // Kicking Off Tomorrow (Oct 1)",
+        color=0x3498DB
+    )
+
+    desc = (
+        f"Hi **{username}**,\n\n"
+        "Winter Arc officially kicks off tomorrow, **October 1st**.\n\n"
+        "Before we get started, here is a quick breakdown of what’s changing, how this year works, and why it is structured differently.\n\n"
+        "**What We Learned From Last Year**\n\n"
+        "Last year, Winter Arc fell flat for a simple reason: **it was too broad and completely manual.** People tried to manage 10 different goals across study, habits, and work, tracked everything manually on sheets, and naturally burned out within a couple of weeks.\n\n"
+        "This year, we’ve stripped away all the noise. We are narrowing the focus down to **one core pillar: physical health and daily consistency.**\n\n"
+        "Everything is tracked automatically by our Discord bot so you never have to deal with spreadsheets or manual logs.\n\n"
+        "**The Daily Goal (Yes, It Looks Absurd)**\n\n"
+        "When you look at the daily tasks, the numbers look intense:\n\n"
+        "• **100 Push-ups**\n"
+        "• **100 Squats**\n"
+        "• **100 Pull-ups**\n"
+        "• **100 Sit-ups**\n"
+        "• **10 km Run**\n\n"
+        "**Do not stress about maxing these out.** The targets are deliberately set high so there is always room to grow. Nobody expects anyone to hit 100% on day one.\n\n"
+        "The real rule is simple: **Do whatever you can each day, but show up consistently.**\n\n"
+        "Logging just **30 points** (e.g. 30 pushups, or 3 km running, or a mix of reps) is all it takes to complete your daily requirement and keep your streak alive."
+    )
+    embed.description = desc
+
+    embed.add_field(
+        name="🗺️ The 4-Phase Roadmap",
+        value=(
+            "• ❄️ **Phase 1: First Frost (October)**\n"
+            "_The Foundation:_ Focus on setting the habit, logging daily, and shaking off the rust. Just get into the groove.\n\n"
+            "• 🐺 **Phase 2: The Hunt (November)**\n"
+            "_The Mid-Stretch:_ The initial excitement has worn off. This month is about staying consistent when motivation dips.\n\n"
+            "• ⚔️ **Phase 3: The Endgame (December)**\n"
+            "_The True Test:_ Most people slack off during December and wait for New Year's resolutions. This phase is about staying disciplined while the rest of the world checks out.\n\n"
+            "• 🌅 **Phase 4: Aftermath (January)**\n"
+            "_The Integration:_ Cementing the gains you built over the winter into a permanent lifestyle, rather than starting from zero like everyone else."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🛡️ Built-in Safety Net: Streak Shields",
+        value=(
+            "We know life happens—exams, travel, or sick days:\n\n"
+            "• Every 7-day streak milestone earns you a **Streak Shield** (capped at 2).\n"
+            "• You do not have to activate anything manually. If you miss a day, the bot automatically consumes a shield at midnight (**00:00 IST**) to protect your streak."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚡ How to Get Started",
+        value=(
+            f"1. All challenge activity happens exclusively in {ch_mention}. Head there and type **`/enroll`** to join the roster and claim your role.\n\n"
+            "2. Whenever you finish a workout, use **`/log`** or **`/quicklog`** to log your reps or kilometers in seconds.\n\n"
+            "3. Use **`/today`** or **`/streak`** anytime to see your daily progress, points, and your live streak.\n\n"
+            "4. Check out **`/leaderboard`** to see server standings, or **`/grind`** if you pushed through a tough session and want AI feedback.\n\n"
+            "5. Type **`/help`** anytime to see the full list of commands and complete details on how everything works."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔔 Channel Notifications",
+        value=(
+            f"Right-click (or tap and hold on mobile) {ch_mention}, go to **Notification Settings**, and set it to **\"Only @mentions\"**.\n\n"
+            "This way, you won't get buzzed every time someone logs a workout, but you will still get pinged for the daily morning kickoff, afternoon check-in, and midnight podium!"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Winter Arc 2026 • Consistency Over Everything • Tomorrow is Day 1")
+    return embed
+

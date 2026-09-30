@@ -29,6 +29,8 @@ from helpers import (
     unit_autocomplete,
     target_autocomplete,
     max_points_autocomplete,
+    dm_target_autocomplete,
+    dm_template_autocomplete,
 )
 
 logger = logging.getLogger("winter_arc.cogs.admin")
@@ -393,6 +395,44 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 force=True
             )
 
+    @app_commands.command(name="nuke", description="Purge all messages in this channel (Server Owner only).")
+    @app_commands.guild_only()
+    async def nuke(self, interaction: discord.Interaction):
+        """Purges all messages in the current channel with owner-only button confirmation."""
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This command must be run within a server.", ephemeral=True)
+            return
+
+        if interaction.user.id != interaction.guild.owner_id:
+            await interaction.response.send_message(
+                "🚫 **Permission Denied**: Only the **Server Owner** can execute the `/nuke` command.",
+                ephemeral=True
+            )
+            return
+
+        bot_perms = interaction.channel.permissions_for(interaction.guild.me)
+        if not bot_perms.manage_messages:
+            await interaction.response.send_message(
+                "❌ **Missing Bot Permission**: The bot needs the **Manage Messages** permission in this channel to delete messages.\n\n"
+                "👉 Please enable **Manage Messages** for the bot's role in Server Settings -> Roles or Channel Permissions.",
+                ephemeral=True
+            )
+            return
+
+        from ui.views import NukeConfirmView
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+
+        msg_text = (
+            "⚠️ **Are you sure you want to nuke this channel?**\n"
+            "All messages in this channel will be permanently deleted."
+        )
+        embed = discord.Embed()
+        embed.set_image(url="https://media.tenor.com/UbtVks4zby0AAAAC/ghost.gif")
+        view = NukeConfirmView(owner_id=interaction.guild.owner_id)
+        await interaction.response.send_message(content=msg_text, embed=embed, view=view, ephemeral=True)
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
     @admin_group.command(name="health", description="Inspect server memory, database footprint, and host resources.")
     async def admin_health(self, interaction: discord.Interaction):
         """Displays real-time memory usage (RSS), database file sizes, and allows manual GC compaction."""
@@ -400,6 +440,185 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         embed = build_health_embed(metrics)
         view = HealthView(self.bot)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @admin_group.command(name="dm", description="Privately send a template or announcement to a member or the entire server.")
+    @app_commands.describe(
+        target="Choose 'all' to broadcast to everyone, or select/mention a specific member",
+        message="Select a pre-configured template (or type a custom message)",
+        extra_note="Optional extra note to append to the message"
+    )
+    @app_commands.autocomplete(
+        target=dm_target_autocomplete,
+        message=dm_template_autocomplete
+    )
+    async def admin_dm(
+        self,
+        interaction: discord.Interaction,
+        target: str,
+        message: str,
+        extra_note: Optional[str] = None
+    ):
+        """Sends a private message to a specific member or all server members using selectable templates."""
+        if not interaction.guild:
+            await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+            return
+
+        from config import DEFAULT_CHANNEL_ID
+        from dm_templates import build_message_from_template, DM_TEMPLATES
+        import asyncio
+        import re
+
+        await interaction.response.defer(ephemeral=True)
+
+        settings = db.get_server_settings(interaction.guild.id)
+        channel_id = settings.get("channel_id") or DEFAULT_CHANNEL_ID
+
+        clean_target = target.strip()
+        template_name = DM_TEMPLATES.get(message, {}).get("name", "Custom Message")
+
+        # Case 1: Send to ALL members
+        if clean_target.lower() == "all":
+            members = [m for m in interaction.guild.members if not m.bot]
+            if len(members) <= 1:
+                try:
+                    members = [m async for m in interaction.guild.fetch_members(limit=None) if not m.bot]
+                except Exception as e:
+                    logger.warning(f"Could not fetch full member list with fetch_members: {e}")
+
+            if not members:
+                await interaction.followup.send("❌ No human server members found to message.", ephemeral=True)
+                return
+
+            await interaction.followup.send(
+                f"🚀 **Initiating DM Broadcast to {len(members)} server members...**\n"
+                f"• Template: **{template_name}**\n"
+                "• Pacing: Safe rate-limiting active (~1.5s per member).\n"
+                "• A completion summary will be sent to your DMs when finished.",
+                ephemeral=True
+            )
+
+            sent_count = 0
+            closed_dms = 0
+            failed_count = 0
+
+            logger.info(f"Admin {interaction.user} initiated DM broadcast ('{message}') to {len(members)} member(s).")
+
+            for member in members:
+                if member.bot:
+                    continue
+                try:
+                    embed = build_message_from_template(message, member.display_name, channel_id, extra_text=extra_note)
+                    await member.send(embed=embed)
+                    sent_count += 1
+                    logger.info(f"Delivered DM to {member.display_name} ({member.id})")
+                except discord.Forbidden:
+                    closed_dms += 1
+                    logger.debug(f"Cannot deliver DM to {member.display_name} (DMs closed)")
+                except Exception as e:
+                    failed_count += 1
+                    logger.warning(f"Failed to deliver DM to {member.display_name}: {e}")
+
+                await asyncio.sleep(1.5)
+
+            summary_msg = (
+                f"🏁 **Winter Arc DM Broadcast Completed!**\n\n"
+                f"• 📋 **Template**: {template_name}\n"
+                f"• 📨 **Delivered to Inbox**: **{sent_count}** members\n"
+                f"• 🔒 **DMs Disabled/Closed**: **{closed_dms}** members\n"
+                + (f"• ⚠️ **Errors**: **{failed_count}**\n" if failed_count > 0 else "")
+                + f"• 👥 **Total Processed**: **{len(members)}** members"
+            )
+
+            try:
+                await interaction.user.send(summary_msg)
+            except Exception:
+                logger.info("Admin has DMs closed; could not deliver final summary DM.")
+            return
+
+        # Case 2: Specific member(s) target
+        resolved_members: dict = {}
+
+        # 1. Search for all numeric IDs in clean_target
+        id_matches = re.findall(r'\b\d{15,21}\b|\b\d+\b', clean_target)
+        for id_str in id_matches:
+            uid = int(id_str)
+            m = interaction.guild.get_member(uid)
+            if not m:
+                try:
+                    m = await interaction.guild.fetch_member(uid)
+                except Exception:
+                    m = None
+            if m and not m.bot:
+                resolved_members[m.id] = m
+
+        # 2. Search for comma-separated usernames or display names
+        tokens = [t.strip().lstrip("@") for t in re.split(r'[,]+', clean_target) if t.strip()]
+        for token in tokens:
+            needle = token.lower()
+            if not needle:
+                continue
+            for m in interaction.guild.members:
+                if not m.bot and (m.name.lower() == needle or m.display_name.lower() == needle):
+                    resolved_members[m.id] = m
+                    break
+
+        if not resolved_members:
+            await interaction.followup.send(
+                f"❌ Could not find any valid server members matching `{clean_target}`.\n"
+                "Please select members from the autocomplete list or mention them (e.g. `@user1, @user2`).",
+                ephemeral=True
+            )
+            return
+
+        # Deliver to all resolved members
+        sent_count = 0
+        closed_dms = []
+        failed_count = 0
+
+        for target_member in resolved_members.values():
+            try:
+                embed = build_message_from_template(message, target_member.display_name, channel_id, extra_text=extra_note)
+                await target_member.send(embed=embed)
+                sent_count += 1
+                logger.info(f"Delivered DM to {target_member.display_name} ({target_member.id})")
+            except discord.Forbidden:
+                closed_dms.append(target_member.display_name)
+            except Exception as e:
+                failed_count += 1
+                logger.warning(f"Failed to deliver DM to {target_member.id}: {e}")
+            if len(resolved_members) > 2:
+                await asyncio.sleep(1.0)
+
+        # Build clean confirmation response
+        recipients_display = ", ".join(str(getattr(m, "mention", f"<@{m.id}>")) for m in resolved_members.values())
+        if len(resolved_members) == 1:
+            single_m = list(resolved_members.values())[0]
+            single_mention = str(getattr(single_m, "mention", f"<@{single_m.id}>"))
+            if closed_dms:
+                resp_text = f"❌ Could not deliver DM. **{single_m.display_name}** has direct messages disabled from server members."
+            elif sent_count > 0:
+                resp_text = (
+                    f"✅ **Private DM Delivered!**\n"
+                    f"• Recipient: {single_mention} (`{single_m.display_name}`)\n"
+                    f"• Template: **{template_name}**"
+                )
+            else:
+                resp_text = f"❌ Failed to deliver message to {single_mention}."
+        else:
+            lines = [
+                f"✅ **Private DMs Delivered to {sent_count}/{len(resolved_members)} Selected Members!**",
+                f"• Template: **{template_name}**",
+                f"• Selected Recipients: {recipients_display}",
+            ]
+            if closed_dms:
+                lines.append(f"• ⚠️ Closed DMs ({len(closed_dms)}): {', '.join(closed_dms)}")
+            if failed_count:
+                lines.append(f"• ❌ Failed: {failed_count}")
+            resp_text = "\n".join(lines)
+
+        from helpers import auto_dismiss_ephemeral
+        msg = await interaction.followup.send(resp_text, ephemeral=True)
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60, message=msg))
 
 
 def get_system_health_metrics(bot: commands.Bot) -> dict:

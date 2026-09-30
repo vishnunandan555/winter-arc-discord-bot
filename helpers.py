@@ -20,6 +20,23 @@ from config import DEFAULT_ROLE_ID
 logger = logging.getLogger("winter_arc.helpers")
 
 
+async def auto_dismiss_ephemeral(
+    interaction: discord.Interaction,
+    delay: int = 60,
+    message: Optional[discord.WebhookMessage] = None
+):
+    """Asynchronously deletes an ephemeral interaction response or followup after `delay` seconds."""
+    import asyncio
+    await asyncio.sleep(delay)
+    try:
+        if message:
+            await message.delete()
+        else:
+            await interaction.delete_original_response()
+    except (discord.NotFound, discord.HTTPException, AttributeError):
+        pass
+
+
 def format_num(val: Any) -> Any:
     """Safely converts numeric float/int to clean int if whole, without crashing if already int."""
     if val is None:
@@ -241,3 +258,71 @@ async def safe_react(interaction: discord.Interaction, *emojis: str):
             await msg.add_reaction(emoji)
     except Exception as e:
         logger.debug(f"Could not add reaction to interaction response: {e}")
+
+
+async def dm_target_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """Autocomplete for /admin dm target: 'all', specific members, or multiple comma-separated members."""
+    choices = []
+    raw_current = current or ""
+
+    # Check if user is typing a comma-separated list of multiple targets
+    if "," in raw_current:
+        prefix, curr_token = raw_current.rsplit(",", 1)
+        prefix = prefix.strip()
+        curr = curr_token.lower().strip().lstrip("@")
+        is_multi = True
+    else:
+        prefix = ""
+        curr = raw_current.lower().strip().lstrip("@")
+        is_multi = False
+
+    existing_ids = set(re.findall(r'\b\d+\b', prefix)) if is_multi else set()
+
+    if not is_multi and (not curr or "all".startswith(curr)):
+        choices.append(app_commands.Choice(name="👥 All Members (Broadcast to entire server)", value="all"))
+
+    if interaction.guild:
+        members = [m for m in interaction.guild.members if not m.bot and str(m.id) not in existing_ids]
+
+        # Prioritize invoking user for self-testing if not already added
+        if interaction.user and not getattr(interaction.user, "bot", False) and str(interaction.user.id) not in existing_ids:
+            u = interaction.user
+            if not curr or curr in u.display_name.lower() or curr in u.name.lower():
+                val = f"{prefix}, {u.id}" if is_multi else str(u.id)
+                name_prefix = "➕ " if is_multi else "🧪 (Self-Test) "
+                choices.append(app_commands.Choice(
+                    name=f"{name_prefix}{u.display_name} (@{u.name})"[:100],
+                    value=val
+                ))
+
+        for m in members:
+            if interaction.user and m.id == interaction.user.id:
+                continue
+            name_match = curr in m.display_name.lower() or curr in m.name.lower()
+            if not curr or name_match:
+                val = f"{prefix}, {m.id}" if is_multi else str(m.id)
+                name_prefix = "➕ " if is_multi else "👤 "
+                choices.append(app_commands.Choice(
+                    name=f"{name_prefix}{m.display_name} (@{m.name})"[:100],
+                    value=val
+                ))
+            if len(choices) >= 25:
+                break
+
+    return choices[:25]
+
+
+async def dm_template_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """Autocomplete for /admin dm message/template from dm_templates.py."""
+    from dm_templates import DM_TEMPLATES
+    choices = []
+    curr = (current or "").lower().strip()
+
+    for key, tmpl in DM_TEMPLATES.items():
+        name = tmpl.get("name", key)
+        if not curr or curr in name.lower() or curr in key.lower():
+            choices.append(app_commands.Choice(name=name[:100], value=key))
+        if len(choices) >= 25:
+            break
+
+    return choices[:25]

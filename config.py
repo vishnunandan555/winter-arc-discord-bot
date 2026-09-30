@@ -15,18 +15,24 @@ load_dotenv()
 # Discord Application Token
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "")
 
-# Default Timezone for all calculations & schedules (Asia/Kolkata / IST)
-TIMEZONE_NAME = os.getenv("BOT_TIMEZONE", "Asia/Kolkata")
+# Timezone for all calculations & schedules (Fixed: Asia/Kolkata / IST)
+TIMEZONE_NAME = "Asia/Kolkata"
 BOT_TZ = ZoneInfo(TIMEZONE_NAME)
 
 # Default Winter Arc Role ID (0 means disabled until explicitly configured)
 DEFAULT_ROLE_ID = int(os.getenv("WINTER_ARC_ROLE_ID", "0"))
 
+# Default Winter Arc Dedicated Channel ID (1554843200814845952)
+DEFAULT_CHANNEL_ID = int(os.getenv("WINTER_ARC_CHANNEL_ID", os.getenv("DAILY_RESULTS_CHANNEL_ID", os.getenv("LOG_CHANNEL_ID", "1554843200814845952"))))
+
+# Security 2FA Hash for /nuke (SHA-256 of lowercase answer)
+NUKE_SECURITY_HASH = os.getenv("NUKE_SECURITY_HASH", "ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561")
+
 # Database path
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
 
-# Minimum points required in a day to maintain or advance an active streak (default: 30)
-MIN_STREAK_POINTS = int(os.getenv("MIN_STREAK_POINTS", "30"))
+# Minimum points required in a day to maintain or advance an active streak (Fixed: 30)
+MIN_STREAK_POINTS = 30
 
 # Realistic single-go / single-set limits to reject fake or unrealistic volume
 MAX_SINGLE_SET_LIMITS = {
@@ -40,11 +46,11 @@ MAX_SINGLE_SET_LIMITS = {
 # AI Configuration
 # Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+GEMINI_MODEL = "gemini-flash-lite-latest"
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing & reactive command nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+GROQ_MODEL = "qwen/qwen3.8-27b"
 
 import sys
 from logging.handlers import RotatingFileHandler
