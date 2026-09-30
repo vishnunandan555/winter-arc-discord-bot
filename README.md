@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-56%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](test_engine.py)
+  [![Tests](https://img.shields.io/badge/Tests-64%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -75,28 +75,29 @@ cp .env.example .env
 # Required: Discord Bot Token from Discord Developer Portal
 DISCORD_TOKEN=your_bot_token_here
 
-# Timezone for scheduled daily announcements (Default: Asia/Kolkata)
-BOT_TIMEZONE=Asia/Kolkata
+# Required for /nuke: SHA-256 hash of owner's 2FA secret answer
+NUKE_SECURITY_HASH=ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561
 
-# Optional: Server role ID to ping during broadcasts
+# Optional: Default role & channel IDs (can also be configured in-server via /admin)
 WINTER_ARC_ROLE_ID=
+WINTER_ARC_CHANNEL_ID=
 
 # Optional: AI capabilities for /quick and /grind commands
-GROQ_API_KEY=your_groq_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ### 3. Launch the Bot
 ```bash
 python bot.py
 ```
-*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 21 slash commands automatically.*
+*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 22 slash commands automatically.*
 
 ---
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **56 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **64 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -117,7 +118,7 @@ python -m unittest tests/test_cogs_bot.py
 
 ## 📋 Slash Command Overview
 
-The bot registers **21 native slash commands** designed with Discord autocomplete and button pagination:
+The bot registers **22 native slash commands** designed with Discord autocomplete and button pagination:
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |
@@ -125,7 +126,8 @@ The bot registers **21 native slash commands** designed with Discord autocomplet
 | **Habits & Streaks** | `/streak`, `/today`, `/tasks`, `/history` | Monospace habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
 | **Recovery & Settings**| `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping`| Streak shield defense, morning/evening DM preferences, manual, and latency check. |
-| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `task_add`, `task_toggle`, `tasks_list`, `sync`) | Dedicated announcement channel binding, role configuration, and discipline customization. |
+| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `sync`) | Channel binding, role ping, multi-target templated DMs, and discipline customization. |
+| **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
 👉 **[Search & Filter All Commands Interactively on the Website »](https://winter-arc-discord-bot.vercel.app/#commands)**
 
@@ -165,7 +167,7 @@ winter-arc-discord-bot/
 ├── ai/                      # Groq & Gemini AI service integrations
 ├── cogs/                    # Discord command extensions (warrior & admin cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (56 test cases across 8 modules)
+├── tests/                   # Modular domain test suite (64 test cases across 8 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site
@@ -174,6 +176,7 @@ winter-arc-discord-bot/
 ├── bot.py                   # Discord bot client & lifecycle events
 ├── config.py                # Environment variables & constants
 ├── database.py              # SQLite database schema, migrations & queries
+├── dm_templates.py          # Centralized private DM announcement & invitation templates
 ├── helpers.py               # Autocomplete providers & date helpers
 ├── levels.py                # 12-tier discipline calculation & thresholds
 ├── phases.py                # 4-phase calendar & recap definitions

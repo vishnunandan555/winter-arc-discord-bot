@@ -23,9 +23,9 @@ Technical design specification, component separation, database schema, and scori
 ┌──────────────────────────────┐┌─────────────────────────────┐
 │      cogs.warrior            ││        cogs.admin           │
 │  • /enroll, /leave_arc       ││  • /admin overview         │
-│  • /today, /log, /set        ││  • /admin set_channel       │
-│  • /profile, /ranks          ││  • /admin set_role          │
-│  • /leaderboard, /stats      ││  • /admin task_*            │
+│  • /today, /log, /set        ││  • /admin set_channel, role │
+│  • /profile, /ranks          ││  • /admin dm, /admin tasks  │
+│  • /leaderboard, /stats      ││  • /nuke (Owner 2FA Purge)  │
 │  • /history, /ping, /help    ││  • /test_reminder           │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │
@@ -93,12 +93,13 @@ winter-arc-bot/
 ├── cogs/
 │   ├── __init__.py
 │   ├── warrior.py            # User-facing slash commands
-│   └── admin.py              # Administrator commands and diagnostic tools
-├── tests/                    # Modular domain test suite (56 tests across 8 modules)
+│   └── admin.py              # Administrator commands, /nuke, and diagnostic tools
+├── dm_templates.py           # Centralized DM announcement & invitation templates
+├── tests/                    # Modular domain test suite (64 tests across 8 modules)
 ├── scheduler.py              # Automated background APScheduler loop
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test discovery runner (56 tests)
+├── test_engine.py            # Automated test discovery runner (64 tests)
 ├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
 ├── Dockerfile                # Production container specification
 ├── docker-compose.yml        # Multi-platform container configuration

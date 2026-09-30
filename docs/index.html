@@ -1569,6 +1569,32 @@
 
           <div class="cmd-card" data-category="admin">
             <div class="cmd-top">
+              <span class="cmd-syntax">/admin dm [target] [message] [extra_note]</span>
+              <button class="copy-cmd-btn" data-copy="/admin dm" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Send private templated DMs to a specific member, multiple selected members, or broadcast server-wide.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">target: multi-select|all</span>
+              <span class="tag-param">message: template</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/nuke</span>
+              <button class="copy-cmd-btn" data-copy="/nuke" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Server Owner emergency channel purge with 2FA security challenge modal and animated nuclear explosion GIFs.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Security</span>
+              <span class="tag-param">owner-only</span>
+              <span class="tag-param">2FA modal</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
               <span class="cmd-syntax">/test_reminder [type]</span>
               <button class="copy-cmd-btn" data-copy="/test_reminder" title="Copy command">Copy</button>
             </div>
@@ -1691,20 +1717,16 @@ cd winter-arc-discord-bot</code></pre>
             <button class="copy-btn" data-copy="# Required: Discord Bot Token from Developer Portal
 DISCORD_TOKEN=your_bot_token_here
 
-# Timezone for scheduled daily announcements (Default: Asia/Kolkata)
-BOT_TIMEZONE=Asia/Kolkata
+# Required for /nuke: SHA-256 hash of secret 2FA answer
+NUKE_SECURITY_HASH=ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561
 
-# Optional: Default server role ID to ping on announcements
+# Optional: Default server role & channel IDs (can also be configured via /admin)
 WINTER_ARC_ROLE_ID=
+WINTER_ARC_CHANNEL_ID=
 
-# Optional: Groq API Key for /quick natural language workout parsing
-GROQ_API_KEY=your_groq_api_key_here
-
-# Optional: Google Gemini API Key for /grind deep work & reflections
+# Optional: AI capabilities for /quick and /grind commands
 GEMINI_API_KEY=your_gemini_api_key_here
-
-# Optional: Target challenge year (Defaults to current year)
-WINTER_ARC_YEAR=2026">Copy</button>
+GROQ_API_KEY=your_groq_api_key_here">Copy</button>
             <pre><code># ==============================================================
 # WINTER ARC BOT CONFIGURATION
 # ==============================================================
@@ -1712,20 +1734,18 @@ WINTER_ARC_YEAR=2026">Copy</button>
 # Required: Bot Token from Discord Developer Portal
 DISCORD_TOKEN=your_bot_token_here
 
-# Timezone for scheduled daily announcements (Default: Asia/Kolkata)
-BOT_TIMEZONE=Asia/Kolkata
+# Required for /nuke: SHA-256 hash of secret 2FA answer
+NUKE_SECURITY_HASH=ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561
 
-# Optional: Default server role ID to ping on announcements
+# Optional: Default server role & channel IDs (can also be set in-server via /admin)
 WINTER_ARC_ROLE_ID=
-
-# Optional: Groq API Key for /quick natural language parsing (free at console.groq.com)
-GROQ_API_KEY=your_groq_api_key_here
+WINTER_ARC_CHANNEL_ID=
 
 # Optional: Google Gemini API Key for /grind deep work scoring (free at aistudio.google.com)
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional: Target challenge year (Defaults to current year)
-WINTER_ARC_YEAR=2026</code></pre>
+# Optional: Groq API Key for /quick natural language parsing (free at console.groq.com)
+GROQ_API_KEY=your_groq_api_key_here</code></pre>
           </div>
         </div>
 

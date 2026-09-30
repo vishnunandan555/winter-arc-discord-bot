@@ -38,7 +38,7 @@ Before deploying to any host:
    ```
 5. Configure startup and environment:
    - **Startup Command**: `python bot.py`
-   - In **File Manager**, verify your `.env` contains your `DISCORD_TOKEN`, `BOT_TIMEZONE`, etc.
+   - In **File Manager**, verify your `.env` contains your `DISCORD_TOKEN`, `NUKE_SECURITY_HASH`, etc.
 6. Click **Start** on the console. The bot will automatically connect to Discord, synchronize slash commands, and initialize `winter_arc.db`.
 
 ---
@@ -59,7 +59,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```bash
    cp .env.example .env
    nano .env
-   # Add your DISCORD_TOKEN, BOT_TIMEZONE, GROQ_API_KEY, GEMINI_API_KEY
+   # Add your DISCORD_TOKEN, NUKE_SECURITY_HASH, GROQ_API_KEY, GEMINI_API_KEY
    ```
 
 3. **Create a Systemd Service**:
@@ -126,7 +126,9 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    - **Start Command**: `python bot.py`
 4. Add environment variables:
    - `DISCORD_TOKEN`
-   - `BOT_TIMEZONE` (e.g. `Asia/Kolkata`)
+   - `NUKE_SECURITY_HASH`
+   - `WINTER_ARC_ROLE_ID` (optional)
+   - `WINTER_ARC_CHANNEL_ID` (optional)
    - `GROQ_API_KEY` (optional)
    - `GEMINI_API_KEY` (optional)
 5. Deploy the worker.
