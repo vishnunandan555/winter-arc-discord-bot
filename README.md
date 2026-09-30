@@ -9,17 +9,15 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-52%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](test_engine.py)
+  [![Tests](https://img.shields.io/badge/Tests-56%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](test_engine.py)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
   <br>
 
   <h3>
-    🌐 <a href="https://vishnunandan555.github.io/winter-arc-discord-bot/"><strong>Explore Live Showcase & Documentation Website »</strong></a>
+    <a href="https://winter-arc-discord-bot.vercel.app/"><strong>Visit Website</strong></a>
   </h3>
-  <p>Interactive Command Directory • 12-Tier Ranks • Season Roadmap • Live Calendar Preview</p>
-
 </div>
 
 ---
@@ -43,12 +41,12 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
 | **Monospace Habit Calendar** | `/streak` renders an aligned, monospace monthly matrix and full 92-day campaign view with status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
-| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & academic friction via Gemini. |
+| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (07:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), and midnight finalization (00:00 IST). |
 
 > 📖 **Want the deep dive?**  
-> Explore the full [12-Tier Hierarchy](https://vishnunandan555.github.io/winter-arc-discord-bot/#ranks) and [Seasonal Phase Roadmap](https://vishnunandan555.github.io/winter-arc-discord-bot/#phases) on the showcase site.
+> Explore the full [12-Tier Hierarchy](https://winter-arc-discord-bot.vercel.app/#ranks) and [Seasonal Phase Roadmap](https://winter-arc-discord-bot.vercel.app/#phases) on the website.
 
 ---
 
@@ -98,7 +96,7 @@ python bot.py
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **52 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **56 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -129,7 +127,7 @@ The bot registers **21 native slash commands** designed with Discord autocomplet
 | **Recovery & Settings**| `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping`| Streak shield defense, morning/evening DM preferences, manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `task_add`, `task_toggle`, `tasks_list`, `sync`) | Dedicated announcement channel binding, role configuration, and discipline customization. |
 
-👉 **[Search & Filter All Commands Interactively on the Website »](https://vishnunandan555.github.io/winter-arc-discord-bot/#commands)**
+👉 **[Search & Filter All Commands Interactively on the Website »](https://winter-arc-discord-bot.vercel.app/#commands)**
 
 ---
 
@@ -167,7 +165,7 @@ winter-arc-discord-bot/
 ├── ai/                      # Groq & Gemini AI service integrations
 ├── cogs/                    # Discord command extensions (warrior & admin cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular test suite (52 test cases)
+├── tests/                   # Modular domain test suite (56 test cases across 8 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

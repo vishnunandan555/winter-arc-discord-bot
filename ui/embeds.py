@@ -1406,9 +1406,14 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
     has_focus = learning and learning != "None"
 
     if pts > 0:
-        title = f"🧠 Deep Work Logged (+{pts} pts)"
-        color = 0x00D2FF
-        header_tag = f"• `{learning}`" if has_focus else "• Deep Work"
+        if verdict == "ROASTED":
+            title = f"🔥 Effort Logged (+{pts} pts)"
+            color = 0xE67E22
+            header_tag = f"• `{learning}`" if has_focus else "• Effort Points"
+        else:
+            title = f"🧠 Deep Work Logged (+{pts} pts)"
+            color = 0x00D2FF
+            header_tag = f"• `{learning}`" if has_focus else "• Deep Work"
         pts_line = f"**+{pts} pts earned** • Today's Board: **{total_daily_points} pts**"
     else:
         title = "⚪ Deep Work Log (0 pts)"
@@ -1438,9 +1443,15 @@ def format_grind_reply(result: Dict[str, Any]) -> str:
     commentary = (result.get("commentary") or "Session logged.").strip()
     pts = int(result.get("points", 0))
     learning = result.get("key_learning")
+    verdict = str(result.get("verdict", "")).upper()
 
     if pts > 0:
-        task_label = learning if learning and learning.lower() != "none" else "Deep Work"
+        if learning and learning.lower() != "none":
+            task_label = learning
+        elif verdict == "ROASTED":
+            task_label = "Effort / Grind Attempt"
+        else:
+            task_label = "Deep Work"
         return f"{commentary}\n\n**Points Earned**: {pts} pts\n**Logged**: {task_label}"
     return commentary
 
@@ -1906,7 +1917,8 @@ def format_embed_as_text(embed: discord.Embed) -> str:
     return "\n\n".join(parts).strip()
 
 
-STREAK_LEGEND_SUBTEXT = "-# 🟩 Streak Preserved (30+ pts) • ⭐ Perfect Day (100%) • 🛡️ Streak Shield • 🟥 Missed • ▫️ Upcoming"
+STREAK_LEGEND_FOOTER = "🟩 Streaked • ⭐ Perfect Day (100%) • 🛡️ Shield Used • 🟥 Missed • ▫️ Upcoming"
+STREAK_LEGEND_SUBTEXT = STREAK_LEGEND_FOOTER
 
 
 def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
@@ -1944,14 +1956,14 @@ def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.E
         f"• Streak Shields Used: 🛡️ **{shields_used}x ({shields_left} Left)**"
     )
 
-    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}\n\n{STREAK_LEGEND_SUBTEXT}"
+    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}"
 
     embed = discord.Embed(
         title=title,
         description=desc,
         color=0xE67E22 if current_streak > 0 else 0x95A5A6
     )
-    embed.set_footer(text="Daily standard: 500 points • 30 pts/day to maintain streak • Max 2 shields")
+    embed.set_footer(text=STREAK_LEGEND_FOOTER)
     return embed
 
 
@@ -1986,14 +1998,14 @@ def build_full_calendar_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
         f"• Total Shields Used: 🛡️ **{shields_used}x ({shields_left} Left)**"
     )
 
-    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}\n\n{STREAK_LEGEND_SUBTEXT}"
+    desc = f"{sub_header}\n\n{grid_block}\n{highlights_block}"
 
     embed = discord.Embed(
         title=title,
         description=desc,
         color=0xE67E22 if longest_streak > 0 else 0x95A5A6
     )
-    embed.set_footer(text="Phases 1–3: Oct 1 – Dec 31 (92 Days) • 500 pts standard • 30 pts/day threshold")
+    embed.set_footer(text=STREAK_LEGEND_FOOTER)
     return embed
 
 

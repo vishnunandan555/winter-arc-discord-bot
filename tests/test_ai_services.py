@@ -10,8 +10,11 @@ from ai.gemini_service import evaluate_grind, GeminiServiceError
 from tests.base import WinterArcTestCase
 
 
-class TestAIServices(WinterArcTestCase):
-    def test_15_grind_log_db_lifecycle(self):
+class TestGeminiGrindService(WinterArcTestCase):
+    """Verifies Gemini multimodal /grind evaluation, database persistence, and daily single-submission limits."""
+
+    def test_grind_log_db_lifecycle_and_daily_limits(self):
+        """Verifies recording grind entries, points reflection in daily totals, and 1/day constraint."""
         user_id = 3001
         db.enroll_user(user_id, "GrindMaster", self.test_db)
         today_str = "2026-09-18"
@@ -58,7 +61,24 @@ class TestAIServices(WinterArcTestCase):
         weekly_hl = db.get_weekly_grind_highlights("2026-09-15", "2026-09-20", self.test_db)
         self.assertEqual(len(weekly_hl), 1)
 
-    def test_16_groq_workout_parser(self):
+    def test_gemini_grind_evaluator_api_or_error_handling(self):
+        """Verifies Gemini evaluation return schema (verdict, points, commentary) or graceful exception."""
+        try:
+            res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
+            self.assertIn("verdict", res)
+            self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
+            self.assertIn("points", res)
+            self.assertTrue(0 <= res["points"] <= 60)
+            self.assertIn("commentary", res)
+        except GeminiServiceError as e:
+            self.assertTrue(len(str(e)) > 0)
+
+
+class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
+    """Verifies natural language parsing for /quick, regex fallbacks, volume threshold flags, and reactive coach nudges."""
+
+    def test_groq_workout_parser_and_regex_fallback(self):
+        """Verifies extraction of disciplines and quantities from casual workout strings."""
         active_tasks = db.get_active_tasks(self.test_db)
 
         res = regex_fallback_parser("did 45 pushups, 15 pullups and ran 5.5k", active_tasks)
@@ -73,48 +93,8 @@ class TestAIServices(WinterArcTestCase):
         res_foreign = regex_fallback_parser("did 50 bicep curls and 20 bench presses", active_tasks)
         self.assertEqual(len(res_foreign["matches"]), 0)
 
-    def test_17_gemini_grind_evaluator(self):
-        try:
-            res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
-            self.assertIn("verdict", res)
-            self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
-            self.assertIn("points", res)
-            self.assertTrue(0 <= res["points"] <= 60)
-            self.assertIn("commentary", res)
-        except GeminiServiceError as e:
-            self.assertTrue(len(str(e)) > 0)
-
-    def test_33_groq_reactive_nudges(self):
-        progression = {
-            "points": 250,
-            "max_points": 500,
-            "pct": 50,
-            "streak": 5,
-            "completed_tasks": ["Push-ups", "Sit-ups"],
-            "pending_tasks": ["Running", "Squats", "Pull-ups"],
-            "extra_info": "Logged 50 pushups",
-        }
-        mock_client = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Halfway there. 250 points remain."
-        mock_res = MagicMock()
-        mock_res.choices = [mock_choice]
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_res)
-
-        with patch.object(groq_service, "get_groq_client", return_value=mock_client):
-            nudge = asyncio.run(groq_service.generate_reactive_nudge(
-                user_name="Fenrir",
-                command_name="today",
-                progression=progression
-            ))
-            self.assertEqual(nudge, "Halfway there. 250 points remain.")
-
-        test_uid = 999333
-        self.assertTrue(groq_service.should_trigger_nudge(test_uid, force=True))
-        groq_service.record_nudge_triggered(test_uid)
-        self.assertFalse(groq_service.should_trigger_nudge(test_uid, force=False))
-
-    def test_37_quicklog_fallback_parsing_robustness(self):
+    def test_quicklog_fallback_parsing_robustness_and_suspicious_volume_flagging(self):
+        """Verifies pattern matching, colons, equals, aliases, and suspicious single-set volume detection."""
         active_tasks = db.get_active_tasks(self.test_db)
 
         # Case 1: Number before keyword
@@ -149,3 +129,34 @@ class TestAIServices(WinterArcTestCase):
         # Case 5: Unrelated non-discipline text
         res6 = extract_disciplines_fallback("just had coffee and studied chemistry", active_tasks)
         self.assertEqual(len(res6["matches"]), 0)
+
+    def test_groq_reactive_nudges_and_trigger_cooldown(self):
+        """Verifies reactive coach banter generation and 10-minute cooldown isolation."""
+        progression = {
+            "points": 250,
+            "max_points": 500,
+            "pct": 50,
+            "streak": 5,
+            "completed_tasks": ["Push-ups", "Sit-ups"],
+            "pending_tasks": ["Running", "Squats", "Pull-ups"],
+            "extra_info": "Logged 50 pushups",
+        }
+        mock_client = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Halfway there. 250 points remain."
+        mock_res = MagicMock()
+        mock_res.choices = [mock_choice]
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_res)
+
+        with patch.object(groq_service, "get_groq_client", return_value=mock_client):
+            nudge = asyncio.run(groq_service.generate_reactive_nudge(
+                user_name="Fenrir",
+                command_name="today",
+                progression=progression
+            ))
+            self.assertEqual(nudge, "Halfway there. 250 points remain.")
+
+        test_uid = 999333
+        self.assertTrue(groq_service.should_trigger_nudge(test_uid, force=True))
+        groq_service.record_nudge_triggered(test_uid)
+        self.assertFalse(groq_service.should_trigger_nudge(test_uid, force=False))

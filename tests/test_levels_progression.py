@@ -7,8 +7,11 @@ from ui.embeds import build_profile_embed
 from tests.base import WinterArcTestCase
 
 
-class TestLevelsProgression(WinterArcTestCase):
-    def test_09_leveling_hierarchy(self):
+class TestLevelHierarchy(WinterArcTestCase):
+    """Verifies the 12-tier discipline rank hierarchy, points thresholds, and mathematical continuity."""
+
+    def test_twelve_tier_ranks_and_threshold_definitions(self):
+        """Verifies that all 12 rank tiers exist with correct titles and progression steps."""
         self.assertEqual(len(RANKS), 12)
         all_r = get_all_ranks()
         self.assertEqual(len(all_r), 12)
@@ -35,24 +38,8 @@ class TestLevelsProgression(WinterArcTestCase):
         self.assertTrue(l12["is_apex"])
         self.assertEqual(l12["tier_pct"], 100)
 
-    def test_10_level_up_triggers(self):
-        # Crossing 499 -> 500 (Level 1 to Level 2)
-        lvl_up = check_level_up(499, 500)
-        self.assertIsNotNone(lvl_up)
-        self.assertEqual(lvl_up["level"], 2)
-        self.assertEqual(lvl_up["title"], "Novice")
-
-        # No level up within same tier (500 -> 600)
-        no_lvl = check_level_up(500, 600)
-        self.assertIsNone(no_lvl)
-
-        # Big leap crossing multiple levels (0 -> 2500, Level 1 to Level 4)
-        big_lvl = check_level_up(0, 2500)
-        self.assertIsNotNone(big_lvl)
-        self.assertEqual(big_lvl["level"], 4)
-        self.assertEqual(big_lvl["title"], "Dedicated")
-
-    def test_24_twelve_level_progression_details(self):
+    def test_detailed_tier_boundaries_and_xp_progress_calculations(self):
+        """Verifies boundaries for every single tier and remaining XP calculations."""
         expected_titles = [
             (0, 1, "Initiate"),
             (499, 1, "Initiate"),
@@ -92,18 +79,44 @@ class TestLevelsProgression(WinterArcTestCase):
         self.assertEqual(info180["next_title"], "Novice")
         self.assertEqual(info180["next_level"], 2)
 
-        mock_user = MagicMock()
-        mock_user.display_name = "Vishnu"
+
+class TestLevelProgressionTriggers(WinterArcTestCase):
+    """Verifies level-up detection triggers, multi-tier leaps, and profile embed visualization."""
+
+    def test_level_up_triggers_and_multi_tier_leaps(self):
+        """Verifies trigger detection across tier crossings and multiple-level jumps."""
+        # Crossing 499 -> 500 (Level 1 to Level 2)
+        lvl_up = check_level_up(499, 500)
+        self.assertIsNotNone(lvl_up)
+        self.assertEqual(lvl_up["level"], 2)
+        self.assertEqual(lvl_up["title"], "Novice")
+
+        # No level up within same tier (500 -> 600)
+        no_lvl = check_level_up(500, 600)
+        self.assertIsNone(no_lvl)
+
+        # Big leap crossing multiple levels (0 -> 2500, Level 1 to Level 4)
+        big_lvl = check_level_up(0, 2500)
+        self.assertIsNotNone(big_lvl)
+        self.assertEqual(big_lvl["level"], 4)
+        self.assertEqual(big_lvl["title"], "Dedicated")
+
+    def test_profile_embed_level_progression_visualization(self):
+        """Verifies level progression bar and remaining points in build_profile_embed."""
+        mock_user = self.create_mock_member(user_id=1001, display_name="Vishnu")
         mock_user.avatar = None
         user_record = {"joined_at": "2026-09-18 10:00:00", "frost_shields": 1}
         stats_data = {"lifetime_points": 180}
 
         profile_embed = build_profile_embed(mock_user, user_record, streak=5, stats_data=stats_data)
-        self.assertIn("Level Progression", profile_embed.description)
-        self.assertIn("Level 2 (Novice)", profile_embed.description)
-        self.assertIn("180 / 500 PTS", profile_embed.description)
-        self.assertIn("320 pts remaining", profile_embed.description)
-        self.assertIn("All-Time Rank", profile_embed.description)
-        self.assertIn("Discipline Rank", profile_embed.description)
-        self.assertIn("Today's Daily Progress", profile_embed.description)
+        self.assertEmbedDescriptionContains(
+            profile_embed,
+            "Level Progression",
+            "Level 2 (Novice)",
+            "180 / 500 PTS",
+            "320 pts remaining",
+            "All-Time Rank",
+            "Discipline Rank",
+            "Today's Daily Progress",
+        )
         self.assertNotIn("90-Day Arc Progress", profile_embed.description)

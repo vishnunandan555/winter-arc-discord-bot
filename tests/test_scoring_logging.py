@@ -6,8 +6,11 @@ import database as db
 from tests.base import WinterArcTestCase
 
 
-class TestScoringLogging(WinterArcTestCase):
-    def test_04_capped_scoring_and_abuse_rejection(self):
+class TestActivityLogging(WinterArcTestCase):
+    """Verifies incremental workout logging, target caps, abuse prevention, and history timelines."""
+
+    def test_capped_scoring_and_abuse_rejection(self):
+        """Verifies points earn deltas up to target cap and strict validation on zero/negative values."""
         today = date.today().isoformat()
         user_id = 1001
         db.enroll_user(user_id, "Vishnu", self.test_db)
@@ -37,22 +40,8 @@ class TestScoringLogging(WinterArcTestCase):
         with self.assertRaises(ValueError):
             db.log_activity(user_id, "Vishnu", "Push-ups", 0, today, self.test_db)
 
-    def test_07_set_activity_override(self):
-        user_id = 1001
-        db.enroll_user(user_id, "Vishnu", self.test_db)
-        today = date.today().isoformat()
-
-        # Force set total to 45
-        res1 = db.set_activity(user_id, "Vishnu", "Push-ups", 45, today, self.test_db)
-        self.assertEqual(res1["new_total"], 45.0)
-        self.assertEqual(res1["task_points_total"], 45)
-
-        # Reset to 0
-        res2 = db.set_activity(user_id, "Vishnu", "Push-ups", 0, today, self.test_db)
-        self.assertEqual(res2["new_total"], 0.0)
-        self.assertEqual(res2["task_points_total"], 0)
-
-    def test_32_user_recent_logs_and_grinds(self):
+    def test_user_recent_logs_and_grinds_retrieval(self):
+        """Verifies chronological retrieval of recent reps logs and AI grind evaluations."""
         user_id = 999222
         db.enroll_user(user_id, "Berserker", self.test_db)
         today = date.today().isoformat()
@@ -83,7 +72,74 @@ class TestScoringLogging(WinterArcTestCase):
         self.assertEqual(len(recent_grinds), 1)
         self.assertEqual(recent_grinds[0]["key_learning"], "Compiler Registers")
 
-    def test_34_task_name_resolution(self):
+
+class TestSetActivityOverrides(WinterArcTestCase):
+    """Verifies absolute workout progress overrides and API return schemas."""
+
+    def test_set_activity_manual_override_and_zero_reset(self):
+        """Verifies /set activity explicitly overrides current total and recalibrates points."""
+        user_id = 1001
+        db.enroll_user(user_id, "Vishnu", self.test_db)
+        today = date.today().isoformat()
+
+        # Force set total to 45
+        res1 = db.set_activity(user_id, "Vishnu", "Push-ups", 45, today, self.test_db)
+        self.assertEqual(res1["new_total"], 45.0)
+        self.assertEqual(res1["task_points_total"], 45)
+
+        # Reset to 0
+        res2 = db.set_activity(user_id, "Vishnu", "Push-ups", 0, today, self.test_db)
+        self.assertEqual(res2["new_total"], 0.0)
+        self.assertEqual(res2["task_points_total"], 0)
+
+    def test_set_and_log_return_schema_and_zero_division_guard(self):
+        """Verifies schema consistency between log and set return dictionaries and zero-division protection."""
+        user_id = 991104
+        db.enroll_user(user_id, "SchemaWarrior", self.test_db)
+        today = db.get_today_str()
+
+        # Test log_activity return keys
+        log_res = db.log_activity(user_id, "SchemaWarrior", "Push-ups", 30, today, self.test_db)
+        required_keys = [
+            "points_added", "new_points", "points_earned_delta",
+            "previous_total", "new_total", "task_points_total",
+            "task_max_points", "is_target_reached", "daily_points_total",
+            "daily_points_max", "daily_completion_rate", "shield_awarded"
+        ]
+        for key in required_keys:
+            self.assertIn(key, log_res, f"log_activity missing key: {key}")
+
+        # Test set_activity return keys
+        set_res = db.set_activity(user_id, "SchemaWarrior", "Push-ups", 50, today, self.test_db)
+        set_required_keys = [
+            "old_points", "new_points", "points_added", "points_earned_delta",
+            "previous_total", "new_total", "task_points_total",
+            "task_max_points", "is_target_reached", "daily_points_total"
+        ]
+        for key in set_required_keys:
+            self.assertIn(key, set_res, f"set_activity missing key: {key}")
+
+        # Test validation guards
+        with self.assertRaises(ValueError):
+            db.log_activity(user_id, "SchemaWarrior", "Push-ups", -10, today, self.test_db)
+
+        with self.assertRaises(ValueError):
+            db.set_activity(user_id, "SchemaWarrior", "Push-ups", -5, today, self.test_db)
+
+        with self.assertRaises(ValueError):
+            db.log_activity(user_id, "SchemaWarrior", "Push-ups", 6000, today, self.test_db)
+
+        with self.assertRaises(ValueError):
+            db.add_task(name="InvalidZero", target=0, unit="reps", max_points=100, db_path=self.test_db)
+
+        with self.assertRaises(ValueError):
+            db.add_task(name="InvalidNegPts", target=10, unit="reps", max_points=-50, db_path=self.test_db)
+
+
+class TestTaskResolution(WinterArcTestCase):
+    """Verifies fuzzy matching, aliases, and autocomplete label parsing."""
+
+    def test_task_name_resolution_with_emojis_labels_and_aliases(self):
         """Verifies that get_task_by_name correctly resolves autocomplete labels, emojis, parens, and aliases."""
         user_id = 998877
         db.enroll_user(user_id, "FuzzyWarrior", self.test_db)
@@ -137,46 +193,3 @@ class TestScoringLogging(WinterArcTestCase):
         )
         self.assertEqual(res_log["new_total"], 55.0)
         self.assertEqual(res_log["task_name"], "Push-ups")
-
-    def test_38_set_and_log_return_schema_and_zero_division(self):
-        """Verifies schema consistency between log and set return dictionaries and zero-division protection."""
-        user_id = 991104
-        db.enroll_user(user_id, "SchemaWarrior", self.test_db)
-        today = db.get_today_str()
-
-        # Test log_activity return keys
-        log_res = db.log_activity(user_id, "SchemaWarrior", "Push-ups", 30, today, self.test_db)
-        required_keys = [
-            "points_added", "new_points", "points_earned_delta",
-            "previous_total", "new_total", "task_points_total",
-            "task_max_points", "is_target_reached", "daily_points_total",
-            "daily_points_max", "daily_completion_rate", "shield_awarded"
-        ]
-        for key in required_keys:
-            self.assertIn(key, log_res, f"log_activity missing key: {key}")
-
-        # Test set_activity return keys
-        set_res = db.set_activity(user_id, "SchemaWarrior", "Push-ups", 50, today, self.test_db)
-        set_required_keys = [
-            "old_points", "new_points", "points_added", "points_earned_delta",
-            "previous_total", "new_total", "task_points_total",
-            "task_max_points", "is_target_reached", "daily_points_total"
-        ]
-        for key in set_required_keys:
-            self.assertIn(key, set_res, f"set_activity missing key: {key}")
-
-        # Test validation guards
-        with self.assertRaises(ValueError):
-            db.log_activity(user_id, "SchemaWarrior", "Push-ups", -10, today, self.test_db)
-
-        with self.assertRaises(ValueError):
-            db.set_activity(user_id, "SchemaWarrior", "Push-ups", -5, today, self.test_db)
-
-        with self.assertRaises(ValueError):
-            db.log_activity(user_id, "SchemaWarrior", "Push-ups", 6000, today, self.test_db)
-
-        with self.assertRaises(ValueError):
-            db.add_task(name="InvalidZero", target=0, unit="reps", max_points=100, db_path=self.test_db)
-
-        with self.assertRaises(ValueError):
-            db.add_task(name="InvalidNegPts", target=10, unit="reps", max_points=-50, db_path=self.test_db)

@@ -81,7 +81,10 @@ winter-arc-bot/
 ├── config.py                 # Centralized environment variables, TZ, role ID, logger
 ├── database.py               # SQLite data access layer and scoring math
 ├── levels.py                 # 12-level Winter Pack progression engine
+├── phases.py                 # 4-phase calendar & recap definitions
 ├── helpers.py                # Reusable guards, role resolver, safe reactions
+├── tips.py                   # Contextual tips engine & rate limits
+├── ai/                       # Groq & Gemini AI service integrations
 ├── ui/
 │   ├── __init__.py
 │   ├── formatters.py         # Visual progress bar & rank badge formatters
@@ -91,12 +94,16 @@ winter-arc-bot/
 │   ├── __init__.py
 │   ├── warrior.py            # User-facing slash commands
 │   └── admin.py              # Administrator commands and diagnostic tools
+├── tests/                    # Modular domain test suite (56 tests across 8 modules)
 ├── scheduler.py              # Automated background APScheduler loop
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test suite (10 unit tests)
+├── test_engine.py            # Automated test discovery runner (56 tests)
+├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
+├── Dockerfile                # Production container specification
+├── docker-compose.yml        # Multi-platform container configuration
 ├── vercel.json               # 1-click Vercel deployment configuration
-├── docs/                     # Web dashboard (GitHub Pages / Vercel root)
+├── docs/                     # Web dashboard & documentation (GitHub Pages / Vercel root)
 │   ├── index.html            # Web dashboard structure
 │   ├── style.css             # Dark obsidian glassmorphism design system
 │   ├── app.js                # Client logic, live countdown, search filter

@@ -302,19 +302,11 @@ def get_all_server_settings(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
 def enroll_user(discord_id: int, username: str, db_path: str = DB_PATH) -> Dict[str, Any]:
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE discord_id = ?", (discord_id,))
-        row = cursor.fetchone()
-        if row:
-            cursor.execute("""
-                UPDATE users
-                SET username = ?, enrolled = 1
-                WHERE discord_id = ?;
-            """, (username, discord_id))
-        else:
-            cursor.execute("""
-                INSERT INTO users (discord_id, username, enrolled)
-                VALUES (?, ?, 1);
-            """, (discord_id, username))
+        cursor.execute("""
+            INSERT INTO users (discord_id, username, enrolled)
+            VALUES (?, ?, 1)
+            ON CONFLICT(discord_id) DO UPDATE SET username = excluded.username, enrolled = 1;
+        """, (discord_id, username))
         conn.commit()
 
         cursor.execute("SELECT * FROM users WHERE discord_id = ?", (discord_id,))
@@ -2253,6 +2245,7 @@ def archive_phase_snapshot(phase_id: int, db_path: str = DB_PATH, backup_dir: st
             """, (row["rank"], row["discord_id"], row["username"], row["total_points"], row["perfect_days"], row["active_days"]))
 
         s_conn.commit()
+    s_conn.close()
 
     return os.path.abspath(snapshot_path)
 

@@ -116,7 +116,7 @@
             "name": "How does AI workout logging work in the bot?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The bot includes dual AI integrations: Groq LLM parsing (/quick) extracts exercises, reps, and running distances from conversational text in milliseconds. Google Gemini (/grind) evaluates intellectual, coding, or engineering friction to award bonus points (1x/day, +10 to +60 pts)."
+              "text": "The bot includes dual AI integrations: Groq LLM parsing (/quick) extracts exercises, reps, and running distances from conversational text in milliseconds. Google Gemini (/grind) evaluates intellectual, coding, or engineering friction to award bonus points (1x/day, +5 to +60 pts, including effort points for roasts)."
             }
           },
           {
@@ -681,7 +681,7 @@
             </div>
             <h3 class="showcase-title">Cognitive Grind Evaluator (Gemini)</h3>
             <p class="showcase-desc">
-              Discipline is physical and mental. Submit daily deep work, studying, or software engineering friction via <code>/grind</code>. Google Gemini evaluates the cognitive depth and awards verified bonus points (+10 to +60 pts, 1x/day).
+              Discipline is physical and mental. Submit daily deep work, studying, or software engineering friction via <code>/grind</code>. Google Gemini evaluates cognitive friction and awards bonus points (+5 to +60 pts, 1x/day). True deep work earns full marks, while vague attempts get roasted with token effort points so your daily slot is never wasted.
             </p>
             <div class="code-snippet-preview">
               <code>/grind "spent 4 hours optimizing kernel database indexing"</code>
@@ -1428,7 +1428,7 @@
               <span class="cmd-syntax">/grind [text]</span>
               <button class="copy-cmd-btn" data-copy="/grind text:" title="Copy command">Copy</button>
             </div>
-            <div class="cmd-desc">Log intellectual/engineering deep work evaluated by Gemini (+10 to +60 pts, 1x/day).</div>
+            <div class="cmd-desc">Log intellectual/engineering deep work evaluated by Gemini (+5 to +60 pts, 1x/day; roasts still award effort points).</div>
             <div class="cmd-tags">
               <span class="tag-cat tag-ai">AI Engine</span>
               <span class="tag-param">text: required</span>
@@ -2108,7 +2108,7 @@ git push origin main
               </p>
               <ul>
                 <li><strong>Groq LLM (<code>/quick [text]</code>):</strong> Parses natural language workout summaries in milliseconds (e.g. <em>"ran 5km and did 40 pushups"</em>) into structured discipline logs. If no API key is provided, an internal regex parser acts as an automatic fallback.</li>
-                <li><strong>Google Gemini (<code>/grind [text]</code>):</strong> Evaluates cognitive friction, deep work, or engineering sessions to award verified bonus points (+10 to +60 pts, capped at 1x per day).</li>
+                <li><strong>Google Gemini (<code>/grind [text]</code>):</strong> Evaluates cognitive friction, deep work, or engineering sessions to award verified bonus points (+5 to +60 pts, capped at 1x per day; roasts still award effort points).</li>
               </ul>
             </div>
           </details>

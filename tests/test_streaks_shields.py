@@ -12,13 +12,17 @@ from ui.embeds import (
     build_quick_streak_embed,
     build_full_calendar_embed,
     STREAK_LEGEND_SUBTEXT,
+    STREAK_LEGEND_FOOTER,
 )
 from ui.views import StreakConsistencyView
 from cogs.warrior import WarriorCog
 
 
-class TestStreaksShields(WinterArcTestCase):
-    def test_05_streaks_and_summaries(self):
+class TestStreakCalculation(WinterArcTestCase):
+    """Verifies streak logic: consecutive days, 30 pt threshold, and year rollovers."""
+
+    def test_streak_consecutive_days_calculation_and_daily_summaries(self):
+        """Verifies streak increments across consecutive daily summaries with 100% completion."""
         user_id = 2002
         db.enroll_user(user_id, "Arjun", self.test_db)
 
@@ -46,7 +50,108 @@ class TestStreaksShields(WinterArcTestCase):
         streak = db.calculate_streak(user_id, as_of_date=today.isoformat(), db_path=self.test_db)
         self.assertEqual(streak, 2)
 
-    def test_12_frost_shield_lifecycle(self):
+    def test_streak_minimum_thirty_points_daily_threshold(self):
+        """Verifies that 30 points are strictly required to preserve or advance a streak."""
+        user_id = 9001
+        db.enroll_user(user_id, "ThirtyPtWarrior", self.test_db)
+        today = date.today().isoformat()
+
+        self.assertEqual(db.calculate_streak(user_id, today, self.test_db), 0)
+
+        # Log exactly 5 reps of 4 exercises (20 pts) + 1 km run (10 pts) = 30 pts
+        db.log_activity(user_id, "ThirtyPtWarrior", "Push-ups", 5, today, self.test_db)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Pull-ups", 5, today, self.test_db)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Squats", 5, today, self.test_db)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Sit-ups", 5, today, self.test_db)
+        db.log_activity(user_id, "ThirtyPtWarrior", "Running", 1.0, today, self.test_db)
+
+        prog = db.get_user_daily_progress(user_id, today, self.test_db)
+        self.assertEqual(prog["total_points"], 30)
+
+        streak = db.calculate_streak(user_id, today, self.test_db)
+        self.assertEqual(streak, 1)
+
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
+            conn.commit()
+
+        summaries = db.finalize_daily_summaries(today, self.test_db)
+        user_summary = next(s for s in summaries if s["discord_id"] == user_id)
+        self.assertFalse(user_summary["is_shielded"])
+        self.assertEqual(user_summary["points"], 30)
+
+        shield_status = db.get_user_shield_status(user_id, self.test_db)
+        self.assertEqual(shield_status["frost_shields"], 1)
+
+    def test_streak_optimized_database_calculation_without_n_plus_one(self):
+        """Verifies single-query historical streak calculation and live today addition."""
+        streak_user = 3001
+        db.enroll_user(streak_user, "StreakWarrior", self.test_db)
+        today = date.today()
+
+        # Seed 3 consecutive perfect days in daily_summaries
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            user_rec = db.get_user_by_discord_id(streak_user, self.test_db)
+            for i in range(1, 4):
+                d = (today - timedelta(days=i)).isoformat()
+                cursor.execute("""
+                    INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                    VALUES (?, ?, 500, 1.0, 1, 0);
+                """, (user_rec["id"], d))
+            conn.commit()
+
+        # Without today done, streak should be 3
+        streak = db.calculate_streak(streak_user, today.isoformat(), self.test_db)
+        self.assertEqual(streak, 3)
+
+        # Log a perfect day for today: 100 for all 5 tasks
+        active_tasks = db.get_active_tasks(self.test_db)
+        for t in active_tasks:
+            db.log_activity(streak_user, "StreakWarrior", t["name"], t["target"], today.isoformat(), self.test_db)
+
+        # Streak should now be 4
+        streak = db.calculate_streak(streak_user, today.isoformat(), self.test_db)
+        self.assertEqual(streak, 4)
+
+    def test_streak_year_rollover_and_month_boundaries(self):
+        """Verifies streak calculation across Dec 31 -> Jan 1 year rollovers and month boundaries."""
+        user_id = 991101
+        db.enroll_user(user_id, "YearRolloverWarrior", self.test_db)
+
+        dates = ["2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02"]
+        for d in dates:
+            db.log_activity(user_id, "YearRolloverWarrior", "Push-ups", 100, log_date=d, db_path=self.test_db)
+            db.log_activity(user_id, "YearRolloverWarrior", "Pull-ups", 100, log_date=d, db_path=self.test_db)
+            db.log_activity(user_id, "YearRolloverWarrior", "Squats", 100, log_date=d, db_path=self.test_db)
+            db.log_activity(user_id, "YearRolloverWarrior", "Sit-ups", 100, log_date=d, db_path=self.test_db)
+            db.log_activity(user_id, "YearRolloverWarrior", "Running", 10.0, log_date=d, db_path=self.test_db)
+            db.finalize_daily_summaries(d, self.test_db)
+
+        streak = db.calculate_streak(user_id, as_of_date="2026-01-02", db_path=self.test_db)
+        self.assertEqual(streak, 4)
+
+        feb_dates = ["2026-02-27", "2026-02-28", "2026-03-01"]
+        user_id_feb = 991102
+        db.enroll_user(user_id_feb, "FebWarrior", self.test_db)
+        for d in feb_dates:
+            db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date=d, db_path=self.test_db)
+            db.finalize_daily_summaries(d, self.test_db)
+
+        streak_feb = db.calculate_streak(user_id_feb, as_of_date="2026-03-01", db_path=self.test_db)
+        self.assertEqual(streak_feb, 3)
+
+        db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date="2026-03-03", db_path=self.test_db)
+        broken_streak = db.calculate_streak(user_id_feb, as_of_date="2026-03-03", db_path=self.test_db)
+        self.assertEqual(broken_streak, 1)
+
+
+class TestStreakShields(WinterArcTestCase):
+    """Verifies Streak Shield inventory, manual activation, midnight rollover, and recovery."""
+
+    def test_frost_shield_inventory_and_milestone_lifecycle(self):
+        """Verifies earning shields at 7-day milestones, max 2 cap, and manual activation."""
         user_id = 2001
         db.enroll_user(user_id, "ShieldWarrior", self.test_db)
 
@@ -91,8 +196,9 @@ class TestStreaksShields(WinterArcTestCase):
         with self.assertRaises(ValueError):
             db.activate_frost_shield(user_id, reason="Duplicate attempt", db_path=self.test_db)
 
-    def test_13_auto_shield_midnight(self):
-        user_id = 2002
+    def test_auto_shield_midnight_rollover_protection(self):
+        """Verifies midnight rollover auto-activates an available shield if user missed target."""
+        user_id = 2003
         db.enroll_user(user_id, "AutoShieldWarrior", self.test_db)
 
         # Award 1 shield
@@ -121,65 +227,8 @@ class TestStreaksShields(WinterArcTestCase):
         streak_d2 = db.calculate_streak(user_id, day_2, self.test_db)
         self.assertEqual(streak_d2, 2)
 
-    def test_19_optimized_streak_calculation(self):
-        streak_user = 3001
-        db.enroll_user(streak_user, "StreakWarrior", self.test_db)
-        today = date.today()
-
-        # Seed 3 consecutive perfect days in daily_summaries
-        with db.get_connection(self.test_db) as conn:
-            cursor = conn.cursor()
-            user_rec = db.get_user_by_discord_id(streak_user, self.test_db)
-            for i in range(1, 4):
-                d = (today - timedelta(days=i)).isoformat()
-                cursor.execute("""
-                    INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
-                    VALUES (?, ?, 500, 1.0, 1, 0);
-                """, (user_rec["id"], d))
-            conn.commit()
-
-        # Without today done, streak should be 3
-        streak = db.calculate_streak(streak_user, today.isoformat(), self.test_db)
-        self.assertEqual(streak, 3)
-
-        # Log a perfect day for today: 100 for all 5 tasks
-        active_tasks = db.get_active_tasks(self.test_db)
-        for t in active_tasks:
-            db.log_activity(streak_user, "StreakWarrior", t["name"], t["target"], today.isoformat(), self.test_db)
-
-        # Streak should now be 4
-        streak = db.calculate_streak(streak_user, today.isoformat(), self.test_db)
-        self.assertEqual(streak, 4)
-
-    def test_20_finalize_without_lock(self):
-        fin_user = 4001
-        db.enroll_user(fin_user, "FinWarrior", self.test_db)
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
-
-        # Log under minimum workout for yesterday (15 pts < 30 pts)
-        db.log_activity(fin_user, "FinWarrior", "Push-ups", 15, yesterday, self.test_db)
-
-        # Give 1 frost shield and set active past streak
-        user = db.get_user_by_discord_id(fin_user, self.test_db)
-        day_before = (date.today() - timedelta(days=2)).isoformat()
-        with db.get_connection(self.test_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET frost_shields = 1 WHERE id = ?;", (user["id"],))
-            cursor.execute("""
-                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
-                VALUES (?, ?, 500, 1.0, 1, 0);
-            """, (user["id"], day_before))
-            conn.commit()
-
-        # Finalization should auto-shield without throwing lock error
-        summaries = db.finalize_daily_summaries(yesterday, self.test_db)
-        self.assertTrue(len(summaries) >= 1)
-
-        fin_summary = next((s for s in summaries if s["discord_id"] == fin_user), None)
-        self.assertIsNotNone(fin_summary)
-        self.assertTrue(fin_summary["is_shielded"])
-
-    def test_21_shield_yesterday(self):
+    def test_shield_activation_for_yesterday_retroactively(self):
+        """Verifies retroactive shield activation for yesterday."""
         shield_user = 5001
         db.enroll_user(shield_user, "ShieldWarrior", self.test_db)
         user = db.get_user_by_discord_id(shield_user, self.test_db)
@@ -195,71 +244,36 @@ class TestStreaksShields(WinterArcTestCase):
         self.assertEqual(res["target_date"], yesterday)
         self.assertEqual(res["remaining_shields"], 0)
 
-    def test_29_streak_thirty_points_minimum(self):
-        user_id = 9001
-        db.enroll_user(user_id, "ThirtyPtWarrior", self.test_db)
-        today = date.today().isoformat()
+    def test_finalize_daily_summaries_without_locking_shielded_days(self):
+        """Verifies finalization auto-shields under-minimum days without transaction collision."""
+        fin_user = 4001
+        db.enroll_user(fin_user, "FinWarrior", self.test_db)
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
 
-        self.assertEqual(db.calculate_streak(user_id, today, self.test_db), 0)
+        # Log under minimum workout for yesterday (15 pts < 30 pts)
+        db.log_activity(fin_user, "FinWarrior", "Push-ups", 15, yesterday, self.test_db)
 
-        # Log exactly 5 reps of 4 exercises (20 pts) + 1 km run (10 pts) = 30 pts
-        db.log_activity(user_id, "ThirtyPtWarrior", "Push-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Pull-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Squats", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Sit-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Running", 1.0, today, self.test_db)
-
-        prog = db.get_user_daily_progress(user_id, today, self.test_db)
-        self.assertEqual(prog["total_points"], 30)
-
-        streak = db.calculate_streak(user_id, today, self.test_db)
-        self.assertEqual(streak, 1)
-
+        # Give 1 frost shield and set active past streak
+        user = db.get_user_by_discord_id(fin_user, self.test_db)
+        day_before = (date.today() - timedelta(days=2)).isoformat()
         with db.get_connection(self.test_db) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
+            cursor.execute("UPDATE users SET frost_shields = 1 WHERE id = ?;", (user["id"],))
+            cursor.execute("""
+                INSERT OR REPLACE INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, ?, 500, 1.0, 1, 0);
+            """, (user["id"], day_before))
             conn.commit()
 
-        summaries = db.finalize_daily_summaries(today, self.test_db)
-        user_summary = next(s for s in summaries if s["discord_id"] == user_id)
-        self.assertFalse(user_summary["is_shielded"])
-        self.assertEqual(user_summary["points"], 30)
+        # Finalization should auto-shield without throwing lock error
+        summaries = db.finalize_daily_summaries(yesterday, self.test_db)
+        self.assertTrue(len(summaries) >= 1)
 
-        shield_status = db.get_user_shield_status(user_id, self.test_db)
-        self.assertEqual(shield_status["frost_shields"], 1)
+        fin_summary = next((s for s in summaries if s["discord_id"] == fin_user), None)
+        self.assertIsNotNone(fin_summary)
+        self.assertTrue(fin_summary["is_shielded"])
 
-    def test_35_streak_year_rollover_and_month_boundaries(self):
-        """Verifies streak calculation across Dec 31 -> Jan 1 year rollovers and month boundaries."""
-        user_id = 991101
-        db.enroll_user(user_id, "YearRolloverWarrior", self.test_db)
-
-        dates = ["2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02"]
-        for d in dates:
-            db.log_activity(user_id, "YearRolloverWarrior", "Push-ups", 100, log_date=d, db_path=self.test_db)
-            db.log_activity(user_id, "YearRolloverWarrior", "Pull-ups", 100, log_date=d, db_path=self.test_db)
-            db.log_activity(user_id, "YearRolloverWarrior", "Squats", 100, log_date=d, db_path=self.test_db)
-            db.log_activity(user_id, "YearRolloverWarrior", "Sit-ups", 100, log_date=d, db_path=self.test_db)
-            db.log_activity(user_id, "YearRolloverWarrior", "Running", 10.0, log_date=d, db_path=self.test_db)
-            db.finalize_daily_summaries(d, self.test_db)
-
-        streak = db.calculate_streak(user_id, as_of_date="2026-01-02", db_path=self.test_db)
-        self.assertEqual(streak, 4)
-
-        feb_dates = ["2026-02-27", "2026-02-28", "2026-03-01"]
-        user_id_feb = 991102
-        db.enroll_user(user_id_feb, "FebWarrior", self.test_db)
-        for d in feb_dates:
-            db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date=d, db_path=self.test_db)
-            db.finalize_daily_summaries(d, self.test_db)
-
-        streak_feb = db.calculate_streak(user_id_feb, as_of_date="2026-03-01", db_path=self.test_db)
-        self.assertEqual(streak_feb, 3)
-
-        db.log_activity(user_id_feb, "FebWarrior", "Push-ups", 50, log_date="2026-03-03", db_path=self.test_db)
-        broken_streak = db.calculate_streak(user_id_feb, as_of_date="2026-03-03", db_path=self.test_db)
-        self.assertEqual(broken_streak, 1)
-
-    def test_36_shield_milestone_break_and_rebuild(self):
+    def test_shield_milestone_break_and_rebuild(self):
         """Verifies that when a streak is broken, last_shield_milestone resets so the warrior can earn shields again."""
         user_id = 991103
         db.enroll_user(user_id, "ShieldHero", self.test_db)
@@ -288,8 +302,12 @@ class TestStreaksShields(WinterArcTestCase):
         status = db.get_user_shield_status(user_id, self.test_db)
         self.assertEqual(status["frost_shields"], 2)
 
-    def test_53_monthly_streak_and_consistency(self):
-        """Validates monthly habit calendar grid, streak highlights, and /streak command."""
+
+class TestStreakCalendar(WinterArcTestCase):
+    """Verifies monthly consistency calendar, 3-phase full view, and exact legend footers."""
+
+    def test_monthly_habit_calendar_and_exact_legend_footer(self):
+        """Validates monthly habit calendar grid, streak highlights, /streak command, and exact footer."""
         user_id = 999777
         user = db.get_user_by_discord_id(user_id, self.test_db)
         if not user:
@@ -354,22 +372,26 @@ class TestStreaksShields(WinterArcTestCase):
 
         mock_member = self.create_mock_member(user_id, "ConsistencyWarrior")
         embed = build_streak_consistency_embed(mock_member, data)
-        self.assertEqual(embed.title, "📅 Winter Arc — Streak and Consistency")
-        self.assertIn("CONSISTENCYWARRIOR", embed.description)
-        self.assertIn("OCTOBER 2026", embed.description)
-        self.assertIn("🏆 **Month Highlights:**", embed.description)
-        self.assertIn("• Highest Streak: 🏔️", embed.description)
-        self.assertIn("• Current Streak: 🔥", embed.description)
-        self.assertIn("• Consistency: 📅", embed.description)
-        self.assertIn("• Volume: ⚡", embed.description)
-        self.assertIn("• Perfect Days: ⭐", embed.description)
-        self.assertIn("• Streak Shields Used: 🛡️", embed.description)
+        self.assertEmbedTitle(embed, "📅 Winter Arc — Streak and Consistency")
+        self.assertEmbedDescriptionContains(
+            embed,
+            "CONSISTENCYWARRIOR",
+            "OCTOBER 2026",
+            "🏆 **Month Highlights:**",
+            "• Highest Streak: 🏔️",
+            "• Current Streak: 🔥",
+            "• Consistency: 📅",
+            "• Volume: ⚡",
+            "• Perfect Days: ⭐",
+            "• Streak Shields Used: 🛡️",
+        )
 
-        self.assertIn("-#", STREAK_LEGEND_SUBTEXT)
-        self.assertIn("🟩 Streak Preserved (30+ pts)", STREAK_LEGEND_SUBTEXT)
-        self.assertIn("⭐ Perfect Day (100%)", STREAK_LEGEND_SUBTEXT)
-        self.assertIn("🛡️ Streak Shield", STREAK_LEGEND_SUBTEXT)
-        self.assertIn("▫️ Upcoming", STREAK_LEGEND_SUBTEXT)
+        self.assertEmbedFooter(embed, STREAK_LEGEND_FOOTER)
+        self.assertIn("🟩 Streaked", embed.footer.text)
+        self.assertIn("⭐ Perfect Day (100%)", embed.footer.text)
+        self.assertIn("🛡️ Shield Used", embed.footer.text)
+        self.assertIn("🟥 Missed", embed.footer.text)
+        self.assertIn("▫️ Upcoming", embed.footer.text)
 
         full_data = db.get_user_full_campaign_calendar(user_id, self.test_db)
         self.assertIn("PHASE 1: OCTOBER", full_data["calendar_text"])
@@ -377,15 +399,19 @@ class TestStreaksShields(WinterArcTestCase):
         self.assertIn("PHASE 3: DECEMBER", full_data["calendar_text"])
 
         full_embed = build_full_calendar_embed(mock_member, full_data)
-        self.assertEqual(full_embed.title, "📅 Winter Arc — Full Calendar")
-        self.assertIn("CONSISTENCYWARRIOR", full_embed.description)
-        self.assertIn("OCT 1 – DEC 31", full_embed.description)
-        self.assertIn("🏆 **Overall Highlights:**", full_embed.description)
-        self.assertIn("• Overall Consistency: 📅", full_embed.description)
-        self.assertIn("• All-Time Longest Streak: 🏔️", full_embed.description)
-        self.assertIn("• Campaign Volume: ⚡", full_embed.description)
-        self.assertIn("• Total Perfect Days: ⭐", full_embed.description)
-        self.assertIn("• Total Shields Used: 🛡️", full_embed.description)
+        self.assertEmbedTitle(full_embed, "📅 Winter Arc — Full Calendar")
+        self.assertEmbedDescriptionContains(
+            full_embed,
+            "CONSISTENCYWARRIOR",
+            "OCT 1 – DEC 31",
+            "🏆 **Overall Highlights:**",
+            "• Overall Consistency: 📅",
+            "• All-Time Longest Streak: 🏔️",
+            "• Campaign Volume: ⚡",
+            "• Total Perfect Days: ⭐",
+            "• Total Shields Used: 🛡️",
+        )
+        self.assertEmbedFooter(full_embed, STREAK_LEGEND_FOOTER)
 
         view = StreakConsistencyView(
             target_user=mock_member,
@@ -440,7 +466,7 @@ class TestStreaksShields(WinterArcTestCase):
                 await cog.streak_cmd.callback(cog, cmd_inter)
                 cmd_inter.followup.send.assert_called_once()
                 call_kw = cmd_inter.followup.send.call_args[1]
-                self.assertIn(STREAK_LEGEND_SUBTEXT, call_kw["embed"].description)
+                self.assertEqual(call_kw["embed"].footer.text, STREAK_LEGEND_FOOTER)
                 self.assertEqual(call_kw["embed"].title, "📅 Winter Arc — Streak and Consistency")
                 self.assertIsInstance(call_kw["view"], StreakConsistencyView)
 

@@ -13,35 +13,103 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger("winter_arc.tips")
 
 BOT_USAGE_TIPS: List[str] = [
-    # ⚡ Fast & Multi-Logging
-    "💡 **Tip**: Log multiple exercises at once with `/quick` (e.g. `/quick 40 pushups, 20 squats, 5km run`).",
-    "💡 **Tip**: You can log directly in the `#quick-log` channel just by typing numbers and exercises without any slash command!",
-    "💡 **Tip**: Made a typo? Override your count directly with `/set [task] [amount]` (or set 0 to reset).",
+    # 🏋️ /log — Incremental Workout Logging
+    "💡 **Tip (`/log`)**: How to use: Type `/log [task] [amount]` to record completed reps or kilometers. Tab-autocomplete lets you select exercises and units in a fraction of a second!",
+    "💡 **Tip (`/log`)**: Why `/log`? It is built for progressive tracking throughout your day—log 30 push-ups in the morning, 40 at lunch, and 30 at night without ever having to calculate your daily sum.",
+    "💡 **Tip (`/log`)**: Pro Tip: Every single rep logged counts toward your 12-tier discipline rank, even if you don't hit the full 100-rep daily cap.",
 
-    # 🛡️ Streaks & Streak Shields
-    "💡 **Tip**: You only need **30 points a day** (e.g. 5 pushups, 5 pullups, 5 squats, 5 situps, 1km run) to keep your streak alive.",
-    "💡 **Tip**: You earn **+1 Streak Shield** for every 7-day streak milestone you achieve (hold up to 2 shields).",
-    "💡 **Tip**: Sick, traveling, or need recovery? Use `/shield use` to activate a Streak Shield and protect your streak without penalty.",
-    "💡 **Tip**: Check your active streak days, shield inventory, and next milestone unlock anytime with `/streak` or `/shield status`.",
-    "💡 **Tip**: If you miss a day with an active streak, a Streak Shield is automatically consumed at midnight as a safety net.",
+    # ✏️ /set — Direct Count Overrides & Reset
+    "💡 **Tip (`/set`)**: How to use: Made an error or logged the wrong exercise? Directly correct today's exact count using `/set [task] [amount]`.",
+    "💡 **Tip (`/set`)**: Why `/set`? It provides an instant self-serve fix for honest mistakes—entering `0` wipes an accidental entry clean without needing server admin help.",
+    "💡 **Tip (`/set`)**: Pro Tip: While `/log` adds reps to your current count, `/set` replaces today's total and immediately recalculates your daily score.",
 
-    # 🧠 Deep Work & Academics
-    "💡 **Tip**: Boost your daily score with `/grind`! Earn **+10 to +60 bonus points** daily for verified technical study or engineering work.",
-    "💡 **Tip**: `/grind` is strictly evaluated by Gemini AI—passive videos and casual reading get roasted; only focused deep work gets rewarded.",
+    # ⚡ /quick — Natural Language AI Logging & #quick-log
+    "💡 **Tip (`/quick`)**: How to use: Type `/quick 40 pushups, 20 squats, 5km run` to parse and record multiple exercises in a single message via Groq AI.",
+    "💡 **Tip (`/quick`)**: Why `/quick`? Post-workout friction kills consistency. `/quick` extracts reps, sets, and distances from everyday shorthand in under a second.",
+    "💡 **Tip (`/quick`)**: Pro Tip: You can log directly in `#quick-log` by typing your workout plain text (e.g. `50 pushups 3km run`) without typing any slash command!",
 
-    # 📊 Dashboards & Analytics
-    "💡 **Tip**: Use `/today` to inspect your daily checklist, points breakdown, and live streak status.",
-    "💡 **Tip**: Use `/tasks` to view exercise descriptions, muscle groups targeted, and individual progress bars.",
-    "💡 **Tip**: Check server-wide records, single-day PRs, and community volume across all phases with `/stats`.",
-    "💡 **Tip**: Explore your past phase breakdowns and cumulative performance snapshots anytime with `/recap`.",
-    "💡 **Tip**: Inspect your daily point history and completion rates over the past 7, 14, or 30 days with `/history`.",
+    # 🧠 /grind — Academic & Deep Work Friction
+    "💡 **Tip (`/grind`)**: How to use: Submit your hardest mental challenge of the day with `/grind [text]` to earn **+10 to +60 bonus points** toward today's score!",
+    "💡 **Tip (`/grind`)**: Why `/grind`? Winter Arc isn't just about physical strength—it rewards intellectual discipline, tough engineering problems, and deep focused study.",
+    "💡 **Tip (`/grind`)**: Pro Tip: `/grind` is evaluated by Gemini AI. Casual reading and passive videos get roasted with 0 pts, while intense deep work earns top marks.",
 
-    # 🎖️ Ranks, Leaderboards & Settings
-    "💡 **Tip**: Climb the 12-tier discipline hierarchy from **Initiate (0 pts)** to **Apex (12,000+ pts)**. View the roadmap with `/ranks`.",
-    "💡 **Tip**: Check your current rank badge, all-time standing, and XP needed for your next level with `/profile`.",
-    "💡 **Tip**: See who's leading the server today, this week, this month, and all-time with `/leaderboard`.",
-    "💡 **Tip**: Never forget to log! Enable private morning and evening DM reminders with `/settings`.",
-    "💡 **Tip**: The board resets at **00:00 IST** every night. Lock in your volume before midnight to claim a Perfect Day!",
+    # 📅 /streak — Habit Calendar Matrix & Consistency
+    "💡 **Tip (`/streak`)**: How to use: Run `/streak` to view your personal habit grid, current streak count, peak streak record, and shield inventory.",
+    "💡 **Tip (`/streak`)**: Why `/streak`? Inspired by GitHub contribution graphs, visual streak squares create psychological momentum that makes breaking the chain painful.",
+    "💡 **Tip (`/streak`)**: Pro Tip: Click the **Calendar** button below your `/streak` embed to inspect the entire 92-day 3-phase campaign calendar (Oct 1 – Dec 31)!",
+
+    # 📊 /today — Daily Progress Dashboard
+    "💡 **Tip (`/today`)**: How to use: Run `/today` to inspect your live daily checklist, individual exercise progress bars, daily points total, and streak status.",
+    "💡 **Tip (`/today`)**: Why `/today`? It gives you instant clarity on how close you are to today's 500-point ceiling and whether your streak is already locked in.",
+    "💡 **Tip (`/today`)**: Pro Tip: Accountability partner check! You can inspect any teammate's live daily progress card with `/today [member]`.",
+
+    # 📋 /tasks — Daily Disciplines & Target Guide
+    "💡 **Tip (`/tasks`)**: How to use: Run `/tasks` to see full discipline targets, point values, muscle groups targeted, and current completion bars.",
+    "💡 **Tip (`/tasks`)**: Why `/tasks`? It defines the campaign standard: Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km) for complete physical balance.",
+    "💡 **Tip (`/tasks`)**: Pro Tip: Notice the muscle group tags! Balancing upper body, core, legs, and cardio ensures you build durable functional fitness without overtraining.",
+
+    # 📜 /history — Reverse-Chronological Workout Logs
+    "💡 **Tip (`/history`)**: How to use: Review your past performance and completion rates over the last 7, 14, or 30 days with `/history [days]`.",
+    "💡 **Tip (`/history`)**: Why `/history`? Reviewing past weeks reveals patterns in your discipline, highlights recovery needs, and archives past AI grind notes.",
+    "💡 **Tip (`/history`)**: Pro Tip: You can also audit an accountability partner's log with `/history [member]` to see their daily point consistency over time.",
+
+    # 🛡️ /shield status & /shield use — Streak Preservation
+    "💡 **Tip (`/shield status`)**: How to use: Check your current Streak Shield inventory, active protection state, and progress toward your next shield with `/shield status`.",
+    "💡 **Tip (`/shield status`)**: Why `/shield status`? It lets you plan high-friction weeks in advance, ensuring you know if you have a safety cushion before taking travel or recovery days.",
+    "💡 **Tip (`/shield use`)**: How to use: Sick, traveling, or need rest? Use `/shield use [reason]` to activate a Streak Shield and preserve your streak without penalty.",
+    "💡 **Tip (`/shield use`)**: Why Streak Shields? Consistency is about longevity, not injury. Shields protect your momentum across necessary rest and recovery days.",
+    "💡 **Tip (`/shield`)**: Pro Tip: You earn **+1 Streak Shield** for every 7 consecutive days of active streak (hold up to 2 maximum).",
+    "💡 **Tip (`/shield`)**: Pro Tip: Safety net! If you miss a day with an active streak, an available Streak Shield is automatically deployed at midnight rollover!",
+
+    # 🎖️ /profile — Personal Warrior Card
+    "💡 **Tip (`/profile`)**: How to use: Inspect your personal warrior card with `/profile`—view your current discipline tier badge, all-time standing (#X of Y), and lifetime points.",
+    "💡 **Tip (`/profile`)**: Why `/profile`? It tracks your macro journey over the entire 90-day arc, celebrating sustained dedication beyond single days.",
+    "💡 **Tip (`/profile`)**: Pro Tip: You can inspect any member's profile card with `/profile [member]` to see their rank badge and lifetime volume.",
+
+    # 🗺️ /ranks — 12-Tier Discipline Hierarchy
+    "💡 **Tip (`/ranks`)**: How to use: Run `/ranks` to inspect the full 12-tier discipline roadmap from **Initiate (0 pts)** all the way to **Apex (12,000+ pts)**.",
+    "💡 **Tip (`/ranks`)**: Why `/ranks`? Calibrated for the 90-day challenge (~133 pts/day average to reach Apex), giving you achievable milestones every single week.",
+    "💡 **Tip (`/ranks`)**: Pro Tip: Each rank tier has its own signature icon and prestige color. Reaching Titan or Apex cements your legacy on the server wall of fame!",
+
+    # 🏆 /leaderboard — Daily, Weekly, Monthly & All-Time Podiums
+    "💡 **Tip (`/leaderboard`)**: How to use: See who's leading the pack with `/leaderboard`! Use the interactive buttons to switch between Daily, Weekly, Monthly, and All-Time standings.",
+    "💡 **Tip (`/leaderboard`)**: Why `/leaderboard`? Friendly tribal competition pushes everyone to eliminate excuses and hit higher standards.",
+    "💡 **Tip (`/leaderboard`)**: Pro Tip: The Weekly podium resets every Monday, giving every member a fresh shot at glory no matter when they enrolled!",
+
+    # 📈 /stats — Server Records & Community Volume
+    "💡 **Tip (`/stats`)**: How to use: Explore server-wide records, all-time longest streaks, single-day peak maxers, and community volume across all phases with `/stats`.",
+    "💡 **Tip (`/stats`)**: Why `/stats`? It honors peak individual performances while showcasing the collective strength of the entire server.",
+    "💡 **Tip (`/stats`)**: Pro Tip: Check the 'Single-Day Peak' record—can you beat the server record for the highest points logged in a single 24-hour cycle?",
+
+    # 🗂️ /recap — Phase Performance Snapshots
+    "💡 **Tip (`/recap`)**: How to use: Explore detailed phase-by-phase performance summaries and exercise volume breakdowns with `/recap [member]`.",
+    "💡 **Tip (`/recap`)**: Why `/recap`? Each official Winter Arc phase has distinct psychological challenges; `/recap` permanently archives your achievements across each phase.",
+    "💡 **Tip (`/recap`)**: Pro Tip: Run `/recap` at the end of Phase 1 (Foundation) or Phase 2 (Intensity) to see your total reps accumulated across the month!",
+
+    # 🔔 /settings — Personal DM Reminders
+    "💡 **Tip (`/settings`)**: How to use: Never miss a streak deadline! Toggle private morning kickoff (05:00 IST) and evening streak alert (21:00 IST) DMs with `/settings`.",
+    "💡 **Tip (`/settings`)**: Why `/settings`? Direct message alerts keep you accountable without relying on noisy public channel pings.",
+    "💡 **Tip (`/settings`)**: Pro Tip: The 21:00 IST evening alert fires only if your streak is in jeopardy, giving you 3 hours to log 30 points before midnight.",
+
+    # ⚔️ /enroll & /leave_arc — Challenge Membership
+    "💡 **Tip (`/enroll`)**: How to use: New to the challenge? Run `/enroll` to join the pack, receive your server challenge role, and start tracking points on the leaderboard.",
+    "💡 **Tip (`/enroll`)**: Why `/enroll`? Enrolling is your formal commitment contract with the server—it unlocks live tracking, streak protection, and automated DM check-ins.",
+    "💡 **Tip (`/leave_arc`)**: How to use: Need to step away from the challenge? Use `/leave_arc` to unenroll peacefully—your past logs remain securely archived if you return.",
+    "💡 **Tip (`/leave_arc`)**: Why `/leave_arc`? Life happens. It gives you full control over your participation without deleting your historical workout accomplishments.",
+
+    # 📖 /help — Master Interactive Manual
+    "💡 **Tip (`/help`)**: How to use: Got questions about rules, scoring, or schedules? Run `/help` to open the interactive command directory and master manual.",
+    "💡 **Tip (`/help`)**: Why `/help`? Instead of static walls of text, `/help` features a categorized interactive dropdown for fast reference during training.",
+    "💡 **Tip (`/help`)**: Pro Tip: Check the 'AI Logging Guide' category in `/help` to learn all the natural language tricks for `#quick-log` and `/quick`.",
+
+    # 🏓 /ping — Health & Latency Check
+    "💡 **Tip (`/ping`)**: How to use: Check the bot's live gateway WebSocket latency and API response time with `/ping`.",
+    "💡 **Tip (`/ping`)**: Why `/ping`? A quick way to verify that the bot is responsive and connected before logging important workout sets.",
+    "💡 **Tip (`/ping`)**: Pro Tip: Shows gateway ping in milliseconds—low ping ensures your instant AI evaluations and streak calculations execute in real time.",
+
+    # ⏰ Daily Rules & Streak Threshold
+    "💡 **Tip (Streak Threshold)**: Why 30 points? It represents the non-negotiable minimum—even on your busiest or most exhausting days, doing 5 reps of each discipline keeps the habit alive.",
+    "💡 **Tip (Daily Reset)**: The board finalizes at **00:00 IST** every night. Max out your 500 points before midnight to claim a **Perfect Day (⭐)**!",
 ]
 
 _last_tip_timestamps: Dict[int, float] = {}

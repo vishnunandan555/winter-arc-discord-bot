@@ -30,11 +30,11 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 
 ### 2. Dual AI Workout Intelligence
 - **Groq NLP (`/quick [text]`)**: Sub-second natural language parsing extracting reps and kilometers from conversational messages, with local regex fallback.
-- **Google Gemini Engine (`/grind [text]`)**: Cognitive friction & engineering practice evaluation awarding verified bonus points (+10 to +60 pts, 1x daily cap).
+- **Google Gemini Engine (`/grind [text]`)**: Cognitive friction & engineering practice evaluation awarding verified bonus points (+5 to +60 pts, 1x daily cap; casual/vague attempts get roasted with 5–15 effort points so the daily slot is never wasted).
 
 ### 3. Streak Defense & Streak Shields
 - Active streak increments on days with >=30 points or Perfect Days.
-- Earn 1 Streak Shield every 7 active days (inventory cap: 3).
+- Earn 1 Streak Shield every 7 active days (inventory cap: 2).
 - Protect active streaks during illness, rest, or travel without shame: `/shield use [target] [reason]`.
 
 ### 4. 12-Tier Discipline Hierarchy
