@@ -157,23 +157,21 @@ code {
   pointer-events: auto;
   max-width: 1140px;
   margin: 0 auto;
-  background: rgba(9, 13, 22, 0.76);
+  background: rgba(9, 13, 22, 0.78);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-pill);
-  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5),
-              0 0 0 1px rgba(255, 255, 255, 0.04),
-              0 0 20px -4px rgba(0, 229, 255, 0.08);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5),
+              0 0 0 1px rgba(255, 255, 255, 0.03);
   transition: all var(--transition-smooth);
 }
 
 .navbar.navbar-scrolled {
-  background: rgba(6, 9, 16, 0.92);
-  border-color: rgba(0, 229, 255, 0.22);
-  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.72),
-              0 0 0 1px rgba(0, 229, 255, 0.15),
-              0 0 26px -2px rgba(0, 229, 255, 0.16);
+  background: rgba(6, 9, 16, 0.94);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px -2px rgba(0, 0, 0, 0.65),
+              0 0 12px rgba(0, 229, 255, 0.05);
 }
 
 .nav-container {
@@ -212,8 +210,8 @@ code {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 229, 255, 0.35);
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: none;
   display: block;
 }
 
@@ -221,12 +219,12 @@ code {
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent-cyan);
   border: 1.5px solid var(--bg-base);
-  box-shadow: 0 0 6px var(--accent-cyan);
+  box-shadow: none;
 }
 
 .brand-text {
@@ -312,10 +310,10 @@ code {
 
 .nav-link.active {
   color: var(--accent-cyan);
-  background: rgba(0, 229, 255, 0.12);
-  border: 1px solid rgba(0, 229, 255, 0.25);
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
   font-weight: 600;
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
+  box-shadow: none;
 }
 
 .nav-drawer-cta {
@@ -337,21 +335,21 @@ code {
   font-size: 0.8rem;
   font-weight: 600;
   color: #040810;
-  background: linear-gradient(135deg, #00E5FF 0%, #00B4D8 100%);
+  background: var(--accent-cyan);
   padding: 0.42rem 0.95rem;
   border-radius: var(--radius-pill);
   text-decoration: none;
   white-space: nowrap;
-  box-shadow: 0 0 16px rgba(0, 229, 255, 0.32);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   transition: all var(--transition-fast);
   line-height: 1;
 }
 
 .nav-btn-deploy:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 0 24px rgba(0, 229, 255, 0.55);
-  filter: brightness(1.08);
+  background: #38BDF8;
   color: #040810;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 8px rgba(0, 229, 255, 0.18);
 }
 
 .btn-github {
@@ -2401,13 +2399,12 @@ body.menu-open {
     right: 0.75rem;
     max-width: 500px;
     margin: 0 auto;
-    background: rgba(9, 13, 24, 0.97);
+    background: rgba(9, 13, 24, 0.98);
     backdrop-filter: blur(28px) saturate(180%);
     -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border: 1px solid rgba(0, 229, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85),
-                0 0 30px rgba(0, 229, 255, 0.1);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
     flex-direction: column;
     padding: 1.15rem 1rem;
     transform: translateY(-16px) scale(0.97);
@@ -2452,8 +2449,8 @@ body.menu-open {
   }
 
   .nav-link.active {
-    background: rgba(0, 229, 255, 0.12);
-    border-color: rgba(0, 229, 255, 0.3);
+    background: rgba(0, 229, 255, 0.08);
+    border-color: rgba(0, 229, 255, 0.2);
   }
 
   .nav-drawer-cta {
@@ -2465,18 +2462,18 @@ body.menu-open {
     margin-top: 0.65rem;
     padding: 0.8rem 1rem;
     border-radius: var(--radius-md);
-    background: linear-gradient(135deg, #00E5FF 0%, #00B4D8 100%);
+    background: var(--accent-cyan);
     color: #040810;
     font-weight: 600;
     font-size: 0.92rem;
     text-decoration: none;
-    box-shadow: 0 0 20px rgba(0, 229, 255, 0.35);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     box-sizing: border-box;
     transition: all var(--transition-fast);
   }
 
   .nav-drawer-cta:hover {
-    filter: brightness(1.08);
+    background: #38BDF8;
   }
 }
 
