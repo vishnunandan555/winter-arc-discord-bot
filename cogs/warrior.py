@@ -45,6 +45,9 @@ from ui.embeds import (
     build_ranks_embed,
     build_help_embed,
     build_daily_leaderboard_embed,
+    build_weekly_leaderboard_embed,
+    build_monthly_leaderboard_embed,
+    build_overall_leaderboard_embed,
     build_shield_status_embed,
     build_shield_activated_embed,
     build_settings_embed,
@@ -564,11 +567,28 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # ==========================================
 
     @app_commands.command(name="leaderboard", description="View daily, monthly, and overall standings.")
+    @app_commands.describe(timeframe="Select leaderboard timeframe to view directly (default: Daily)")
+    @app_commands.choices(timeframe=[
+        app_commands.Choice(name="📅 Daily (Today's live standings)", value="daily"),
+        app_commands.Choice(name="📆 Weekly (Mon–Sun week standings)", value="weekly"),
+        app_commands.Choice(name="🗓️ Monthly (Current phase standings)", value="monthly"),
+        app_commands.Choice(name="🌐 All-Time (Overall campaign podium)", value="overall"),
+    ])
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
-    async def leaderboard(self, interaction: discord.Interaction):
+    async def leaderboard(self, interaction: discord.Interaction, timeframe: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer()
-        embed = build_daily_leaderboard_embed()
-        view = LeaderboardView(current_tab="daily")
+        selected_tab = timeframe.value if timeframe else "daily"
+
+        if selected_tab == "weekly":
+            embed = build_weekly_leaderboard_embed()
+        elif selected_tab == "monthly":
+            embed = build_monthly_leaderboard_embed()
+        elif selected_tab == "overall":
+            embed = build_overall_leaderboard_embed()
+        else:
+            embed = build_daily_leaderboard_embed()
+
+        view = LeaderboardView(current_tab=selected_tab)
         await interaction.followup.send(embed=embed, view=view)
         await safe_react(interaction, "🏆")
 
@@ -665,9 +685,23 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         )
 
     @app_commands.command(name="recap", description="Explore detailed performance recaps by phase and overall campaign.")
-    @app_commands.describe(user="The member to view the recap for (defaults to yourself)")
+    @app_commands.describe(
+        user="The member to view the recap for (defaults to yourself)",
+        phase="Select specific phase or overall campaign recap (defaults to active phase)"
+    )
+    @app_commands.choices(phase=[
+        app_commands.Choice(name="Phase 1: FIRST FROST", value="phase_1"),
+        app_commands.Choice(name="Phase 2: THE HUNT", value="phase_2"),
+        app_commands.Choice(name="Phase 3: THE ENDGAME", value="phase_3"),
+        app_commands.Choice(name="Overall (All-Time Campaign)", value="overall"),
+    ])
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
-    async def recap(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+    async def recap(
+        self,
+        interaction: discord.Interaction,
+        user: Optional[discord.Member] = None,
+        phase: Optional[app_commands.Choice[str]] = None
+    ):
         target = user or interaction.user
         if not await require_enrolled(interaction):
             return
@@ -680,13 +714,27 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         await interaction.response.defer()
 
-        from phases import get_current_phase
-        curr_phase = get_current_phase()
-        phase_id = curr_phase["id"] if curr_phase else 1
+        selected_phase = phase.value if phase else None
+        if selected_phase == "overall":
+            stats = db.get_user_overall_recap(target.id)
+            embed = build_recap_embed(target, stats, is_overall=True)
+            view = RecapView(target_user=target, author_id=interaction.user.id, current_selection="overall")
+            extra_tag = "Overall campaign recap"
+        elif selected_phase and selected_phase.startswith("phase_"):
+            p_id = int(selected_phase.split("_")[1])
+            stats = db.get_user_phase_stats(target.id, p_id)
+            embed = build_recap_embed(target, stats, is_overall=False)
+            view = RecapView(target_user=target, author_id=interaction.user.id, current_selection=selected_phase)
+            extra_tag = f"Phase {p_id} recap"
+        else:
+            from phases import get_current_phase
+            curr_phase = get_current_phase()
+            p_id = curr_phase["id"] if curr_phase else 1
+            stats = db.get_user_phase_stats(target.id, p_id)
+            embed = build_recap_embed(target, stats, is_overall=False)
+            view = RecapView(target_user=target, author_id=interaction.user.id, current_selection=f"phase_{p_id}")
+            extra_tag = f"Phase {p_id} recap"
 
-        stats = db.get_user_phase_stats(target.id, phase_id)
-        embed = build_recap_embed(target, stats, is_overall=False)
-        view = RecapView(target_user=target, author_id=interaction.user.id, current_selection=f"phase_{phase_id}")
         await interaction.followup.send(embed=embed, view=view)
 
         cmd_out = format_embed_as_text(embed)
@@ -701,7 +749,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 user_id=target.id,
                 user_name=target.display_name,
                 command_name="recap",
-                extra_info=f"Phase {phase_id} recap",
+                extra_info=extra_tag,
                 command_output=cmd_out
             )
         )

@@ -72,28 +72,28 @@ class LeaderboardView(RobustView):
                     child.disabled = (self.current_tab == "overall")
                     child.style = discord.ButtonStyle.primary if self.current_tab == "overall" else discord.ButtonStyle.secondary
 
-    @discord.ui.button(label="Daily", style=discord.ButtonStyle.primary, custom_id="tab_daily")
+    @discord.ui.button(label="Daily", emoji="📅", style=discord.ButtonStyle.primary, custom_id="tab_daily")
     async def tab_daily_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "daily"
         self._update_buttons()
         embed = build_daily_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Weekly", style=discord.ButtonStyle.secondary, custom_id="tab_weekly")
+    @discord.ui.button(label="Weekly", emoji="📆", style=discord.ButtonStyle.secondary, custom_id="tab_weekly")
     async def tab_weekly_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "weekly"
         self._update_buttons()
         embed = build_weekly_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="Monthly", style=discord.ButtonStyle.secondary, custom_id="tab_monthly")
+    @discord.ui.button(label="Monthly", emoji="🗓️", style=discord.ButtonStyle.secondary, custom_id="tab_monthly")
     async def tab_monthly_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "monthly"
         self._update_buttons()
         embed = build_monthly_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="All-Time", style=discord.ButtonStyle.secondary, custom_id="tab_overall")
+    @discord.ui.button(label="All-Time", emoji="🌐", style=discord.ButtonStyle.secondary, custom_id="tab_overall")
     async def tab_overall_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "overall"
         self._update_buttons()

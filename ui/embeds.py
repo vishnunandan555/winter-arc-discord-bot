@@ -26,6 +26,15 @@ def format_num(val: Any) -> Any:
         return val
 
 
+LEADERBOARD_NAV_GUIDE = (
+    "\n\n**🔘 Standings Sections** *(Use buttons below or `/leaderboard [timeframe]`)*\n"
+    "• **📅 Daily** — Today's live sprint (resets at 00:00 IST)\n"
+    "• **📆 Weekly** — Monday to Sunday weekly standings\n"
+    "• **🗓️ Monthly** — Active Phase / Monthly cumulative points\n"
+    "• **🌐 All-Time** — Master leaderboard across the entire campaign"
+)
+
+
 def build_daily_leaderboard_embed() -> discord.Embed:
     """Builds the clean daily standing leaderboard embed (max top 10)."""
     now = datetime.now(BOT_TZ)
@@ -56,6 +65,7 @@ def build_daily_leaderboard_embed() -> discord.Embed:
         description=(
             f"📅 **{date_display}**\n\n"
             + "\n".join(lines)
+            + LEADERBOARD_NAV_GUIDE
         ),
         color=0xF1C40F
     )
@@ -99,6 +109,7 @@ def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: O
         description=(
             f"📅 **Week of {date_display}**\n\n"
             + "\n".join(lines)
+            + LEADERBOARD_NAV_GUIDE
         ),
         color=0x2ECC71
     )
@@ -137,6 +148,7 @@ def build_overall_leaderboard_embed() -> discord.Embed:
         description=(
             "🌐 **All-Time Leaderboard**\n\n"
             + "\n".join(lines)
+            + LEADERBOARD_NAV_GUIDE
         ),
         color=0x3498DB
     )
@@ -188,7 +200,7 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
 
     embed = discord.Embed(
         title=title_text,
-        description=f"{phase_header}\n\n" + "\n".join(lines),
+        description=f"{phase_header}\n\n" + "\n".join(lines) + LEADERBOARD_NAV_GUIDE,
         color=embed_color
     )
     footer_text = "Updated live • Ranked by monthly points"

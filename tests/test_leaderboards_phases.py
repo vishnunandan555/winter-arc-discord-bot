@@ -4,6 +4,7 @@ tests/test_leaderboards_phases.py - Leaderboards, Phases, Recaps, and Server Rec
 from datetime import date, timedelta
 from unittest.mock import MagicMock
 import os
+import asyncio
 import sqlite3
 import shutil
 import database as db
@@ -109,6 +110,44 @@ class TestLeaderboardRankings(WinterArcTestCase):
         self.assertIsNotNone(u2_entry)
         self.assertEqual(u1_entry["total_points"], 600)
         self.assertEqual(u2_entry["total_points"], 500)
+
+    def test_leaderboard_slash_command_choices_and_interactive_view(self):
+        """Verifies /leaderboard timeframe choices (daily, weekly, monthly, overall) and 4-button view navigation."""
+        from cogs.warrior import WarriorCog
+        from ui.views import LeaderboardView
+        from discord import app_commands
+
+        bot = MagicMock()
+        cog = WarriorCog(bot)
+
+        async def run_choices_test():
+            for choice_val, expected_title, expected_tab in [
+                (None, "Daily Standings", "daily"),
+                ("weekly", "Weekly Standings", "weekly"),
+                ("monthly", "Standings", "monthly"),
+                ("overall", "Overall Standings", "overall"),
+            ]:
+                inter = self.create_mock_interaction(user_id=12345, command_name="leaderboard")
+                choice_obj = app_commands.Choice(name=choice_val, value=choice_val) if choice_val else None
+
+                await cog.leaderboard.callback(cog, inter, timeframe=choice_obj)
+                inter.followup.send.assert_called_once()
+                call_kwargs = inter.followup.send.call_args[1]
+                embed = call_kwargs["embed"]
+                view = call_kwargs["view"]
+
+                self.assertIn(expected_title, embed.title)
+                self.assertIn("Standings Sections", embed.description)
+                self.assertIsInstance(view, LeaderboardView)
+                self.assertEqual(view.current_tab, expected_tab)
+
+                # Verify 4 buttons exist with emojis
+                buttons = [c for c in view.children if hasattr(c, "label")]
+                self.assertEqual(len(buttons), 4)
+                self.assertEqual([b.label for b in buttons], ["Daily", "Weekly", "Monthly", "All-Time"])
+                self.assertEqual([str(b.emoji) for b in buttons], ["📅", "📆", "🗓️", "🌐"])
+
+        asyncio.run(run_choices_test())
 
 
 class TestWinterArcPhases(WinterArcTestCase):
@@ -227,6 +266,59 @@ class TestWinterArcPhases(WinterArcTestCase):
 
         view = RecapView(target_user=mock_user, author_id=mock_user.id, current_selection="phase_1")
         self.assertTrue(len(view.children) >= 2)
+
+    def test_recap_slash_command_choices_and_interactive_view(self):
+        """Verifies /recap phase choices (phase_1, phase_2, phase_3, overall) and RecapView buttons."""
+        from cogs.warrior import WarriorCog
+        from ui.views import RecapView
+        from discord import app_commands
+        from unittest.mock import patch, AsyncMock
+
+        bot = MagicMock()
+        cog = WarriorCog(bot)
+        u_test = 999123
+        db.enroll_user(u_test, "RecapExplorer", self.test_db)
+        orig_user_by_discord_id = db.get_user_by_discord_id
+        orig_phase_stats = db.get_user_phase_stats
+        orig_overall_recap = db.get_user_overall_recap
+
+        async def run_recap_test():
+            for choice_val, expected_title, expected_sel in [
+                (None, "FIRST FROST", "phase_1"),
+                ("phase_1", "FIRST FROST", "phase_1"),
+                ("phase_2", "THE HUNT", "phase_2"),
+                ("phase_3", "THE ENDGAME", "phase_3"),
+                ("overall", "Overall Campaign Recap", "overall"),
+            ]:
+                inter = self.create_mock_interaction(user_id=u_test, command_name="recap")
+                choice_obj = app_commands.Choice(name=choice_val, value=choice_val) if choice_val else None
+
+                with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                     patch("cogs.warrior.db.get_user_by_discord_id", side_effect=lambda *args, **kwargs: orig_user_by_discord_id(args[0], db_path=self.test_db)), \
+                     patch("cogs.warrior.db.get_user_phase_stats", side_effect=lambda *args, **kwargs: orig_phase_stats(args[0], args[1], db_path=self.test_db)), \
+                     patch("cogs.warrior.db.get_user_overall_recap", side_effect=lambda *args, **kwargs: orig_overall_recap(args[0], db_path=self.test_db)), \
+                     patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+                     patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+                     patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+
+                    await cog.recap.callback(cog, inter, user=None, phase=choice_obj)
+                    inter.followup.send.assert_called_once()
+                    call_kwargs = inter.followup.send.call_args[1]
+                    embed = call_kwargs["embed"]
+                    view = call_kwargs["view"]
+
+                    self.assertIn(expected_title, embed.title)
+                    self.assertIsInstance(view, RecapView)
+                    self.assertEqual(view.current_selection, expected_sel)
+
+                    # Verify buttons exist
+                    labels = [c.label for c in view.children if hasattr(c, "label")]
+                    self.assertIn("Phase 1", labels)
+                    self.assertIn("Phase 2", labels)
+                    self.assertIn("Phase 3", labels)
+                    self.assertIn("Overall", labels)
+
+        asyncio.run(run_recap_test())
 
 
 class TestProgressionAndRecordsEdgeCases(WinterArcTestCase):
