@@ -54,10 +54,10 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/history`)**: Pro Tip: You can also audit an accountability partner's log with `/history [member]` to see their daily point consistency over time.",
 
     # 🛡️ /shield status & /shield use — Streak Preservation
-    "💡 **Tip (`/shield status`)**: How to use: Check your current Streak Shield inventory, active protection state, and progress toward your next shield with `/shield status`.",
-    "💡 **Tip (`/shield status`)**: Why `/shield status`? It lets you plan high-friction weeks in advance, ensuring you know if you have a safety cushion before taking travel or recovery days.",
-    "💡 **Tip (`/shield use`)**: How to use: Sick, traveling, or need rest? Use `/shield use [reason]` to activate a Streak Shield and preserve your streak without penalty.",
-    "💡 **Tip (`/shield use`)**: Why Streak Shields? Consistency is about longevity, not injury. Shields protect your momentum across necessary rest and recovery days.",
+    "💡 **Tip (`/shield status`)**: How to use: Check your current Streak Shield inventory, safety net state, and countdown to your next shield with `/shield status`.",
+    "💡 **Tip (`/shield status`)**: Why `/shield status`? It lets you check your protection cushion, ensuring you know your streak is safe if a busy day prevents training.",
+    "💡 **Tip (`/shield use`)**: How to use: Streak Shields are 100% automated! If you miss a day (< 30 pts), an available shield is automatically used at midnight (00:00 IST) to preserve your streak.",
+    "💡 **Tip (`/shield use`)**: Why Streak Shields? A day is only missed if you run out of shields! Consistency is about longevity, not breaking momentum over an unexpected emergency.",
     "💡 **Tip (`/shield`)**: Pro Tip: You earn **+1 Streak Shield** for every 7 consecutive days of active streak (hold up to 2 maximum).",
     "💡 **Tip (`/shield`)**: Pro Tip: Safety net! If you miss a day with an active streak, an available Streak Shield is automatically deployed at midnight rollover!",
 

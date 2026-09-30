@@ -45,17 +45,15 @@ DEFAULT_TASKS = [
 @contextmanager
 def get_connection(db_path: str = DB_PATH):
     try:
-        conn = sqlite3.connect(db_path, timeout=15.0)
+        conn = sqlite3.connect(db_path, timeout=5.0)
     except sqlite3.Error as e:
         logger.error(f"Failed to connect to SQLite database at '{db_path}': {e}", exc_info=e)
         raise
     conn.row_factory = sqlite3.Row
     try:
+        conn.execute("PRAGMA busy_timeout = 5000;")
         conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute("PRAGMA journal_mode = WAL;")
         conn.execute("PRAGMA synchronous = NORMAL;")
-        conn.execute("PRAGMA cache_size = -2000;")         # Cap memory cache to ~2 MB
-        conn.execute("PRAGMA wal_autocheckpoint = 500;")   # Frequent WAL flush to keep disk usage minimal
     except sqlite3.Error as e:
         logger.warning(f"Error applying PRAGMAs on '{db_path}': {e}")
     try:
@@ -73,6 +71,13 @@ def get_connection(db_path: str = DB_PATH):
 def init_db(db_path: str = DB_PATH):
     """Initializes schema, settings, and seeds default tasks."""
     with get_connection(db_path) as conn:
+        try:
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA wal_autocheckpoint = 500;")
+            conn.execute("PRAGMA cache_size = -2000;")  # Cap memory cache to ~2 MB
+        except sqlite3.Error as e:
+            logger.warning(f"Error applying WAL PRAGMAs during init_db on '{db_path}': {e}")
+
         cursor = conn.cursor()
 
         # 1. Server settings table (persists dedicated channel and ping role)
@@ -299,7 +304,8 @@ def get_all_server_settings(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
 # User & Enrollment Operations
 # ==========================================
 
-def enroll_user(discord_id: int, username: str, db_path: str = DB_PATH) -> Dict[str, Any]:
+def enroll_user(discord_id: int, username: str, db_path: Optional[str] = None) -> Dict[str, Any]:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -313,7 +319,8 @@ def enroll_user(discord_id: int, username: str, db_path: str = DB_PATH) -> Dict[
         return dict(cursor.fetchone())
 
 
-def unenroll_user(discord_id: int, db_path: str = DB_PATH) -> bool:
+def unenroll_user(discord_id: int, db_path: Optional[str] = None) -> bool:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET enrolled = 0 WHERE discord_id = ?", (discord_id,))
@@ -321,7 +328,8 @@ def unenroll_user(discord_id: int, db_path: str = DB_PATH) -> bool:
         return cursor.rowcount > 0
 
 
-def is_user_enrolled(discord_id: int, db_path: str = DB_PATH) -> bool:
+def is_user_enrolled(discord_id: int, db_path: Optional[str] = None) -> bool:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT enrolled FROM users WHERE discord_id = ?", (discord_id,))
@@ -331,7 +339,8 @@ def is_user_enrolled(discord_id: int, db_path: str = DB_PATH) -> bool:
         return bool(row["enrolled"])
 
 
-def get_user_by_discord_id(discord_id: int, db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+def get_user_by_discord_id(discord_id: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE discord_id = ?", (discord_id,))
@@ -339,7 +348,8 @@ def get_user_by_discord_id(discord_id: int, db_path: str = DB_PATH) -> Optional[
         return dict(row) if row else None
 
 
-def get_enrolled_users(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+def get_enrolled_users(db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE enrolled = 1 ORDER BY joined_at ASC")
@@ -796,6 +806,10 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
         today_prog = get_user_daily_progress(discord_id, ref_date_str, db_path)
         ref_completed = today_prog["total_points"] >= MIN_STREAK_POINTS or today_prog["perfect_day"]
 
+    # If ref_date was finalized in daily_summaries and was neither completed nor shielded, the streak on that day is 0
+    if ref_date_str in summaries and not ref_completed and not today_shielded:
+        return 0
+
     streak = 0
     if ref_completed or today_shielded:
         streak += 1
@@ -922,6 +936,8 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             "completion_rate": p["completion_rate"],
             "perfect_day": p["perfect_day"],
             "is_shielded": p["is_shielded"],
+            "auto_shield_applied": p["auto_shield_applied"],
+            "shields_left": p["frost_shields"],
             "current_streak": current_streak,
         })
 
@@ -1326,8 +1342,9 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
 # Frost Shield & Streak Protection DAO
 # ==========================================
 
-def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+def get_user_shield_status(discord_id: int, db_path: Optional[str] = None) -> Dict[str, Any]:
     """Returns current shield capacity, availability, and progress to next shield."""
+    db_path = db_path or DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return {
@@ -1336,6 +1353,7 @@ def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str,
             "max_shields": 2,
             "is_today_shielded": False,
             "is_shielded_today": False,
+            "auto_protect_ready": False,
             "current_streak": 0,
             "days_until_next_shield": 7,
             "recent_uses": [],
@@ -1361,20 +1379,23 @@ def get_user_shield_status(discord_id: int, db_path: str = DB_PATH) -> Dict[str,
     days_into_cycle = streak % 7
     days_until_next = 7 if (days_into_cycle == 0 and streak == 0) else (7 - days_into_cycle)
 
+    shields = user.get("frost_shields", 0) or 0
     return {
-        "frost_shields": user.get("frost_shields", 0) or 0,
-        "inventory": user.get("frost_shields", 0) or 0,
+        "frost_shields": shields,
+        "inventory": shields,
         "max_shields": 2,
         "is_today_shielded": is_today_shielded,
         "is_shielded_today": is_today_shielded,
+        "auto_protect_ready": shields > 0,
         "current_streak": streak,
         "days_until_next_shield": days_until_next,
         "recent_uses": recent_uses,
     }
 
 
-def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, reason: str = "Manual rest day", db_path: str = DB_PATH) -> Dict[str, Any]:
+def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, reason: str = "Manual rest day", db_path: Optional[str] = None) -> Dict[str, Any]:
     """Consumes 1 Streak Shield for the user and protects their streak on target_date."""
+    db_path = db_path or DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user or not user["enrolled"]:
         raise ValueError("You must be enrolled in Winter Arc to use a Streak Shield.")
@@ -1408,8 +1429,9 @@ def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, re
     }
 
 
-def check_and_award_shield(discord_id: int, streak: int, db_path: str = DB_PATH) -> bool:
+def check_and_award_shield(discord_id: int, streak: int, db_path: Optional[str] = None) -> bool:
     """Awards +1 Frost Shield (up to 2) if streak reaches a new 7-day milestone."""
+    db_path = db_path or DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return False

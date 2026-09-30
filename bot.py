@@ -44,6 +44,7 @@ class WinterArcBot(commands.Bot):
         )
         self.scheduler: WinterArcScheduler = None
         self._synced = False
+        self._has_started = False
         from datetime import datetime, timezone
         self.start_time = datetime.now(timezone.utc)
         setup_global_exception_handlers(logger)
@@ -177,6 +178,12 @@ class WinterArcBot(commands.Bot):
 
     async def on_ready(self):
         """Called when gateway connection is established."""
+        if getattr(self, "_has_started", False):
+            logger.info("🔁 Discord Gateway connection resumed. Active session and command state preserved.")
+            return
+
+        self._has_started = True
+
         logger.info("=" * 60)
         logger.info(f"🐺 AMAROK IS ACTIVE: Online as {self.user} (ID: {self.user.id})")
         logger.info(f"Connected to {len(self.guilds)} Discord server(s):")

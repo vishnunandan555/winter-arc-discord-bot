@@ -754,7 +754,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             title="🛡️ Streak Shield & Recovery System",
             description=(
                 "The Winter Arc demands relentless discipline, but intentional recovery prevents burnout.\n"
-                "Streak Shields protect your unbroken streak during rest days, sickness, travel, or exams."
+                "Streak Shields protect your unbroken streak automatically during missed days or emergencies."
             ),
             color=0x00D2FF
         )
@@ -762,19 +762,18 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="❄️ How Streak Shields Work & Streaks",
             value=(
                 f"• **Daily Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day (e.g. 5 push-ups, 5 sit-ups, 5 squats, 5 pull-ups, 1 km run) to maintain your streak.\n"
-                "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone**.\n"
+                "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone** (cap of 2 shields max).\n"
                 "• **Inventory Cap**: You can hold a maximum of **2 Streak Shields** at any time.\n"
-                f"• **Auto-Protection**: If you miss a day with an active streak, a shield is automatically consumed at midnight as a safety net."
+                "• **Automatic Midnight Usage**: If you miss a day (< 30 pts), an available shield is automatically used at midnight (00:00 IST).\n"
+                "• **Safety Rule**: A day is missed only if you run out of Streak Shields!"
             ),
             inline=False
         )
         embed.add_field(
             name="🎮 Shield Commands",
             value=(
-                "• `/shield status` — View your current shield count (e.g. `1/2`), protection status for today, and countdown days to the next shield unlock.\n"
-                "• `/shield use [target_date] [reason]` — Consume a shield to protect your streak.\n"
-                "  — `target_date`: Choose `Today` (preemptive rest) or `Yesterday` (rescue a missed day).\n"
-                "  — `reason`: Optional label (e.g. *Muscle Recovery, Travel, Illness*)."
+                "• `/shield status` — View your current shield count (e.g. `1/2`), auto-protection status, and countdown to next shield.\n"
+                "• `/shield use` — Learn how automated streak protection keeps your streak alive without manual intervention."
             ),
             inline=False
         )
@@ -1253,30 +1252,37 @@ def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> disc
 def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> discord.Embed:
     """Builds the Frost Shield inventory, protection status, and earning progress embed."""
     shields = status["frost_shields"]
-    shield_icons = "🛡️ " * shields + "⚪ " * (status["max_shields"] - shields)
+    max_shields = status.get("max_shields", 2)
+    shield_icons = "🛡️ " * shields + "⚪ " * (max_shields - shields)
     shield_icons = shield_icons.strip()
 
-    active_tag = "🟢 **Active Today** (Rest day declared)" if status["is_today_shielded"] else "⚪ **Inactive** (Regular training day)"
-    next_tag = f"**{status['days_until_next_shield']} day(s)** of streak until next shield" if shields < status["max_shields"] else "💎 **MAX SHIELDS STORED (2/2)**"
+    if status.get("is_today_shielded"):
+        safety_status = "🛡️ **Protected Today** (Shield deployed for today)"
+    elif shields > 0:
+        safety_status = f"🟢 **Safety Net Active** ({shields} shield{'s' if shields > 1 else ''} ready if today is missed)"
+    else:
+        safety_status = "🔴 **At Risk** (0 shields left — streak breaks if 30 pts not logged)"
+
+    next_tag = f"**{status['days_until_next_shield']} day(s)** of streak until next shield" if shields < max_shields else "💎 **MAX SHIELDS STORED (2/2)**"
 
     history_lines = []
     for h in status.get("recent_uses", []):
         history_lines.append(f"• `{h['date']}` — {h['reason']}")
 
     desc = (
-        f"**{user.display_name}** • Streak Protection\n\n"
-        f"**Shield Inventory**: {shield_icons} `({shields}/{status['max_shields']})`\n"
-        f"**Today's Status**: {active_tag}\n"
+        f"**{user.display_name}** • Streak Protection System\n\n"
+        f"**Shield Inventory**: {shield_icons} `({shields}/{max_shields})`\n"
+        f"**Safety Status**: {safety_status}\n"
         f"🔥 **Current Streak**: **{status['current_streak']} days**\n"
         f"⏳ **Next Unlock**: {next_tag}\n\n"
         "**How Streak Shields Work**\n"
-        "• **Earn**: +1 Shield earned every **7 consecutive streak days** *(cap 2)*.\n"
-        "• **Manual Rest Day**: `/shield use` consumes 1 shield to protect your streak today.\n"
-        "• **Midnight Safety Net**: If you miss your targets with an active streak, 1 shield is automatically consumed at 00:00 IST."
+        "• **Earn**: +1 Shield earned for every **7 consecutive streak days** *(cap 2)*.\n"
+        "• **Automatic Midnight Usage**: If you miss a day (< 30 pts), an available shield is automatically used at **00:00 IST**.\n"
+        "• **Never Lose Unnecessarily**: A day is missed only if you run out of Streak Shields!"
     )
 
     if history_lines:
-        desc += "\n\n**Recent Recovery Days**\n" + "\n".join(history_lines)
+        desc += "\n\n**Recent Auto-Protection Logs**\n" + "\n".join(history_lines)
 
     embed = discord.Embed(
         title="🛡️ Winter Arc — Streak Shield Status",
@@ -1287,8 +1293,47 @@ def build_shield_status_embed(user: discord.Member, status: Dict[str, Any]) -> d
     return embed
 
 
+def build_shield_automated_info_embed(user: discord.Member, status: Dict[str, Any]) -> discord.Embed:
+    """Informs the user that shields are 100% automated and auto-deploy at midnight."""
+    shields = status["frost_shields"]
+    max_shields = status.get("max_shields", 2)
+    shield_icons = "🛡️ " * shields + "⚪ " * (max_shields - shields)
+    shield_icons = shield_icons.strip()
+
+    if shields > 0:
+        headline = f"🟢 **Safety Net Active!** You have **{shields} Streak Shield{'s' if shields > 1 else ''}** ready."
+        action_note = (
+            "You do **not** need to manually activate a shield!\n"
+            "If you miss your daily 30 points today, an available shield will be **automatically consumed at midnight (00:00 IST)** to protect your streak."
+        )
+    else:
+        headline = "🔴 **0 Streak Shields Available**"
+        action_note = (
+            "You currently have no shields stored in your inventory.\n"
+            "Log at least **30 points** today before midnight (00:00 IST) to keep your streak alive!\n"
+            "Reaching your next 7-day streak milestone will award a new shield."
+        )
+
+    embed = discord.Embed(
+        title="🛡️ Streak Shields Are 100% Automated",
+        description=(
+            f"**{user.display_name}**, streak shields work automatically as a safety cushion.\n\n"
+            f"{headline}\n\n"
+            f"{action_note}\n\n"
+            f"• **Shield Inventory**: {shield_icons} `({shields}/{max_shields})`\n"
+            f"• **Current Streak**: **{status['current_streak']} days**\n"
+            f"• **Next Shield**: **{status['days_until_next_shield']} day(s)** until next unlock\n\n"
+            "**Key Rule**:\n"
+            "A day is missed **only if you run out of Streak Shields**."
+        ),
+        color=0x00D2FF if shields > 0 else 0xE74C3C
+    )
+    embed.set_footer(text="Automatic midnight protection • Max 2 shields")
+    return embed
+
+
 def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -> discord.Embed:
-    """Builds confirmation embed after manually activating a Streak Shield."""
+    """Builds confirmation embed after activating a Streak Shield."""
     embed = discord.Embed(
         title="🛡️ Streak Shield Activated",
         description=(

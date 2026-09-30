@@ -49,6 +49,7 @@ from ui.embeds import (
     build_monthly_leaderboard_embed,
     build_overall_leaderboard_embed,
     build_shield_status_embed,
+    build_shield_automated_info_embed,
     build_shield_activated_embed,
     build_settings_embed,
     build_grind_embed,
@@ -834,10 +835,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         )
 
-    @shield_group.command(name="use", description="Activate a Streak Shield to protect your streak today or yesterday.")
+    @shield_group.command(name="use", description="Streak Shields are 100% automated at midnight. View your active protection.")
     @app_commands.describe(
-        target_date="Target day to protect: 'today' or 'yesterday'",
-        reason="Optional reason for recovery day (e.g. Muscle Recovery, Travel, Illness)"
+        target_date="Optional: Target day query ('today' or 'yesterday')",
+        reason="Optional: Note or inquiry reason"
     )
     @app_commands.choices(target_date=[
         app_commands.Choice(name="Today", value="today"),
@@ -847,39 +848,32 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         self,
         interaction: discord.Interaction,
         target_date: Optional[app_commands.Choice[str]] = None,
-        reason: Optional[str] = "Intentional active recovery"
+        reason: Optional[str] = None
     ):
         if not await require_enrolled(interaction):
             return
 
-        date_choice = target_date.value if target_date else "today"
-        today = datetime.now(BOT_TZ).date()
-        date_str = (today - timedelta(days=1)).isoformat() if date_choice == "yesterday" else today.isoformat()
+        status = db.get_user_shield_status(interaction.user.id)
+        embed = build_shield_automated_info_embed(interaction.user, status)
+        await interaction.response.send_message(embed=embed)
+        await safe_react(interaction, "🛡️", "❄️")
 
-        try:
-            result = db.activate_frost_shield(interaction.user.id, target_date=date_str, reason=reason)
-            embed = build_shield_activated_embed(interaction.user, result)
-            await interaction.response.send_message(embed=embed)
-            await safe_react(interaction, "🛡️", "❄️")
+        cmd_out = format_embed_as_text(embed)
 
-            cmd_out = format_embed_as_text(embed)
+        asyncio.create_task(
+            dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
+        )
 
-            asyncio.create_task(
-                dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=interaction.user.id,
+                user_name=interaction.user.display_name,
+                command_name="shield-use",
+                extra_info=f"Automated shield inquiry (inventory: {status['frost_shields']}/2, streak: {status['current_streak']}d)",
+                command_output=cmd_out
             )
-
-            asyncio.create_task(
-                groq_service.dispatch_interaction_nudge(
-                    interaction=interaction,
-                    user_id=interaction.user.id,
-                    user_name=interaction.user.display_name,
-                    command_name="shield-use",
-                    extra_info=f"Used shield for {date_str} (reason: {reason})",
-                    command_output=cmd_out
-                )
-            )
-        except ValueError as e:
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+        )
 
     # ==========================================
     # Personal Direct Messaging Settings

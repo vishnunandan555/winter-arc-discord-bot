@@ -302,6 +302,127 @@ class TestStreakShields(WinterArcTestCase):
         status = db.get_user_shield_status(user_id, self.test_db)
         self.assertEqual(status["frost_shields"], 2)
 
+    def test_auto_shield_lifecycle_exhaustion_and_streak_break(self):
+        """Verifies full lifecycle: 7-day streak earns shield, missed day auto-consumes it, exhaustion breaks streak, and rebuilding re-earns."""
+        user_id = 771101
+        db.enroll_user(user_id, "EnduranceHero", self.test_db)
+
+        # Build initial 7-day streak
+        base_date = date(2026, 9, 1)
+        for i in range(7):
+            d_str = (base_date + timedelta(days=i)).isoformat()
+            db.log_activity(user_id, "EnduranceHero", "Push-ups", 100, d_str, self.test_db)
+            db.finalize_daily_summaries(d_str, self.test_db)
+
+        # Day 7 check: streak 7, 1 shield earned
+        day_7_str = (base_date + timedelta(days=6)).isoformat()
+        streak_7 = db.calculate_streak(user_id, day_7_str, self.test_db)
+        self.assertEqual(streak_7, 7)
+        status_7 = db.get_user_shield_status(user_id, self.test_db)
+        self.assertEqual(status_7["frost_shields"], 1)
+
+        # Day 8: User misses the day (< 30 pts)
+        day_8_str = (base_date + timedelta(days=7)).isoformat()
+        db.finalize_daily_summaries(day_8_str, self.test_db)
+
+        # Shield was auto-consumed, streak was preserved to 8
+        status_8 = db.get_user_shield_status(user_id, self.test_db)
+        self.assertEqual(status_8["frost_shields"], 0)
+        streak_8 = db.calculate_streak(user_id, day_8_str, self.test_db)
+        self.assertEqual(streak_8, 8)
+
+        # Day 9: User misses again, but has 0 shields left
+        day_9_str = (base_date + timedelta(days=8)).isoformat()
+        db.finalize_daily_summaries(day_9_str, self.test_db)
+
+        # Streak is broken because 0 shields remained
+        streak_9 = db.calculate_streak(user_id, day_9_str, self.test_db)
+        self.assertEqual(streak_9, 0)
+
+        # Rebuilding: Log 7 consecutive days (Day 10..16)
+        for i in range(9, 16):
+            d_str = (base_date + timedelta(days=i)).isoformat()
+            db.log_activity(user_id, "EnduranceHero", "Push-ups", 100, d_str, self.test_db)
+            db.finalize_daily_summaries(d_str, self.test_db)
+
+        # At Day 16, streak is 7 again and new shield is earned
+        day_16_str = (base_date + timedelta(days=15)).isoformat()
+        streak_16 = db.calculate_streak(user_id, day_16_str, self.test_db)
+        self.assertEqual(streak_16, 7)
+        status_16 = db.get_user_shield_status(user_id, self.test_db)
+        self.assertEqual(status_16["frost_shields"], 1)
+
+    def test_shield_command_automated_ux(self):
+        """Verifies /shield status and /shield use command outputs reflecting 100% automated system."""
+        user_id = 771102
+        db.enroll_user(user_id, "AutomatedHero", self.test_db)
+        if not db.get_user_by_discord_id(user_id, db.DB_PATH):
+            db.enroll_user(user_id, "AutomatedHero", db.DB_PATH)
+
+        mock_member = self.create_mock_member(user_id, "AutomatedHero")
+        mock_bot = MagicMock()
+        cog = WarriorCog(mock_bot)
+
+        async def run_shield_cmds():
+            # Test /shield status
+            status_inter = MagicMock(spec=discord.Interaction)
+            status_inter.user = mock_member
+            status_inter.response = MagicMock()
+            status_inter.response.send_message = AsyncMock()
+
+            with patch("helpers.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+                 patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+                await cog.shield_status_cmd.callback(cog, status_inter)
+                status_inter.response.send_message.assert_called_once()
+                call_kw = status_inter.response.send_message.call_args[1]
+                embed = call_kw["embed"]
+                self.assertIn("Streak Shield Status", embed.title)
+                self.assertIn("Safety Status", embed.description)
+                self.assertIn("Max 2 shields stored", embed.footer.text)
+
+            # Test /shield use (0 shields)
+            use_inter = MagicMock(spec=discord.Interaction)
+            use_inter.user = mock_member
+            use_inter.response = MagicMock()
+            use_inter.response.send_message = AsyncMock()
+
+            with patch("helpers.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+                 patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+                 patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+                await cog.shield_use_cmd.callback(cog, use_inter)
+                use_inter.response.send_message.assert_called_once()
+                call_kw = use_inter.response.send_message.call_args[1]
+                embed = call_kw["embed"]
+                self.assertIn("100% Automated", embed.title)
+                self.assertIn("only if you run out of Streak Shields", embed.description)
+
+            # Test /shield use with 1 shield
+            with db.get_connection(db.DB_PATH) as conn:
+                conn.cursor().execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
+                conn.commit()
+            use_inter_2 = MagicMock(spec=discord.Interaction)
+            use_inter_2.user = mock_member
+            use_inter_2.response = MagicMock()
+            use_inter_2.response.send_message = AsyncMock()
+
+            with patch("helpers.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+                 patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+                 patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+                await cog.shield_use_cmd.callback(cog, use_inter_2)
+                use_inter_2.response.send_message.assert_called_once()
+                call_kw = use_inter_2.response.send_message.call_args[1]
+                embed = call_kw["embed"]
+                self.assertIn("100% Automated", embed.title)
+                self.assertIn("automatically consumed at midnight", embed.description)
+
+        asyncio.run(run_shield_cmds())
+
 
 class TestStreakCalendar(WinterArcTestCase):
     """Verifies monthly consistency calendar, 3-phase full view, and exact legend footers."""
