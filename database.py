@@ -2333,7 +2333,12 @@ def get_user_monthly_consistency(
     discord_id: int,
     year: Optional[int] = None,
     month: Optional[int] = None,
-    db_path: str = DB_PATH
+    db_path: str = DB_PATH,
+    cached_user: Optional[Dict[str, Any]] = None,
+    cached_stats: Optional[Dict[str, Any]] = None,
+    cached_shield_status: Optional[Dict[str, Any]] = None,
+    cached_highest_streak: Optional[int] = None,
+    cached_current_streak: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Constructs the monthly consistency matrix and statistics for the streak dashboard.
@@ -2348,7 +2353,7 @@ def get_user_monthly_consistency(
     target_year = year if year else today.year
     target_month = month if month else today.month
 
-    user = get_user_by_discord_id(discord_id, db_path)
+    user = cached_user if cached_user is not None else get_user_by_discord_id(discord_id, db_path)
     if not user:
         return {
             "user_id": 0,
@@ -2375,7 +2380,7 @@ def get_user_monthly_consistency(
 
     # Discipline rank level
     from levels import get_level_info
-    stats = get_user_stats(discord_id, db_path)
+    stats = cached_stats if cached_stats is not None else get_user_stats(discord_id, db_path)
     lvl_info = get_level_info(stats.get("lifetime_points", 0))
 
     first_weekday, num_days = calendar.monthrange(target_year, target_month)
@@ -2536,11 +2541,11 @@ def get_user_monthly_consistency(
     perfect_days = sum(1 for d in day_details.values() if d["is_perfect"])
     shields_used = sum(1 for d in day_details.values() if d["is_shielded"])
 
-    shield_status = get_user_shield_status(discord_id, db_path)
+    shield_status = cached_shield_status if cached_shield_status is not None else get_user_shield_status(discord_id, db_path)
     shields_left = shield_status.get("frost_shields", 0)
 
-    highest_streak = get_user_longest_streak(discord_id, db_path)
-    current_streak = calculate_streak(discord_id, db_path=db_path)
+    highest_streak = cached_highest_streak if cached_highest_streak is not None else get_user_longest_streak(discord_id, db_path)
+    current_streak = cached_current_streak if cached_current_streak is not None else calculate_streak(discord_id, db_path=db_path)
 
     return {
         "user_id": user["id"],
@@ -2580,6 +2585,17 @@ def get_user_full_campaign_calendar(discord_id: int, db_path: str = DB_PATH) -> 
         {"phase": 3, "name": "THE ENDGAME", "month": 12, "emoji": "⚔️", "total_days": 31},
     ]
 
+    user = get_user_by_discord_id(discord_id, db_path)
+    from levels import get_level_info
+    stats = get_user_stats(discord_id, db_path)
+    lvl_info = get_level_info(stats.get("lifetime_points", 0))
+
+    shield_status = get_user_shield_status(discord_id, db_path)
+    shields_left = shield_status.get("frost_shields", 0)
+
+    highest_streak = get_user_longest_streak(discord_id, db_path)
+    current_streak = calculate_streak(discord_id, db_path=db_path)
+
     phase_blocks = []
     total_campaign_points = 0
     total_perfect_days = 0
@@ -2588,7 +2604,17 @@ def get_user_full_campaign_calendar(discord_id: int, db_path: str = DB_PATH) -> 
     total_elapsed_days = 0
 
     for p in months_phases:
-        m_data = get_user_monthly_consistency(discord_id, year=base_year, month=p["month"], db_path=db_path)
+        m_data = get_user_monthly_consistency(
+            discord_id,
+            year=base_year,
+            month=p["month"],
+            db_path=db_path,
+            cached_user=user,
+            cached_stats=stats,
+            cached_shield_status=shield_status,
+            cached_highest_streak=highest_streak,
+            cached_current_streak=current_streak
+        )
         h = m_data.get("highlights", {})
         total_campaign_points += h.get("total_points", 0)
         total_perfect_days += h.get("perfect_days", 0)
@@ -2617,17 +2643,6 @@ def get_user_full_campaign_calendar(discord_id: int, db_path: str = DB_PATH) -> 
     total_elapsed_days = min(92, max(0, total_elapsed_days))
     consistency_pct = round((total_active_days / total_elapsed_days) * 100) if total_elapsed_days > 0 else 0
     avg_points = round(total_campaign_points / total_elapsed_days) if total_elapsed_days > 0 else 0
-
-    shield_status = get_user_shield_status(discord_id, db_path)
-    shields_left = shield_status.get("frost_shields", 0)
-
-    highest_streak = get_user_longest_streak(discord_id, db_path)
-    current_streak = calculate_streak(discord_id, db_path=db_path)
-
-    user = get_user_by_discord_id(discord_id, db_path)
-    from levels import get_level_info
-    stats = get_user_stats(discord_id, db_path)
-    lvl_info = get_level_info(stats.get("lifetime_points", 0))
 
     return {
         "user_id": user["id"] if user else 0,
