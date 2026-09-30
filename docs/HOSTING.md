@@ -28,14 +28,17 @@ Before deploying to any host:
 ### Option A: Wispbyte / Pterodactyl Panel (Free/Low-cost 24/7)
 1. In the **Wispbyte Game/Bot Panel**, select **Create Server**.
 2. Choose the **Python / Generic Discord Bot** egg (Python 3.11+).
-3. Under **File Manager** or **Git Integration**, upload or clone your repository.
+3. Under **File Manager**:
+   - On your local machine, run `python create_deploy_zip.py` to create a lightweight `bot_deploy.zip` (~130 KB, includes `.env`, excludes caches & DBs).
+   - Upload `bot_deploy.zip` to the panel File Manager and click **Unarchive / Extract**.
+   - *(Alternatively, clone directly via the Git Integration tab).*
 4. Run dependency installation:
    ```bash
    pip install -r requirements.txt
    ```
 5. Configure startup and environment:
    - **Startup Command**: `python bot.py`
-   - In **File Manager**, create `.env` and set `DISCORD_TOKEN`, `BOT_TIMEZONE`, etc.
+   - In **File Manager**, verify your `.env` contains your `DISCORD_TOKEN`, `BOT_TIMEZONE`, etc.
 6. Click **Start** on the console. The bot will automatically connect to Discord, synchronize slash commands, and initialize `winter_arc.db`.
 
 ---

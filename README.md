@@ -1,175 +1,86 @@
-# Winter Arc Discord Bot & Showcase
+<div align="center">
 
-An open-source, self-hosted fitness accountability and discipline ecosystem built with Python 3.14, discord.py 2.x, and SQLite.
+  <img src="docs/assets/winter_arc_banner_vector_clean_1360x480.png" alt="Winter Arc Discord Bot Banner" width="100%" style="border-radius: 12px; margin-bottom: 1rem;">
 
-Engineered for private Discord communities and friend circles to track daily calisthenics and running, enforce anti-cheat capped volume, maintain unbroken streaks, climb a 12-level pack hierarchy, and celebrate daily podium finishes.
+  # Winter Arc Discord Bot
+  
+  **An open-source, self-hosted fitness accountability ecosystem for private Discord communities.**  
+  *Track volume, defend streaks, conquer the cold, and ascend through a 12-tier discipline hierarchy.*
 
----
+  [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+  [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
+  [![Tests](https://img.shields.io/badge/Tests-52%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](test_engine.py)
+  [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
+  [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
-## Why Winter Arc Was Built
+  <br>
 
-Most fitness trackers and habit apps fail for two reasons:
-1. **Solitary Isolation**: Working out alone in a closed app provides no collective pressure or shared pride.
-2. **Subscription Bloat & Complexity**: Modern fitness apps are crowded with paywalls, social feeds, and intrusive tracking.
+  <h3>
+    🌐 <a href="https://vishnunandan555.github.io/winter-arc-discord-bot/"><strong>Explore Live Showcase & Documentation Website »</strong></a>
+  </h3>
+  <p>Interactive Command Directory • 12-Tier Ranks • Season Roadmap • Live Calendar Preview</p>
 
-Winter Arc takes inspiration from the 90-day Winter Arc self-improvement protocol and moves the entire accountability loop directly into Discord:
-- **Tribal Peer Accountability**: Progress, missed days, and streaks are visible to your pack in your private server.
-- **Anti-Cheat 500 Daily Point Ceiling**: To eliminate erratic binging and impossible vanity scores, daily points are capped at 500. Consistency over 90 days is rewarded over single erratic bursts.
-- **Zero-Friction Logging**: Members log volume with clean slash commands or natural language AI parsing in seconds.
-- **Data Sovereignty**: The bot is 100% self-hosted. All user volume, streak states, and logs reside inside a local SQLite database that your server controls.
-
----
-
-## The 5 Seasonal Phases
-
-The Winter Arc journey follows a structured 5-phase seasonal cadence:
-
-| Phase | Timeframe | Designation | Focus |
-| :---: | :--- | :--- | :--- |
-| **Phase 0** | **September** | **Warmup & Trial** | Test-drive the 5 disciplines, establish routines, setup the bot, and eliminate logistical friction before October 1. |
-| **Phase 1** | **October** | **The Shock & Ignition** | Official kickoff of the 90-day arc. Overcome DOMS, cut distractions, lock in morning discipline, and build streak momentum. |
-| **Phase 2** | **November** | **The Dark Tunnel** | Motivation fades; pure mechanical discipline takes over. Cold mornings, dark evenings, volume stacked in absolute silence. |
-| **Phase 3** | **December** | **The Real Winter Arc** | The apex trial. Freezing weather, end-of-year fatigue, and holiday temptations. The pack locks shields and ascends to Apex rank. |
-| **Phase 4** | **January** | **Cooldown & Standard** | While others scramble to make New Year resolutions, you emerge transformed. The 90-day arc concludes; the lifestyle remains. |
+</div>
 
 ---
 
-## Core Capabilities & Features
+## ⚡ Why Winter Arc?
 
-### 1. The Five Foundation Disciplines (Saitama Protocol)
-Modelled after the legendary **Saitama training challenge** (100 push-ups, 100 sit-ups, 100 squats, and a 10 km run), amplified with 100 pull-ups to forge complete calisthenic upper-body dominance:
+Most fitness and habit trackers fail because working out in isolation provides no tribal pressure, while commercial apps are plagued by paywalls, subscriptions, and bloat.
 
-- **Push-ups**: 100 reps ceiling (1 point per rep, 100 pts max)
-- **Pull-ups**: 100 reps ceiling (1 point per rep, 100 pts max)
-- **Squats**: 100 reps ceiling (1 point per rep, 100 pts max)
-- **Sit-ups**: 100 reps ceiling (1 point per rep, 100 pts max)
-- **Running**: 10 km ceiling (1 point per 100m / 10 pts per km, 100 pts max)
-
-> **High Ceiling. Zero Barrier. Every Rep Counts**:  
-> 500 points a day is a brutal mountain &mdash; and that is the point. You are not expected to hit peak volume on day one. Whether you can only grind out 10 push-ups, 2 pull-ups, or jog a single kilometer today, **log it**. Every single repetition earns points toward your pack rank. The Winter Arc is about locking in, embracing the cold, and stacking volume in silence until you become undeniable.
-> 
-> Maxing out all 500 daily points earns **Perfect Day** status and fuels your active streak.
-
-### 2. Dual Logging Engine
-- `/log [task] [amount]`: Progressively adds completed reps or kilometers throughout the day.
-- `/set [task] [amount]`: Directly sets or overrides today's count, allowing immediate correction of typos or resetting to 0.
-
-### 3. AI Workout Intelligence
-- **Natural Language Parsing (Groq)**: `/quick [text]` allows warriors to log complex workouts in plain text (e.g., `/quick "did 45 pushups and ran 3.2km"`).
-- **Friction & Academic Grind (Google Gemini)**: `/grind [text]` allows warriors to submit daily deep work, studying, or engineering friction to receive verified bonus points (1x per day, +10 to +60 pts).
-
-### 4. Streak System & Streak Shield Defense
-- Daily streaks advance with consecutive active days (at least 30 points) or Perfect Days (500 points).
-- To prevent injury or demoralization from illness, members earn **Streak Shields** by achieving 7-day streak milestones. Activating a shield with `/shield use` protects an active streak across a necessary recovery day.
-
-### 5. Automated Cadence
-Scheduled automated checkpoints broadcast into the designated channel:
-- **07:00 IST**: Morning Kickoff & Discipline Targets Announcement
-- **16:30 IST**: Midday Accountability Pulse
-- **21:00 IST**: Evening Streak Warning (3h before midnight)
-- **00:00 IST**: Midnight Podium Finalization, Streak Calculation, and Rollover
-- **Sunday 20:00 IST**: Weekly Community Recap & Podium
-
-### 6. Single Dedicated Channel Architecture
-The bot broadcasts solely inside the text channel designated by `/admin set_channel`. No clutter or unsolicited bot spam occurs across other server channels.
+**Winter Arc moves the accountability loop directly into Discord:**
+- **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
+- **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
+- **Dual AI Workout Logging**: Log workouts with standard slash commands or natural language with Groq and Gemini AI.
+- **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
 ---
 
-## The 12-Tier Discipline Hierarchy
+## 🏔️ Core Pillars
 
-Calibrated around a 90-day arc, culminating at Apex (12,000 Lifetime Points / ~133 pts daily average):
-
-| Level | Rank Title | Badge | Point Range | Focus |
-| :---: | :--- | :---: | :--- | :--- |
-| **01** | **Initiate** | 🥉 | 0 - 499 pts | The journey begins. First steps on the board. |
-| **02** | **Novice** | 🥉 | 500 - 1,199 pts | Surviving week one. Developing the daily habit. |
-| **03** | **Challenger** | 🥈 | 1,200 - 1,999 pts | Routine taking root. Consistency building. |
-| **04** | **Dedicated** | 🥈 | 2,000 - 2,999 pts | Body adapting. Soreness fading, rhythm locked. |
-| **05** | **Disciplined** | 🥇 | 3,000 - 4,199 pts | Month 1 completed. Execution on autopilot. |
-| **06** | **Hardened** | 🥇 | 4,200 - 5,499 pts | Daily execution without negotiation. |
-| **07** | **Iron** | ⚡ | 5,500 - 6,999 pts | Halfway mark reached. Resilient momentum. |
-| **08** | **Vanguard** | 🛡️ | 7,000 - 8,499 pts | Month 2 milestone. Unshakable standard. |
-| **09** | **Relentless** | ❄️ | 8,500 - 9,799 pts | Rain, cold, or fatigue—the work gets done. |
-| **10** | **Veteran** | 🔥 | 9,800 - 10,799 pts | Final stretch. High standards daily. |
-| **11** | **Master** | 👑 | 10,800 - 11,999 pts | Elite consistency. Top tier execution. |
-| **12** | **Apex** | 💎 | 12,000+ pts | Peak Mastery. Arc Conquered. |
-
----
-
-## Slash Command Directory
-
-### Member Commands
-| Command | Purpose |
+| Feature | Description |
 | :--- | :--- |
-| `/today [member]` | Inspect daily volume, earned points, completion rate, and streak. |
-| `/streak [member]` | Monospace monthly habit calendar grid, streak statistics, and active shields. |
-| `/tasks` | View active daily physical disciplines, goals, and point values. |
-| `/log [task] [amount]` | Increment today's workout reps or kilometers with autocomplete. |
-| `/set [task] [amount]` | Directly set or correct today's count (or 0 to reset). |
-| `/stats [phase]` | View overall or phase-specific performance statistics and volume. |
-| `/history [days]` | View reverse-chronological log history with points and grind tags. |
-| `/recap [member]` | Detailed phase recap report across all 4 official Arc phases. |
-| `/profile` | View rank card, progress towards next tier, lifetime points, and streak. |
-| `/ranks` | Display the 12-tier discipline hierarchy, point targets, and requirements. |
-| `/leaderboard` | Interactive leaderboard with Daily, Weekly, Monthly, and All-Time standings. |
-| `/quick [text]` | Log natural language workout descriptions via Groq LLM parsing. |
-| `/grind [text]` | Log academic/engineering friction evaluated by Gemini (+10 to +60 pts). |
-| `/shield status` | Check Streak Shield inventory and active protection state. |
-| `/shield use [reason]` | Activate a Streak Shield on a rest day to defend streak integrity. |
-| `/settings` | Toggle direct message reminders for morning kickoff and evening alerts. |
-| `/enroll` | Join the Winter Arc challenge and receive the server role. |
-| `/leave_arc` | Step away and unenroll from the challenge. |
-| `/help` | View interactive command manual, daily schedule, and rules. |
-| `/ping` | Health check and gateway latency in milliseconds. |
+| **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
+| **Monospace Habit Calendar** | `/streak` renders an aligned, monospace monthly matrix and full 92-day campaign view with status highlights. |
+| **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
+| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & academic friction via Gemini. |
+| **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
+| **Automated Cadence** | Morning kickoff (07:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), and midnight finalization (00:00 IST). |
 
-### Administrator Commands (`/admin`, requires Administrator permissions)
-| Command | Purpose |
-| :--- | :--- |
-| `/admin overview` | Inspect broadcast channel, ping role, and enrolled warrior count. |
-| `/admin set_channel [channel]` | Assign dedicated text channel for automated scheduled announcements. |
-| `/admin set_role [role]` | Assign role mentioned during morning and evening announcements. |
-| `/admin task_add [name] [goal] [pts]` | Dynamically add custom disciplines (e.g. Plank 5 min). |
-| `/admin task_toggle [task_id]` | Enable or disable an existing discipline without code modifications. |
-| `/admin tasks_list` | Inspect all disciplines in the database. |
-| `/test_reminder [type]` | Preview morning kickoff, afternoon pulse, or midnight broadcast layouts. |
+> 📖 **Want the deep dive?**  
+> Explore the full [12-Tier Hierarchy](https://vishnunandan555.github.io/winter-arc-discord-bot/#ranks) and [Seasonal Phase Roadmap](https://vishnunandan555.github.io/winter-arc-discord-bot/#phases) on the showcase site.
 
 ---
 
-## Self-Hosting & Deployment Guide
+## 🚀 Quickstart Guide
 
-This repository is designed to be forked and self-hosted on your own infrastructure.
+### 1. Clone & Setup Virtual Environment
+```bash
+# Clone the repository
+git clone https://github.com/vishnunandan555/winter-arc-discord-bot.git
+cd winter-arc-discord-bot
 
-### Step 1: Fork and Clone the Repository
-1. Click **Fork** on the top right of the GitHub repository.
-2. Clone your fork locally or onto your server:
-   ```bash
-   git clone https://github.com/your-username/winter-arc-discord-bot.git
-   cd winter-arc-discord-bot
-   ```
+# Create and activate virtual environment (Python 3.11+)
+python3 -m venv .venv
+source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 
-### Step 2: Discord Developer Portal Setup
-1. Navigate to the [Discord Developer Portal](https://discord.com/developers/applications) and create a **New Application**.
-2. Go to the **Bot** tab:
-   - Click **Reset Token** and copy your token securely.
-   - Under **Privileged Gateway Intents**, enable:
-     - **Server Members Intent**
-     - **Message Content Intent**
-   - Click **Save Changes**.
+# Install dependencies
+pip install -r requirements.txt
+```
 
-### Step 3: Configure Environment Variables
-Create a `.env` file from the provided `.env.example`:
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and fill in your Discord credentials:
 ```bash
 cp .env.example .env
 ```
-Fill in your credentials:
 ```env
-# Required: Discord Bot Token from Developer Portal
+# Required: Discord Bot Token from Discord Developer Portal
 DISCORD_TOKEN=your_bot_token_here
 
 # Timezone for scheduled daily announcements (Default: Asia/Kolkata)
 BOT_TIMEZONE=Asia/Kolkata
 
-# Optional: Server role ID to ping on announcements
+# Optional: Server role ID to ping during broadcasts
 WINTER_ARC_ROLE_ID=
 
 # Optional: AI capabilities for /quick and /grind commands
@@ -177,121 +88,106 @@ GROQ_API_KEY=your_groq_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
----
-
-### Step 4: Choose Your Hosting Method
-
-#### Option A: Hosting on Wispbyte (or any Pterodactyl-based host)
-1. In the **Wispbyte Game/Bot Panel**, click **Create Server**.
-2. Select the **Python / Generic Bot** egg (Python 3.11+ recommended).
-3. In **File Manager**, upload the repository files or pull them directly via the Git repository settings.
-4. Ensure `pip install -r requirements.txt` is run on installation or execute it in the panel terminal.
-5. In the **Startup** tab:
-   - Set **Startup Command**: `python bot.py`
-6. In **File Manager**, create `.env` and paste your environment variables.
-7. Click **Start** on the console. The bot will connect to Discord, register slash commands, and initialize the SQLite database automatically.
-
-#### Option B: Hosting on a Linux VPS (Ubuntu / Debian Systemd)
-For running on a VPS (DigitalOcean, Hetzner, AWS EC2, Linode):
-
-1. **Setup environment**:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. **Create a Systemd Service**:
-   ```bash
-   sudo nano /etc/systemd/system/winter-arc.service
-   ```
-   Paste the following service configuration:
-   ```ini
-   [Unit]
-   Description=Winter Arc Discord Bot
-   After=network.target
-
-   [Service]
-   Type=simple
-   User=ubuntu
-   WorkingDirectory=/home/ubuntu/winter-arc-discord-bot
-   ExecStart=/home/ubuntu/winter-arc-discord-bot/.venv/bin/python bot.py
-   Restart=always
-   RestartSec=10
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-3. **Enable and start the service**:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable winter-arc
-   sudo systemctl start winter-arc
-   ```
-
-4. **Monitor live logs**:
-   ```bash
-   journalctl -u winter-arc -f
-   ```
-
-#### Option C: Hosting on Cloud (Render / Railway)
-Discord bots require a persistent background process maintaining a live WebSocket connection:
-1. Create a **Background Worker** service (not a Web Service).
-2. Connect your GitHub repository.
-3. Configure:
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python bot.py`
-4. Add `DISCORD_TOKEN` and `BOT_TIMEZONE` in the service Environment Variables tab.
-
----
-
-### Step 5: Initial Discord Server Configuration
-Once your bot is running and connected to your server:
-1. Assign the broadcast channel:
-   ```
-   /admin set_channel channel:#winter-arc
-   ```
-2. Assign the announcement role:
-   ```
-   /admin set_role role:@Winter Arc
-   ```
-3. Have members join the challenge:
-   ```
-   /enroll
-   ```
-
----
-
-## Showcase Website
-
-A static showcase and self-hosting documentation site is included in the `docs/` folder.
-To preview the website locally:
+### 3. Launch the Bot
 ```bash
-python -m http.server 8000 --directory docs
-```
-The site is pre-configured for deployment via GitHub Pages (serving `/docs`) or Vercel (via included `vercel.json`).
-
----
-
-## Local Development & Testing
-
-```bash
-# Activate virtual environment
-source .venv/bin/activate
-
-# Run full automated test suite via runner
-python test_engine.py
-
-# Or run via standard unittest discovery
-python -m unittest discover tests
-
-# Or run individual modular test suites
-python -m unittest tests/test_streaks_shields.py
-python -m unittest tests/test_ui_embeds_views.py
-python -m unittest tests/test_cogs_bot.py
-
-# Run the bot in development mode
 python bot.py
 ```
+*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 21 slash commands automatically.*
 
+---
+
+## 🧪 Automated Test Suite
+
+The test suite contains **52 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
+
+```bash
+# Run the complete test suite via discovery runner
+python test_engine.py
+
+# Or run standard unittest discovery
+python -m unittest discover tests
+
+# Or run individual domain test modules
+python -m unittest tests/test_streaks_shields.py
+python -m unittest tests/test_scoring_logging.py
+python -m unittest tests/test_ui_embeds_views.py
+python -m unittest tests/test_ai_services.py
+python -m unittest tests/test_cogs_bot.py
+```
+
+---
+
+## 📋 Slash Command Overview
+
+The bot registers **21 native slash commands** designed with Discord autocomplete and button pagination:
+
+| Category | Commands | Description |
+| :--- | :--- | :--- |
+| **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
+| **Habits & Streaks** | `/streak`, `/today`, `/tasks`, `/history` | Monospace habit calendar, daily progress card, task guide, and past logs. |
+| **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
+| **Recovery & Settings**| `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping`| Streak shield defense, morning/evening DM preferences, manual, and latency check. |
+| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `task_add`, `task_toggle`, `tasks_list`, `sync`) | Dedicated announcement channel binding, role configuration, and discipline customization. |
+
+👉 **[Search & Filter All Commands Interactively on the Website »](https://vishnunandan555.github.io/winter-arc-discord-bot/#commands)**
+
+---
+
+## 🛠️ Self-Hosting & Deployment
+
+Winter Arc is engineered for 24/7 reliability with minimal resource consumption (<50 MB RAM on idle).
+
+| Deployment Method | Guide & Reference |
+| :--- | :--- |
+| **Linux VPS (Systemd)** | Ubuntu/Debian production service configuration with auto-restart: [docs/HOSTING.md »](docs/HOSTING.md#option-b-linux-vps--ubuntu-server-systemd-service) |
+| **Docker & Docker Compose** | One-command deployment via `docker compose up -d`: [Dockerfile](Dockerfile) • [docker-compose.yml](docker-compose.yml) |
+| **Wispbyte / Pterodactyl** | Low-cost 24/7 bot hosting panel setup: [docs/HOSTING.md »](docs/HOSTING.md#option-a-wispbyte--pterodactyl-panel-freelow-cost-247) |
+| **Cloud (Render / Railway)** | Persistent background worker setup: [docs/HOSTING.md »](docs/HOSTING.md#option-c-hosting-on-cloud-render--railway) |
+
+For complete step-by-step instructions, see the **[Full Hosting Guide (docs/HOSTING.md)](docs/HOSTING.md)**.
+
+### 📦 One-Click Deployment Bundle
+If you are deploying to **Wispbyte**, a Pterodactyl panel, or uploading via a file manager, generate a production archive with a single command:
+```bash
+python create_deploy_zip.py
+```
+> **What this does:**
+> - Automatically bundles all bot code, cogs, AI services, test suites, and Docker configs.
+> - **Includes your `.env` file** so your credentials and token work instantly upon unzipping.
+> - Excludes all local databases (`*.db`), virtual environments (`.venv`), caches, and website assets to keep the upload ultra-lean (~130 KB).
+> - Produces a fresh `bot_deploy.zip` ready to upload and extract in your server's file manager.
+
+
+---
+
+## 📂 Project Architecture
+
+```
+winter-arc-discord-bot/
+├── ai/                      # Groq & Gemini AI service integrations
+├── cogs/                    # Discord command extensions (warrior & admin cogs)
+├── ui/                      # Discord embeds, formatters, and interactive views
+├── tests/                   # Modular test suite (52 test cases)
+├── docs/                    # Static showcase website (GitHub Pages / Vercel)
+│   ├── assets/              # Banners, badges, and branding graphics
+│   ├── index.html           # Interactive showcase site
+│   ├── HOSTING.md           # Deployment documentation
+│   └── ARCHITECTURE.md      # Deep technical architecture breakdown
+├── bot.py                   # Discord bot client & lifecycle events
+├── config.py                # Environment variables & constants
+├── database.py              # SQLite database schema, migrations & queries
+├── helpers.py               # Autocomplete providers & date helpers
+├── levels.py                # 12-tier discipline calculation & thresholds
+├── phases.py                # 4-phase calendar & recap definitions
+├── tips.py                  # Contextual tips engine & rate limits
+└── test_engine.py           # Test discovery runner (backward compatible)
+```
+
+For complete technical specifications, database schema diagrams, and memory management details, refer to **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+---
+
+## 📄 License & Attribution
+
+Distributed under the **MIT License**. Created by [Vishnu Nandan](https://github.com/vishnunandan555).  
+Contributions, issues, and feature requests are welcome!

@@ -21,3 +21,8 @@ test_backups/
 *.log
 logs/
 scratch/
+
+# Deployment bundles
+*.zip
+bot_deploy.zip
+

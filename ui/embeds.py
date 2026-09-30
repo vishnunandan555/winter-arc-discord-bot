@@ -1917,7 +1917,7 @@ def build_streak_consistency_embed(user: Any, data: Dict[str, Any]) -> discord.E
     month_str = data.get("month_name", "Month").upper()
     year_str = str(data.get("year", 2026))
     rank_title = data.get("rank_title", "Initiate").upper()
-    sub_header = f"`{name}` | `{month_str} {year_str}` | `{rank_title}`"
+    sub_header = f"**{name}** | **{month_str} {year_str}** | **{rank_title}**"
 
     grid_block = f"```text\n{data.get('calendar_grid', '')}\n```"
 
@@ -1961,7 +1961,7 @@ def build_full_calendar_embed(user: Any, data: Dict[str, Any]) -> discord.Embed:
 
     name = user.display_name.upper()
     rank_title = data.get("rank_title", "Initiate").upper()
-    sub_header = f"`{name}` | `OCT 1 – DEC 31` | `{rank_title}`"
+    sub_header = f"**{name}** | **OCT 1 – DEC 31** | **{rank_title}**"
 
     grid_block = f"```text\n{data.get('calendar_text', '')}\n```"
 
