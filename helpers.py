@@ -11,13 +11,26 @@ Provides reusable functions across cogs and scheduler:
 import logging
 import re
 from typing import List, Optional, Any
+from datetime import datetime, time, timedelta
 import discord
 from discord import app_commands
 
 import database as db
-from config import DEFAULT_ROLE_ID
+from config import DEFAULT_ROLE_ID, BOT_TZ
 
 logger = logging.getLogger("winter_arc.helpers")
+
+
+def get_now_ist() -> datetime:
+    """Returns current datetime in configured bot timezone (Asia/Kolkata)."""
+    return datetime.now(BOT_TZ)
+
+
+def get_midnight_reset_timestamp() -> int:
+    """Returns the Unix epoch timestamp for 00:00:00 IST of tomorrow (daily rollover)."""
+    now = get_now_ist()
+    tomorrow_midnight = datetime.combine(now.date() + timedelta(days=1), time(0, 0, 0), tzinfo=BOT_TZ)
+    return int(tomorrow_midnight.timestamp())
 
 
 async def auto_dismiss_ephemeral(
@@ -313,8 +326,10 @@ async def dm_target_autocomplete(interaction: discord.Interaction, current: str)
 
 
 async def dm_template_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    """Autocomplete for /admin dm message/template from dm_templates.py."""
-    from dm_templates import DM_TEMPLATES
+    try:
+        from dm_templates import DM_TEMPLATES
+    except ImportError:
+        DM_TEMPLATES = {}
     choices = []
     curr = (current or "").lower().strip()
 

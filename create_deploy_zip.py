@@ -28,6 +28,7 @@ ROOT_FILES = [
     "bot.py",
     "config.py",
     "database.py",
+    "dm_templates.py",
     "helpers.py",
     "levels.py",
     "phases.py",

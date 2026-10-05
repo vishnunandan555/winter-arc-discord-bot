@@ -210,6 +210,13 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
     return embed
 
 
+def get_midnight_reset_timestamp() -> int:
+    """Returns the Unix epoch timestamp for 00:00:00 IST of tomorrow (daily rollover)."""
+    now = datetime.now(BOT_TZ)
+    tomorrow_midnight = datetime.combine(now.date() + timedelta(days=1), datetime.min.time(), tzinfo=BOT_TZ)
+    return int(tomorrow_midnight.timestamp())
+
+
 def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], streak: int, date_display: str) -> discord.Embed:
     """Builds the daily progress card with individual emoji progress bars per task and total percentage at the end."""
     task_lines = []
@@ -243,9 +250,16 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
 
     streak_status = " *(Streak Secured ✅)*" if (total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]) else f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
 
+    reset_ts = get_midnight_reset_timestamp()
+    if total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]:
+        deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+    else:
+        deadline_line = f"⏳ **Deadline to Secure Streak**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+
     desc = (
         f"**{target_user.display_name}** • {date_display}\n"
-        f"🔥 Current Streak: **{streak} days**{streak_status}\n\n"
+        f"🔥 Current Streak: **{streak} days**{streak_status}\n"
+        f"{deadline_line}\n\n"
         "**Daily Disciplines**\n"
         + "\n\n".join(task_lines)
         + grind_section
@@ -334,6 +348,12 @@ def format_log_reply(result: Dict[str, Any], amount: float, level_up_info: Optio
         msg += f"\n🎉 **Rank Promotion!** You reached **Level {level_up_info['level']} — {level_up_info['badge']} {level_up_info['title']}**!"
     if result.get("shield_awarded"):
         msg += "\n🛡️ **Streak Shield Earned!** You hit a 7-day streak milestone (+1 Shield added to inventory)."
+
+    daily_pts = result.get("daily_points_total", 0)
+    if daily_pts < MIN_STREAK_POINTS:
+        remaining_pts = MIN_STREAK_POINTS - daily_pts
+        reset_ts = get_midnight_reset_timestamp()
+        msg += f"\n⏳ Need **{remaining_pts} more pts** before midnight (<t:{reset_ts}:R>) to secure streak."
 
     return msg
 
@@ -1437,8 +1457,9 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
             if shield_status["frost_shields"] > 0
             else f"\n\n⚠️ **No Streak Shields available!** Log {needed} more points before midnight to prevent your streak from resetting."
         )
+        reset_ts = get_midnight_reset_timestamp()
         desc = (
-            f"**{user.display_name}**, only **3 hours remain** before midnight (00:00 IST).\n\n"
+            f"**{user.display_name}**, only **<t:{reset_ts}:R>** remain before midnight cutoff (<t:{reset_ts}:t>).\n\n"
             f"📊 **Today's Score**: **{pts} / {max_pts} pts** ({needed} more pts needed to defend streak)\n"
             f"🔥 **Streak at Risk**: **{streak} days**"
             f"{shield_info}"

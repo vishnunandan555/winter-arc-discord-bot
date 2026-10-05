@@ -464,9 +464,24 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             return
 
         from config import DEFAULT_CHANNEL_ID
-        from dm_templates import build_message_from_template, DM_TEMPLATES
         import asyncio
         import re
+
+        try:
+            from dm_templates import build_message_from_template, DM_TEMPLATES
+        except ImportError:
+            DM_TEMPLATES = {}
+
+            def build_message_from_template(tmpl_key, username, ch_id, extra_text=None):
+                embed = discord.Embed(
+                    title="📩 Message from Winter Arc Staff",
+                    description=tmpl_key,
+                    color=0x3498DB
+                )
+                if extra_text:
+                    embed.description += f"\n\n{extra_text}"
+                embed.set_footer(text="Winter Arc 2026")
+                return embed
 
         await interaction.response.defer(ephemeral=True)
 
@@ -548,7 +563,12 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                     m = await interaction.guild.fetch_member(uid)
                 except Exception:
                     m = None
-            if m and not m.bot:
+            if not m:
+                try:
+                    m = self.bot.get_user(uid) or await self.bot.fetch_user(uid)
+                except Exception:
+                    m = None
+            if m and not getattr(m, "bot", False):
                 resolved_members[m.id] = m
 
         # 2. Search for comma-separated usernames or display names
