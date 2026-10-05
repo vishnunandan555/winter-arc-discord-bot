@@ -716,6 +716,25 @@
             </div>
           </div>
 
+          <!-- Pillar: Tribal Governance & Council Trials -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Tribal Governance &amp; Council Trials</h3>
+            <p class="showcase-desc">
+              Authenticity over ego. When ungrounded buzzword bingo is submitted, Amarok calls it out directly and summons the Council in channel. Any brother can also challenge questionable logs via <code>/callcap @member</code> (protected by an Honor Code modal). The pack votes live with interactive buttons and courtroom GIF verdicts.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/callcap target:@Warrior</code>
+              <code>/admin grind what:block member:@Warrior days:3 reason:"Fluff"</code>
+            </div>
+          </div>
+
           <!-- Pillar 4: Streak System & Streak Shield Defense -->
           <div class="showcase-card">
             <div class="card-icon-wrap">
@@ -1463,6 +1482,18 @@
             </div>
           </div>
 
+          <div class="cmd-card" data-category="ai">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/callcap [target]</span>
+              <button class="copy-cmd-btn" data-copy="/callcap target:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Challenge a suspect grind log and summon a 10-minute democratic Council trial with courtroom GIF verdicts.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-ai">Governance</span>
+              <span class="tag-param">target: required</span>
+            </div>
+          </div>
+
           <!-- Shield Commands -->
           <div class="cmd-card" data-category="shield">
             <div class="cmd-top">
@@ -1488,6 +1519,19 @@
           </div>
 
           <!-- Admin Commands -->
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/admin grind [what] [member] [days] [reason]</span>
+              <button class="copy-cmd-btn" data-copy="/admin grind" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Disciplinary governance: block or unlock a member's /grind access with custom durations and reasons.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">what: block|unlock</span>
+              <span class="tag-param">member: required</span>
+            </div>
+          </div>
+
           <div class="cmd-card" data-category="admin">
             <div class="cmd-top">
               <span class="cmd-syntax">/admin set_channel [channel]</span>
@@ -2157,6 +2201,24 @@ git push origin main
               <ul>
                 <li><strong>Groq LLM (<code>/quick [text]</code>):</strong> Parses natural language workout summaries in milliseconds (e.g. <em>"ran 5km and did 40 pushups"</em>) into structured discipline logs. If no API key is provided, an internal regex parser acts as an automatic fallback.</li>
                 <li><strong>Google Gemini (<code>/grind [text]</code>):</strong> Evaluates cognitive friction, deep work, or engineering sessions to award verified bonus points (+5 to +60 pts, capped at 1x per day; roasts still award effort points).</li>
+              </ul>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">
+              <span class="faq-q-text">What is the Council Trial system and how does /callcap work?</span>
+              <span class="faq-icon" aria-hidden="true">&plus;</span>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                To maintain authentic standards and eliminate unearned fluff, Winter Arc includes a democratic community verification system:
+              </p>
+              <ul>
+                <li><strong>Automated AI Sentinel:</strong> When a user logs buzzword bingo or ungrounded claims via <code>/grind</code>, Amarok credits token effort points (+10 pts) and immediately auto-summons the Council.</li>
+                <li><strong>Peer Challenge (<code>/callcap @member</code>):</strong> Any enrolled warrior can challenge an unverified grind log. Before summoning the Council, an ephemeral modal enforces the Winter Arc Honor Code to prevent jealousy or petty rivalry.</li>
+                <li><strong>Democratic 10-Minute Vote:</strong> Enrolled pack members vote live via interactive buttons (<em>"🧢 He's Capping"</em> vs <em>"✅ Legit"</em>) with courtroom GIFs. If the cap is confirmed, points are stripped; otherwise, the log stands.</li>
+                <li><strong>Admin Disciplinary Control:</strong> Administrators can run <code>/admin grind block|unlock</code> with custom durations and reasons to enforce pack standards.</li>
               </ul>
             </div>
           </details>

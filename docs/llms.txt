@@ -32,7 +32,13 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - **Groq NLP (`/quick [text]`)**: Sub-second natural language parsing extracting reps and kilometers from conversational messages, with local regex fallback.
 - **Google Gemini Engine (`/grind [text]`)**: Cognitive friction & engineering practice evaluation awarding verified bonus points (+5 to +60 pts, 1x daily cap; casual/vague attempts get roasted with 5–15 effort points so the daily slot is never wasted).
 
-### 3. Streak Defense & Streak Shields
+### 3. Tribal Governance & Council Trials
+- **Democratic Verification (`/callcap @member`)**: Any enrolled member can challenge questionable grind logs with an Honor Code verification modal.
+- **Automated Anti-Buzzword Sentinel**: If Gemini detects ungrounded buzzword claims, Amarok automatically summons the Council in channel.
+- **Interactive Trial Resolution**: 10-minute public voting session (`[ 🧢 He's Capping ]` vs `[ ✅ Legit ]`) with courtroom GIF reactions and point stripping on confirmed caps.
+- **Administrative Disciplinary Probation**: `/admin grind [block/unlock] [member] [days] [reason]` to manage community standards.
+
+### 4. Streak Defense & Streak Shields
 - Active streak increments on days with >=30 points or Perfect Days.
 - Earn 1 Streak Shield every 7 active days (inventory cap: 2).
 - Protect active streaks during illness, rest, or travel without shame: `/shield use [target] [reason]`.

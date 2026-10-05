@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-64%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-76%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -30,6 +30,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 - **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
 - **Dual AI Workout Logging**: Log workouts with standard slash commands or natural language with Groq and Gemini AI.
+- **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/callcap`) protect server integrity from vanity claims.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
 ---
@@ -42,6 +43,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **Monospace Habit Calendar** | `/streak` renders an aligned, monospace monthly matrix and full 92-day campaign view with status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
 | **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
+| **Tribal Council Governance** | Real-time integrity verification: `/callcap` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (07:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), and midnight finalization (00:00 IST). |
 
@@ -97,7 +99,7 @@ python bot.py
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **64 comprehensive test cases** organized into domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **76 comprehensive test cases** organized into 9 domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -107,6 +109,7 @@ python test_engine.py
 python -m unittest discover tests
 
 # Or run individual domain test modules
+python -m unittest tests/test_call_cap_and_governance.py
 python -m unittest tests/test_streaks_shields.py
 python -m unittest tests/test_scoring_logging.py
 python -m unittest tests/test_ui_embeds_views.py
@@ -118,15 +121,16 @@ python -m unittest tests/test_cogs_bot.py
 
 ## 📋 Slash Command Overview
 
-The bot registers **22 native slash commands** designed with Discord autocomplete and button pagination:
+The bot registers **24 native slash commands** designed with Discord autocomplete and button pagination:
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
 | **Habits & Streaks** | `/streak`, `/today`, `/tasks`, `/history` | Monospace habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
+| **Tribal Governance**| `/callcap` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
 | **Recovery & Settings**| `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping`| Streak shield defense, morning/evening DM preferences, manual, and latency check. |
-| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `sync`) | Channel binding, role ping, multi-target templated DMs, and discipline customization. |
+| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`) | Channel binding, role ping, multi-target DMs, discipline customization, and disciplinary probation. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
 👉 **[Search & Filter All Commands Interactively on the Website »](https://winter-arc-discord-bot.vercel.app/#commands)**

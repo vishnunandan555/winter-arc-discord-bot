@@ -1005,14 +1005,13 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 target_channel = interaction.guild.get_channel(ch_id) if ch_id else interaction.channel
                 role_id = settings.get("role_id")
                 role_ping = f"<@&{role_id}> " if role_id else ""
-                pts = evaluation["points"]
-
+                bot_mention = self.bot.user.mention if self.bot.user else "🐺 Amarok"
                 council_content = (
                     f"{role_ping}🚨 **The Council Has Been Summoned** 🚨\n\n"
-                    f"*Amarok has called cap on {interaction.user.mention}'s grind log of*\n"
+                    f"*{bot_mention} has called cap on {interaction.user.mention}'s grind log of*\n"
                     f"```{text}```\n"
                     f"*worth {pts} points.*\n\n"
-                    f"⚔️ **Summoner**: 🐺 Amarok (Sentinel)\n"
+                    f"⚔️ **Summoner**: {bot_mention}\n"
                     f"⚖️ **Accused**: {interaction.user.mention}\n"
                     f"🎯 **Stake**: {pts} Points\n\n"
                     "⏳ Cast your vote below. Decision resolves when the timer concludes."
