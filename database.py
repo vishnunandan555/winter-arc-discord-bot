@@ -1604,7 +1604,92 @@ def get_user_daily_grind(discord_id: int, date_str: Optional[str] = None, db_pat
             SELECT * FROM grind_logs WHERE user_id = ? AND date = ?;
         """, (user["id"], target_date))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if row:
+            res = dict(row)
+            res["points"] = res["points_awarded"]
+            return res
+        return None
+
+
+def cap_user_grind(discord_id: int, date_str: Optional[str] = None, reason: str = "Cap confirmed", db_path: str = DB_PATH) -> Optional[Dict[str, Any]]:
+    """Zeroes out grind points for a user on date_str and marks verdict as CAPPED."""
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return None
+    target_date = date_str or get_today_str()
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, points_awarded, raw_input, key_learning FROM grind_logs WHERE user_id = ? AND date = ?;", (user["id"], target_date))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        old_points = row["points_awarded"]
+        cursor.execute("""
+            UPDATE grind_logs
+            SET points_awarded = 0, verdict = 'CAPPED', commentary = ?
+            WHERE id = ?;
+        """, (f"[CAPPED]: {reason}", row["id"]))
+        conn.commit()
+        return {
+            "grind_id": row["id"],
+            "old_points": old_points,
+            "date": target_date,
+            "user_id": user["id"],
+            "raw_input": row["raw_input"],
+            "key_learning": row["key_learning"]
+        }
+
+
+def set_grind_probation(discord_id: int, days: Optional[int] = None, db_path: str = DB_PATH) -> str:
+    """Sets grind probation for a user. If days is None or <=0, sets indefinite probation."""
+    from datetime import datetime, timedelta
+    from config import BOT_TZ
+    if days is not None and days > 0:
+        until_dt = datetime.now(BOT_TZ) + timedelta(days=days)
+        val = until_dt.isoformat()
+    else:
+        val = "INDEFINITE"
+    set_bot_state(f"grind_ban_{discord_id}", val, db_path=db_path)
+    return val
+
+
+def get_grind_probation(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """Checks if a user is currently on grind probation. Returns dict with is_blocked and remaining_days."""
+    from datetime import datetime
+    from config import BOT_TZ
+    val = get_bot_state(f"grind_ban_{discord_id}", db_path=db_path)
+    if not val:
+        return {"is_blocked": False, "remaining_days": None, "until_iso": None}
+
+    if val == "INDEFINITE":
+        return {"is_blocked": True, "remaining_days": None, "until_iso": "INDEFINITE"}
+
+    try:
+        until_dt = datetime.fromisoformat(val)
+        now = datetime.now(BOT_TZ)
+        if now < until_dt:
+            delta = until_dt - now
+            rem_days = max(1, delta.days + (1 if delta.seconds > 0 else 0))
+            return {
+                "is_blocked": True,
+                "remaining_days": rem_days,
+                "until_iso": val,
+                "until_dt": until_dt
+            }
+        else:
+            clear_grind_probation(discord_id, db_path=db_path)
+            return {"is_blocked": False, "remaining_days": None, "until_iso": None}
+    except Exception:
+        return {"is_blocked": False, "remaining_days": None, "until_iso": None}
+
+
+def clear_grind_probation(discord_id: int, db_path: str = DB_PATH) -> bool:
+    """Removes grind probation for a user."""
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_state WHERE key = ?;", (f"grind_ban_{discord_id}",))
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def get_daily_grind_highlights(date_str: str, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
@@ -2432,9 +2517,11 @@ def get_user_monthly_consistency(
         d_str = d_obj.isoformat()
 
         if d_obj == today:
-            pts = today_prog.get("total_points", 0)
-            is_perfect = today_prog.get("perfect_day", False)
-            if today_shielded:
+            summary_today = summaries.get(d_str, {})
+            pts = max(today_prog.get("total_points", 0), summary_today.get("points", 0))
+            is_perfect = today_prog.get("perfect_day", False) or bool(summary_today.get("perfect_day", 0))
+            is_shielded = today_shielded or bool(summary_today.get("is_shielded", 0))
+            if is_shielded:
                 status = "🛡️"
                 completed = True
             elif is_perfect:

@@ -225,6 +225,88 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         )
         await interaction.response.send_message(embed=embed)
 
+    @admin_group.command(name="grind", description="Manage a member's /grind access and disciplinary status.")
+    @app_commands.describe(
+        what="Choose whether to block or unlock /grind access",
+        member="The member to block or unlock",
+        days="Suspension duration in days (applicable only for block, optional)",
+        reason="Optional explanation for the action (omitted from message if blank)"
+    )
+    @app_commands.choices(what=[
+        app_commands.Choice(name="block", value="block"),
+        app_commands.Choice(name="unlock", value="unlock"),
+    ])
+    async def admin_grind(
+        self,
+        interaction: discord.Interaction,
+        what: app_commands.Choice[str],
+        member: discord.Member,
+        days: Optional[int] = None,
+        reason: Optional[str] = None
+    ):
+        if not interaction.guild:
+            await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+            return
+
+        settings = db.get_server_settings(interaction.guild.id)
+        channel_id = settings.get("channel_id")
+        target_channel = interaction.guild.get_channel(channel_id) if channel_id else interaction.channel
+
+        clean_reason = reason.strip() if reason and reason.strip() else None
+
+        if what.value == "block":
+            duration_days = days if (days and days > 0) else None
+            db.set_grind_probation(member.id, days=duration_days)
+            # Strip today's grind points if any
+            db.cap_user_grind(member.id)
+
+            duration_str = f"**Duration**: `{duration_days} day(s)`\n" if duration_days else "**Duration**: `Indefinite (until unlocked)`\n"
+            reason_str = f"**Reason**: *{clean_reason}*\n" if clean_reason else ""
+
+            embed = discord.Embed(
+                title="🚫 Grind Access Suspended",
+                description=(
+                    f"{member.mention} has had their `/grind` access suspended by server administration.\n\n"
+                    f"{duration_str}"
+                    f"{reason_str}\n"
+                    "Focus on the iron, the road, and pure discipline."
+                ),
+                color=0xE74C3C
+            )
+            embed.set_footer(text="Winter Arc Discipline & Integrity")
+
+            if target_channel:
+                await target_channel.send(embed=embed)
+
+            await interaction.response.send_message(
+                f"✅ Suspended `/grind` access for {member.mention}." + (f" ({duration_days} days)" if duration_days else " (indefinite)"),
+                ephemeral=True
+            )
+
+        elif what.value == "unlock":
+            db.clear_grind_probation(member.id)
+
+            reason_str = f"**Reason**: *{clean_reason}*\n" if clean_reason else ""
+
+            embed = discord.Embed(
+                title="🛡️ Grind Access Restored",
+                description=(
+                    f"{member.mention}'s `/grind` access has been restored.\n\n"
+                    f"{reason_str}\n"
+                    "Stay authentic, log true effort, and honor the code."
+                ),
+                color=0x2ECC71
+            )
+            embed.set_footer(text="Winter Arc Discipline & Integrity")
+
+            if target_channel:
+                await target_channel.send(embed=embed)
+
+            await interaction.response.send_message(
+                f"✅ Restored `/grind` access for {member.mention}.",
+                ephemeral=True
+            )
+
     @admin_group.command(name="sync", description="Synchronize and deduplicate slash commands.")
     @app_commands.describe(clean="Clear guild-scoped duplicate commands and rely on global commands (default: True)")
     async def admin_sync(self, interaction: discord.Interaction, clean: bool = True):

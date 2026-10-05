@@ -196,7 +196,7 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
 
     title_text = f"📆 Winter Arc — {month_name} Standings"
     if is_phase_month:
-        title_text = f"{curr_phase['badge']} Winter Arc — {curr_phase['name']} ({month_name})"
+        title_text = f"{curr_phase['badge']} Winter Arc — {curr_phase['name']} Standings ({month_name})"
 
     embed = discord.Embed(
         title=title_text,
@@ -716,7 +716,15 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep technical study).\n"
                 "• **Reward**: Up to **+60 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
                 "• **Example**: `/grind text: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
-                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Casual reading or passive browsing gets roasted."
+                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Buzzword bingo without code or friction is capped or roasted."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="⚖️ `/callcap [target]` — Community Council Verification",
+            value=(
+                "Challenge a suspect `/grind` claim. Triggers an ephemeral Honor Code verification prompt, then initiates a 10-minute public Council poll in the channel.\n"
+                "If the brotherhood confirms cap, the suspect's grind points for today are stripped."
             ),
             inline=False
         )
@@ -848,7 +856,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• `/admin tasks_list` — List all challenge disciplines in the database.\n"
                 "• `/admin task_add` — Add a new discipline with custom targets, units, and point limits.\n"
-                "• `/admin task_toggle` — Temporarily enable or disable an existing discipline."
+                "• `/admin task_toggle` — Temporarily enable or disable an existing discipline.\n"
+                "• `/admin grind [what] [member] [days] [reason]` — Disciplinary control: block or unlock a member's `/grind` access."
             ),
             inline=False
         )
@@ -1517,7 +1526,7 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
 
 
 def format_grind_reply(result: Dict[str, Any]) -> str:
-    """Formats /grind evaluation as a casual conversational Discord message reply."""
+    """Formats /grind evaluation as a casual conversational Discord message reply in Amarok's voice."""
     commentary = (result.get("commentary") or "Session logged.").strip()
     pts = int(result.get("points", 0))
     learning = result.get("key_learning")

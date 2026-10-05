@@ -7,6 +7,7 @@ Contains interactive views such as LeaderboardView with Daily / Overall tabs.
 from __future__ import annotations
 
 import logging
+import random
 from typing import Any, Optional, Dict, List, Union
 import discord
 import database as db
@@ -488,6 +489,299 @@ class NukeConfirmView(RobustView):
         from helpers import auto_dismiss_ephemeral
         import asyncio
         asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
+
+# ==========================================
+# Council & Call-Cap Governance Assets & Views
+# ==========================================
+
+COUNCIL_SUMMONED_GIFS: List[str] = [
+    "https://media.tenor.com/DP615vqUzeAAAAAM/ace-attorney-phoenix-wright.gif",
+    "https://media.tenor.com/9aSgH93prb8AAAAM/higuruma-meme-jjk.gif",
+    "https://media.tenor.com/W_FsaAqZ2YkAAAAM/phoenix-wright-ace-attorney.gif",
+    "https://media.tenor.com/bm3kkN80t90AAAAM/caption-courtroom-anime.gif",
+    "https://media.tenor.com/JiStbOAbFwIAAAAM/side-eye-hmm.gif",
+    "https://media.tenor.com/1lxTZHxvQUsAAAAM/anakin-skywalker-star-wars-revenge-of-the-sith.gif",
+    "https://media.tenor.com/aGj-frNYMFEAAAAM/cat-cat-dance.gif",
+    "https://media.tenor.com/UAHUJ7LSK2AAAAAM/galactic-republic-flag.gif",
+    "https://media.tenor.com/znGPVdu2GR8AAAAM/eating-ramen-noodles.gif",
+    "https://media.tenor.com/YhGD-tzR3KAAAAAM/tea-spill-the-tea.gif",
+    "https://media.tenor.com/aLGLTuVa5wAAAAAM/tenor.gif",
+    "https://media.tenor.com/XHiHKmWWf9gAAAAM/boring-unimpressed.gif",
+    "https://media.tenor.com/ZF_NNP-7O_AAAAAj/hmm.gif",
+    "https://media.tenor.com/jz-K9VgBqPMAAAAj/buha-821-buha.gif",
+]
+
+CAP_CONFIRMED_GIFS: List[str] = [
+    "https://media.tenor.com/NeubPwLVK94AAAAM/ace-attorney-phoenix-wright.gif",
+    "https://media.tenor.com/XfxU1QnRpWcAAAAM/oh-my-god-bruh-jjk.gif",
+    "https://media.tenor.com/B0piVWUiKaUAAAAM/patrick-drooling-patrick-star.gif",
+    "https://media.tenor.com/FsNeRoz6apcAAAAM/st-paddys-day-2023.gif",
+    "https://media.tenor.com/I50TI2DmFXIAAAAM/yuji-stare-yuji-itadori.gif",
+    "https://media.tenor.com/Czj7xHpjdQwAAAAM/raven-walk.gif",
+    "https://media.tenor.com/-FOSoTZ8KWoAAAAj/son.gif",
+    "https://media.tenor.com/FhI8aEMJxdUAAAAj/emoji-emoji-meme.gif",
+    "https://media.tenor.com/89jKLhtbnmIAAAAj/really-sus.gif",
+    "https://media.tenor.com/8BvIvPhOJDYAAAAj/doink.gif",
+    "https://media.tenor.com/3Q0GX4tlKoEAAAAj/no.gif",
+    "https://media.tenor.com/cMN5uVyHkysAAAAj/anderstand.gif",
+    "https://media.tenor.com/lY7VOhEjpTEAAAAM/angry.gif",
+    "https://media.tenor.com/HXHCV0LpqNAAAAAM/hilarious-so-funny.gif",
+]
+
+LEGIT_VERIFIED_GIFS: List[str] = [
+    "https://media.tenor.com/DcdpcwgX8nMAAAAM/lacucu.gif",
+    "https://media.tenor.com/93mTZ4pPjI0AAAAM/crazy-seal-seal.gif",
+    "https://media.tenor.com/CV8ObVxsVvQAAAAM/hello-jjk.gif",
+    "https://media.tenor.com/peucjgy5sEoAAAAM/euphonium-anime-thumbs-up.gif",
+    "https://media.tenor.com/4p8ils6cSY4AAAAj/vvh157309.gif",
+    "https://media.tenor.com/gotOLnyvy4YAAAAM/bubu-dancing-dance.gif",
+    "https://media.tenor.com/T4Tq9zOHmdIAAAAj/joinha-sla.gif",
+    "https://media.tenor.com/-HLjKV1b6YIAAAAj/yellow.gif",
+    "https://media.tenor.com/ZA03JtK4SwoAAAAM/ghost-ghost-game.gif",
+    "https://media.tenor.com/-ighVtBUFCAAAAAM/hampter-my-honest-reaction.gif",
+]
+
+
+class CouncilVotingView(RobustView):
+    """
+    Public voting view for Council verification when a member calls cap on a grind log.
+    Allows enrolled members to vote 'He's Capping' or 'Legit'. Resolves at timer conclusion.
+    """
+    active_trials: set[int] = set()
+
+    def __init__(
+        self,
+        accused: Union[discord.User, discord.Member],
+        challenger: Union[discord.User, discord.Member],
+        grind_entry: dict,
+        timeout: float = 600.0
+    ):
+        super().__init__(timeout=timeout)
+        self.accused = accused
+        self.challenger = challenger
+        self.grind_entry = grind_entry
+        self.capping_votes: set[int] = set()
+        self.legit_votes: set[int] = set()
+        self.message: Optional[discord.Message] = None
+
+    def _sync_labels(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "vote_cap":
+                    child.label = f"🧢 He's Capping ({len(self.capping_votes)})"
+                elif child.custom_id == "vote_legit":
+                    child.label = f"✅ Legit ({len(self.legit_votes)})"
+
+    async def _guard_voter(self, interaction: discord.Interaction) -> bool:
+        if self.is_finished():
+            await interaction.response.send_message("⚖️ Voting for this trial has already concluded.", ephemeral=True)
+            return False
+
+        if interaction.user.id == self.accused.id:
+            await interaction.response.send_message(
+                "Nice try, you can't vote on your own trial! Let the council decide.",
+                ephemeral=True
+            )
+            return False
+
+        if not db.is_user_enrolled(interaction.user.id):
+            await interaction.response.send_message(
+                "❌ Only enrolled Winter Arc members can vote on Council trials.",
+                ephemeral=True
+            )
+            return False
+
+        return True
+
+    @discord.ui.button(label="🧢 He's Capping (0)", style=discord.ButtonStyle.secondary, custom_id="vote_cap")
+    async def vote_cap_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_voter(interaction):
+            return
+
+        user_id = interaction.user.id
+        if user_id in self.capping_votes:
+            await interaction.response.send_message("🗳️ You have already cast your vote as **He's Capping**.", ephemeral=True)
+            return
+
+        self.legit_votes.discard(user_id)
+        self.capping_votes.add(user_id)
+        self._sync_labels()
+
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send("🗳️ Vote recorded: **He's Capping** 🧢", ephemeral=True)
+
+    @discord.ui.button(label="✅ Legit (0)", style=discord.ButtonStyle.secondary, custom_id="vote_legit")
+    async def vote_legit_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_voter(interaction):
+            return
+
+        user_id = interaction.user.id
+        if user_id in self.legit_votes:
+            await interaction.response.send_message("🗳️ You have already cast your vote as **Legit**.", ephemeral=True)
+            return
+
+        self.capping_votes.discard(user_id)
+        self.legit_votes.add(user_id)
+        self._sync_labels()
+
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send("🗳️ Vote recorded: **Legit** ✅", ephemeral=True)
+
+    async def on_timeout(self) -> None:
+        CouncilVotingView.active_trials.discard(self.accused.id)
+
+        for child in self.children:
+            child.disabled = True
+
+        capping_count = len(self.capping_votes)
+        legit_count = len(self.legit_votes)
+        points = self.grind_entry.get("points", 0)
+
+        # Disable buttons on the original message
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except Exception as e:
+                logger.warning(f"Could not disable council voting view buttons on timeout: {e}")
+
+        channel = self.message.channel if self.message else None
+        if not channel:
+            return
+
+        if capping_count > legit_count:
+            # Cap confirmed: zero out today's points
+            db.cap_user_grind(self.accused.id)
+            gif = random.choice(CAP_CONFIRMED_GIFS)
+            embed = discord.Embed(
+                title="⚖️ Council Verdict: CAP CONFIRMED",
+                description=(
+                    f"The Council has spoken: **{capping_count} Capping** vs **{legit_count} Legit**.\n\n"
+                    f"{self.accused.mention}'s grind points for today (`{points} pts`) have been **stripped**.\n"
+                    "Authenticity and sweat are the bedrock of the Winter Arc. No shortcuts."
+                ),
+                color=0xE74C3C
+            )
+            embed.set_image(url=gif)
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to post cap confirmed resolution: {e}")
+
+        elif legit_count > capping_count:
+            # Legit verified: points stand
+            gif = random.choice(LEGIT_VERIFIED_GIFS)
+            embed = discord.Embed(
+                title="⚖️ Council Verdict: GRIND LEGIT",
+                description=(
+                    f"The Council has spoken: **{legit_count} Legit** vs **{capping_count} Capping**.\n\n"
+                    f"{self.accused.mention}'s daily grind has been verified by the brotherhood.\n"
+                    f"Their **`{points} pts` stand**.\n\n"
+                    "Stay disciplined and keep grinding."
+                ),
+                color=0x2ECC71
+            )
+            embed.set_image(url=gif)
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to post legit verified resolution: {e}")
+
+        else:
+            # Tie or 0:0 inconclusive
+            embed = discord.Embed(
+                title="⚖️ Council Review Dismissed: TIE / INCONCLUSIVE",
+                description=(
+                    f"The Council review concluded in a tie (`{capping_count}` - `{legit_count}`).\n\n"
+                    f"Allegations were inconclusive. The trial is dismissed and {self.accused.mention} retains their `{points} pts`."
+                ),
+                color=0xF1C40F
+            )
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to post council tie resolution: {e}")
+
+
+class CallCapConfirmView(RobustView):
+    """
+    Ephemeral confirmation view presented to a challenger before summoning the Council.
+    Enforces the Winter Arc Honor Code against petty rivalry.
+    """
+    def __init__(
+        self,
+        challenger: Union[discord.User, discord.Member],
+        target: Union[discord.User, discord.Member],
+        grind_entry: dict
+    ):
+        super().__init__(timeout=120.0)
+        self.challenger = challenger
+        self.target = target
+        self.grind_entry = grind_entry
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.challenger.id:
+            await interaction.response.send_message("❌ This confirmation prompt is private to the challenger.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="⚔️ Yes, Summon Council", style=discord.ButtonStyle.danger, custom_id="btn_confirm_summon")
+    async def confirm_summon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="⚔️ **The Council has been summoned.** Voting is now active in the channel.", view=self)
+
+        CouncilVotingView.active_trials.add(self.target.id)
+
+        channel = interaction.channel
+        if interaction.guild:
+            settings = db.get_server_settings(interaction.guild.id)
+            ch_id = settings.get("channel_id")
+            if ch_id:
+                ch = interaction.guild.get_channel(ch_id)
+                if ch:
+                    channel = ch
+
+        if not channel:
+            return
+
+        role_id = settings.get("role_id") if interaction.guild else None
+        role_ping = f"<@&{role_id}> " if role_id else ""
+
+        content = (
+            f"{role_ping}🚨 **The Council Has Been Summoned** 🚨\n\n"
+            f"*{self.challenger.mention} has called cap on {self.target.mention}'s grind log of*\n"
+            f"```{log_text}```\n"
+            f"*worth {points} points.*\n\n"
+            f"⚔️ **Summoner**: {self.challenger.mention}\n"
+            f"⚖️ **Accused**: {self.target.mention}\n"
+            f"🎯 **Stake**: {points} Points\n\n"
+            "⏳ Cast your vote below. Decision resolves when the timer concludes."
+        )
+
+        gif_url = random.choice(COUNCIL_SUMMONED_GIFS)
+        gif_embed = discord.Embed(color=0xE74C3C)
+        gif_embed.set_image(url=gif_url)
+
+        voting_view = CouncilVotingView(
+            accused=self.target,
+            challenger=self.challenger,
+            grind_entry=self.grind_entry,
+            timeout=600.0
+        )
+
+        try:
+            msg = await channel.send(content=content, embed=gif_embed, view=voting_view)
+            voting_view.message = msg
+        except Exception as e:
+            logger.error(f"Failed to post Council summon message in channel {channel.id}: {e}", exc_info=True)
+
+    @discord.ui.button(label="❌ No, Stand Down", style=discord.ButtonStyle.secondary, custom_id="btn_cancel_summon")
+    async def cancel_summon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="🛡️ **Stand down confirmed.** The Council was not summoned.", view=self)
+
 
 
 

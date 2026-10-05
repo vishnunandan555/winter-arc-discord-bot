@@ -28,17 +28,18 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
             cmd_names = {c.name for c in commands}
 
             expected_cmds = {
-                "admin", "enroll", "grind", "help", "history",
+                "admin", "callcap", "enroll", "grind", "help", "history",
                 "leaderboard", "leave_arc", "log", "nuke", "ping", "profile", "quick",
                 "ranks", "recap", "set", "settings", "shield", "stats", "streak",
                 "tasks", "test_reminder", "today"
             }
             self.assertTrue(expected_cmds.issubset(cmd_names), f"Missing commands: {expected_cmds - cmd_names}")
-            self.assertEqual(len(commands), 22)
+            self.assertEqual(len(commands), 23)
 
             admin_cmd = next(c for c in commands if c.name == "admin")
             subcmd_names = {sc.name for sc in admin_cmd.commands}
             self.assertIn("sync", subcmd_names)
+            self.assertIn("grind", subcmd_names)
 
         asyncio.run(verify_bot_cogs())
 

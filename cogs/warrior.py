@@ -63,7 +63,17 @@ from ui.embeds import (
     build_quick_streak_embed,
     STREAK_LEGEND_SUBTEXT,
 )
-from ui.views import LeaderboardView, SettingsView, HelpView, RecapView, ServerRecordsView, StreakConsistencyView
+from ui.views import (
+    LeaderboardView,
+    SettingsView,
+    HelpView,
+    RecapView,
+    ServerRecordsView,
+    StreakConsistencyView,
+    CallCapConfirmView,
+    CouncilVotingView,
+    COUNCIL_SUMMONED_GIFS,
+)
 from ai import gemini_service, groq_service
 from tips import dispatch_tip
 
@@ -910,6 +920,18 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if not await require_enrolled(interaction):
             return
 
+        # Check disciplinary probation
+        probation = db.get_grind_probation(interaction.user.id)
+        if probation["is_blocked"]:
+            rem = probation["remaining_days"]
+            days_str = f" for **{rem} more day(s)**" if rem else ""
+            await interaction.response.send_message(
+                f"🚫 **Access Suspended**: Your `/grind` access has been locked{days_str} by an admin.\n"
+                "Focus on your core physical disciplines.",
+                ephemeral=True
+            )
+            return
+
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
 
@@ -976,6 +998,44 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         elif evaluation["verdict"] == "ROASTED":
             await safe_react(interaction, "🔥", "💀")
 
+            # AI flagged buzzwords/fluff: summon the Council directly after the reply!
+            if interaction.guild and interaction.channel and interaction.user.id not in CouncilVotingView.active_trials:
+                settings = db.get_server_settings(interaction.guild.id)
+                role_id = settings.get("role_id")
+                role_ping = f"<@&{role_id}> " if role_id else ""
+                pts = evaluation["points"]
+
+                council_content = (
+                    f"{role_ping}🚨 **The Council Has Been Summoned** 🚨\n\n"
+                    f"*Amarok has called cap on {interaction.user.mention}'s grind log of*\n"
+                    f"```{text}```\n"
+                    f"*worth {pts} points.*\n\n"
+                    f"⚔️ **Summoner**: 🐺 Amarok (Sentinel)\n"
+                    f"⚖️ **Accused**: {interaction.user.mention}\n"
+                    f"🎯 **Stake**: {pts} Points\n\n"
+                    "⏳ Cast your vote below. Decision resolves when the timer concludes."
+                )
+
+                import random
+                gif_url = random.choice(COUNCIL_SUMMONED_GIFS)
+                gif_embed = discord.Embed(color=0xE74C3C)
+                gif_embed.set_image(url=gif_url)
+
+                voting_view = CouncilVotingView(
+                    accused=interaction.user,
+                    challenger=self.bot.user,
+                    grind_entry={"raw_input": text, "points": pts},
+                    timeout=600.0
+                )
+                CouncilVotingView.active_trials.add(interaction.user.id)
+
+                try:
+                    msg = await interaction.channel.send(content=council_content, embed=gif_embed, view=voting_view)
+                    voting_view.message = msg
+                except Exception as e:
+                    logger.error(f"Failed to post AI-summoned Council trial: {e}", exc_info=True)
+                    CouncilVotingView.active_trials.discard(interaction.user.id)
+
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
         )
@@ -989,6 +1049,66 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 extra_info=f"Deep work grind logged ({evaluation.get('verdict')}: +{evaluation.get('points')} pts - {evaluation.get('key_learning')})",
                 command_output=reply_msg
             )
+        )
+
+    @app_commands.command(name="callcap", description="Challenge a member's daily grind log and summon the Council.")
+    @app_commands.describe(target="The member whose grind log you want to challenge")
+    async def callcap_cmd(self, interaction: discord.Interaction, target: discord.Member):
+        logger.info(f"Slash command '/callcap' invoked by {interaction.user} against {target}")
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This command must be used within a server text channel.", ephemeral=True)
+            return
+
+        if not await require_enrolled(interaction):
+            return
+
+        if target.id in CouncilVotingView.active_trials:
+            await interaction.response.send_message(f"⏳ A Council trial is already active for {target.mention}.", ephemeral=True)
+            return
+
+        if target.id == interaction.user.id:
+            await interaction.response.send_message("❌ You cannot call cap on yourself!", ephemeral=True)
+            return
+
+        if not db.is_user_enrolled(target.id):
+            await interaction.response.send_message(f"❌ {target.mention} is not currently enrolled in Winter Arc.", ephemeral=True)
+            return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        grind_entry = db.get_user_daily_grind(target.id, today_str)
+        if not grind_entry:
+            await interaction.response.send_message(f"❌ {target.mention} has not logged a `/grind` entry today.", ephemeral=True)
+            return
+
+        if grind_entry.get("points", 0) <= 0:
+            await interaction.response.send_message(f"❌ {target.mention}'s grind log has 0 points (already rejected or capped).", ephemeral=True)
+            return
+
+        snippet = grind_entry["raw_input"]
+        if len(snippet) > 200:
+            snippet = snippet[:197] + "..."
+        pts = grind_entry["points"]
+
+        prompt_text = (
+            "🛡️ **Winter Arc — Council Summoning Verification**\n\n"
+            f"**Accused**: {target.mention}\n"
+            f'**Claimed Log**: *"{snippet}"*\n'
+            f"**Points at Stake**: {pts} pts\n\n"
+            "Are you certain this log is not legit and wish to summon a formal Council vote?\n\n"
+            "📜 **Honor Code Notice**:\n"
+            '> *"Bringing down brothers out of jealousy or petty rivalry is against the philosophy of Winter Arc. A warrior of honor does not abuse the Council."*'
+        )
+
+        view = CallCapConfirmView(
+            challenger=interaction.user,
+            target=target,
+            grind_entry=grind_entry
+        )
+
+        await interaction.response.send_message(
+            content=prompt_text,
+            view=view,
+            ephemeral=True
         )
 
     @app_commands.command(name="quick", description="Natural language workout logging (e.g. 'did 45 pushups and ran 5k').")
