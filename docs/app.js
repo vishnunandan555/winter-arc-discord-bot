@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDiscordSimulator();
   initCommandDirectory();
   initHostingPlatformTabs();
+  initWispbyteMethodTabs();
   initCopyEngine();
 });
 
@@ -323,6 +324,35 @@ function initHostingPlatformTabs() {
 
       const targetId = btn.getAttribute('data-target');
       platPanels.forEach(panel => {
+        panel.classList.remove('active');
+        if (panel.id === targetId) {
+          panel.classList.add('active');
+        }
+      });
+    });
+  });
+}
+
+/**
+ * Wispbyte Deployment Method Sub-Tabs Controller
+ */
+function initWispbyteMethodTabs() {
+  const methodTabs = document.querySelectorAll('.method-tab-btn');
+  const methodPanels = document.querySelectorAll('.method-panel');
+
+  if (!methodTabs.length || !methodPanels.length) return;
+
+  methodTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      methodTabs.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+
+      const targetId = btn.getAttribute('data-method');
+      methodPanels.forEach(panel => {
         panel.classList.remove('active');
         if (panel.id === targetId) {
           panel.classList.add('active');

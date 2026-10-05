@@ -1816,51 +1816,121 @@ GROQ_API_KEY=your_groq_api_key_here</code></pre>
             <div class="plat-inner">
               <h4 class="plat-heading">Deploying on Wispbyte (or any Pterodactyl Panel)</h4>
               <p class="plat-desc">
-                Wispbyte provides low-cost or free 24/7 Discord bot server containers running Python with automatic restart on crash and web console monitoring.
+                Wispbyte provides low-cost 24/7 Discord bot server containers running Python with automatic crash recovery, web console monitoring, and integrated Git deployment. Select your preferred deployment method below:
               </p>
-              
-              <div class="guide-steps-list">
-                <div class="guide-step-row">
-                  <div class="row-num">1</div>
-                  <div class="row-content">
-                    <strong>Create a Python Server</strong>
-                    <p>In the Wispbyte dashboard, select <strong>Create Server</strong> and choose the <strong>Python / Generic Bot</strong> egg (Python 3.11+ recommended).</p>
-                  </div>
-                </div>
 
-                <div class="guide-step-row">
-                  <div class="row-num">2</div>
-                  <div class="row-content">
-                    <strong>Upload or Pull Code</strong>
-                    <p>Under <strong>File Manager</strong> or <strong>Git Integration</strong>, clone your repository or upload the files including <code>requirements.txt</code>, <code>bot.py</code>, and subdirectories (<code>cogs/</code>, <code>ui/</code>, <code>ai/</code>).</p>
-                  </div>
-                </div>
+              <!-- Deployment Strategy Sub-Tabs -->
+              <div class="method-tabs" role="tablist" aria-label="Wispbyte Deployment Strategy">
+                <button class="method-tab-btn active" data-method="wisp-method-git" role="tab" aria-selected="true">
+                  <span class="method-pill rec">Recommended</span>
+                  <span>Method 1: Direct GitHub Integration (Auto-Pull)</span>
+                </button>
+                <button class="method-tab-btn" data-method="wisp-method-zip" role="tab" aria-selected="false">
+                  <span class="method-pill classic">Classic</span>
+                  <span>Method 2: Standalone ZIP Archive (bot_deploy.zip)</span>
+                </button>
+              </div>
 
-                <div class="guide-step-row">
-                  <div class="row-num">3</div>
-                  <div class="row-content">
-                    <strong>Install Dependencies</strong>
-                    <p>Run pip installation in the web terminal console:</p>
-                    <div class="code-block">
-                      <button class="copy-btn" data-copy="pip install -r requirements.txt">Copy</button>
-                      <pre><code>pip install -r requirements.txt</code></pre>
+              <!-- Method 1: GitHub Integration (New & Recommended) -->
+              <div class="method-panel active" id="wisp-method-git" role="tabpanel">
+                <div class="guide-steps-list">
+                  <div class="guide-step-row">
+                    <div class="row-num">1</div>
+                    <div class="row-content">
+                      <strong>Create a Python Server</strong>
+                      <p>In your Wispbyte dashboard, select <strong>Create Server</strong> and choose the <strong>Python / Generic Bot</strong> egg (Python 3.11+ recommended).</p>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">2</div>
+                    <div class="row-content">
+                      <strong>Configure GitHub Settings</strong>
+                      <p>Navigate to the <strong>GitHub Integration</strong> tab in your server sidebar and configure your repository fields:</p>
+                      <ul style="margin: 0.6rem 0 0.6rem 1.25rem; font-size: 0.92rem; color: var(--text-muted); line-height: 1.6;">
+                        <li><strong>Repository URL</strong>: Enter your GitHub repository (e.g. <code>https://github.com/vishnunandan555/winter-arc-discord-bot</code>)</li>
+                        <li><strong>Branch</strong>: <code>main</code></li>
+                        <li><strong>Authentication</strong>: Leave blank for public repositories. <em>(Only needed for private repos: enter your GitHub Username and a Personal Access Token with repo read scope)</em>.</li>
+                        <li><strong>Auto Update on Startup</strong>: Toggle <strong>ON</strong> to automatically pull new commits whenever your server boots or restarts.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">3</div>
+                    <div class="row-content">
+                      <strong>Clone the Repository</strong>
+                      <p>Click the <strong>Clone / Pull</strong> button near the top of the GitHub page. Wispbyte will clone your repository directly into the server directory.</p>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">4</div>
+                    <div class="row-content">
+                      <strong>Configure Secrets (.env) in File Manager</strong>
+                      <p>Git purposely ignores secret files like <code>.env</code> and databases (<code>*.db</code>) for security. Go to <strong>File Manager</strong> in your panel, click <strong>New File</strong>, and save your credentials as <code>.env</code>:</p>
+                      <div class="code-block">
+                        <button class="copy-btn" data-copy="DISCORD_TOKEN=your_token_here&#10;APPLICATION_ID=your_id_here&#10;PREFIX=!">Copy</button>
+                        <pre><code>DISCORD_TOKEN=your_token_here
+APPLICATION_ID=your_id_here
+PREFIX=!</code></pre>
+                      </div>
+                      <p style="margin-top: 0.6rem; font-size: 0.88rem; color: var(--accent-cyan);">Note: Live SQLite databases (<code>winter_arc.db</code>) are untracked by Git, so pulling new commits will never overwrite user streaks or data!</p>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">5</div>
+                    <div class="row-content">
+                      <strong>Verify Startup &amp; Launch Bot</strong>
+                      <p>In the <strong>Startup</strong> tab, ensure <strong>Startup Command</strong> is set to <code>python bot.py</code>. Then navigate to <strong>Console</strong> and click <strong>Start</strong>. The container installs dependencies from <code>requirements.txt</code> automatically and boots 24/7.</p>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div class="guide-step-row">
-                  <div class="row-num">4</div>
-                  <div class="row-content">
-                    <strong>Configure Startup &amp; .env</strong>
-                    <p>In the <strong>Startup</strong> tab: set <strong>Startup Command</strong> to <code>python bot.py</code>. In <strong>File Manager</strong>, create your <code>.env</code> file with your <code>DISCORD_TOKEN</code>.</p>
+              <!-- Method 2: Manual ZIP Archive (Classic) -->
+              <div class="method-panel" id="wisp-method-zip" role="tabpanel">
+                <div class="guide-steps-list">
+                  <div class="guide-step-row">
+                    <div class="row-num">1</div>
+                    <div class="row-content">
+                      <strong>Generate Production ZIP Bundle Locally</strong>
+                      <p>On your local computer inside the project root, run our automated packaging script:</p>
+                      <div class="code-block">
+                        <button class="copy-btn" data-copy="python create_deploy_zip.py">Copy</button>
+                        <pre><code>python create_deploy_zip.py</code></pre>
+                      </div>
+                      <p style="margin-top: 0.5rem; font-size: 0.88rem; color: var(--text-muted);">This packages all bot code, cogs, UI, and includes your local <code>.env</code> while automatically stripping databases (<code>*.db</code>), virtual environments, and caches (~130 KB).</p>
+                    </div>
                   </div>
-                </div>
 
-                <div class="guide-step-row">
-                  <div class="row-num">5</div>
-                  <div class="row-content">
-                    <strong>Start the Bot</strong>
-                    <p>Click <strong>Start</strong> on the console. The bot connects to Discord, synchronizes slash commands, and initializes <code>winter_arc.db</code> automatically.</p>
+                  <div class="guide-step-row">
+                    <div class="row-num">2</div>
+                    <div class="row-content">
+                      <strong>Upload &amp; Extract on Wispbyte</strong>
+                      <p>In your Wispbyte server's <strong>File Manager</strong>, click <strong>Upload</strong> and select <code>bot_deploy.zip</code>. Once uploaded, click the three dots icon next to the file and choose <strong>Unarchive / Extract</strong>.</p>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">3</div>
+                    <div class="row-content">
+                      <strong>Install Dependencies (If not automatic)</strong>
+                      <p>If your container does not auto-install packages on startup, open the web console and execute:</p>
+                      <div class="code-block">
+                        <button class="copy-btn" data-copy="pip install -r requirements.txt">Copy</button>
+                        <pre><code>pip install -r requirements.txt</code></pre>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="guide-step-row">
+                    <div class="row-num">4</div>
+                    <div class="row-content">
+                      <strong>Confirm Startup Command &amp; Start</strong>
+                      <p>Under the <strong>Startup</strong> tab, verify <strong>Startup Command</strong> is <code>python bot.py</code>. Click <strong>Start</strong> on the console. The bot initializes <code>winter_arc.db</code> automatically and connects to Discord!</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2245,7 +2315,7 @@ git push origin main
                 Yes. Winter Arc is engineered specifically for turnkey self-hosting:
               </p>
               <ul>
-                <li><strong>Wispbyte / Pterodactyl:</strong> Upload repository files to a Python Generic Bot container and set startup to <code>python bot.py</code>.</li>
+                <li><strong>Wispbyte / Pterodactyl:</strong> Direct GitHub repo pulling with auto-update on restart, or upload a pre-packaged <code>bot_deploy.zip</code> bundle.</li>
                 <li><strong>Linux VPS (Systemd):</strong> Run on Ubuntu/Debian using the included production systemd service definition.</li>
                 <li><strong>Docker:</strong> Run <code>docker compose up -d</code> with the included <code>Dockerfile</code> and <code>docker-compose.yml</code> for persistent SQLite storage.</li>
                 <li><strong>Render / Railway:</strong> Deploy as a continuous Background Worker process.</li>

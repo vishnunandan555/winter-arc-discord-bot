@@ -96,7 +96,7 @@ def should_include_file(file_path: Path) -> bool:
     return True
 
 
-def create_package():
+def create_package(include_db: bool = False):
     """Builds the deployment archive."""
     print("=" * 60)
     print("🚀 Winter Arc Bot - Packaging Deployment Bundle")
@@ -110,12 +110,29 @@ def create_package():
         except OSError as e:
             print(f"⚠️ Warning: Could not remove old zip: {e}")
 
+    # Checkpoint DB if bundling DB
+    if include_db:
+        db_file = ROOT_DIR / "winter_arc.db"
+        if db_file.exists():
+            import sqlite3
+            try:
+                conn = sqlite3.connect(str(db_file))
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                conn.close()
+                print("💾 Checkpointed winter_arc.db WAL into primary database file")
+            except Exception as e:
+                print(f"⚠️ Warning during WAL checkpoint: {e}")
+
     added_files = []
     total_uncompressed_bytes = 0
 
     with zipfile.ZipFile(OUTPUT_ZIP, "w", zipfile.ZIP_DEFLATED) as zipf:
         # Add root files
-        for filename in ROOT_FILES:
+        root_files_to_pack = list(ROOT_FILES)
+        if include_db:
+            root_files_to_pack.append("winter_arc.db")
+
+        for filename in root_files_to_pack:
             file_path = ROOT_DIR / filename
             if file_path.is_file():
                 arcname = filename
@@ -124,6 +141,8 @@ def create_package():
                 total_uncompressed_bytes += file_path.stat().st_size
                 if filename == ".env":
                     print("  🔒 Included .env (with hosting secrets)")
+                elif filename == "winter_arc.db":
+                    print("  🗄️ Included winter_arc.db (persisted member database)")
                 else:
                     print(f"  📄 Added {arcname}")
 
@@ -154,10 +173,14 @@ def create_package():
     print(f"📊 Total files packaged: {len(added_files)}")
     print(f"📦 Archive size: {zip_size_kb:.2f} KB ({zip_size_bytes:,} bytes)")
     print("🚫 Asset duplication: ZERO (assets/ & docs/ excluded)")
-    print("🚫 Temporary/DB files: ZERO (.venv, *.db, __pycache__ excluded)")
+    if include_db:
+        print("🗄️ Database included: YES (winter_arc.db packaged)")
+    else:
+        print("🚫 Temporary/DB files: ZERO (.venv, *.db, __pycache__ excluded)")
     print("=" * 60)
     print(f"👉 Ready to upload: {OUTPUT_ZIP.name}")
 
 
 if __name__ == "__main__":
-    create_package()
+    with_db = "--with-db" in sys.argv or "--include-db" in sys.argv
+    create_package(include_db=with_db)

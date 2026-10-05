@@ -26,20 +26,45 @@ Before deploying to any host:
 ## Part 2: Hosting the 24/7 Discord Bot Process
 
 ### Option A: Wispbyte / Pterodactyl Panel (Free/Low-cost 24/7)
-1. In the **Wispbyte Game/Bot Panel**, select **Create Server**.
-2. Choose the **Python / Generic Discord Bot** egg (Python 3.11+).
-3. Under **File Manager**:
-   - On your local machine, run `python create_deploy_zip.py` to create a lightweight `bot_deploy.zip` (~130 KB, includes `.env`, excludes caches & DBs).
-   - Upload `bot_deploy.zip` to the panel File Manager and click **Unarchive / Extract**.
-   - *(Alternatively, clone directly via the Git Integration tab).*
-4. Run dependency installation:
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. Configure startup and environment:
-   - **Startup Command**: `python bot.py`
-   - In **File Manager**, verify your `.env` contains your `DISCORD_TOKEN`, `NUKE_SECURITY_HASH`, etc.
-6. Click **Start** on the console. The bot will automatically connect to Discord, synchronize slash commands, and initialize `winter_arc.db`.
+
+Wispbyte provides low-cost 24/7 Discord bot server containers running Python with automatic restart on crash and web console monitoring. You can deploy using either the **New GitHub Auto-Pull Integration** (recommended) or the **Classic ZIP Bundle Upload**.
+
+#### Method 1: Direct GitHub Integration & Auto-Pull (New & Recommended)
+1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and pick the **Python / Generic Discord Bot** egg (Python 3.11+).
+2. **Configure GitHub Integration**:
+   - In your server sidebar, open the **GitHub Integration** tab.
+   - **Repository URL**: `https://github.com/vishnunandan555/winter-arc-discord-bot`
+   - **Branch**: `main`
+   - **Authentication**: Leave blank if the repository is public. *(If private, enter your GitHub Username and a Personal Access Token with repo read scope)*.
+   - **Auto Update on Startup**: Toggle **ON** so restarting your server automatically pulls the latest code.
+3. **Clone the Repo**: Click the **Clone / Pull** button at the top to sync files to your server container.
+4. **Configure Secrets (`.env`)**:
+   - Since `.gitignore` intentionally excludes `.env` and `*.db` for security, open **File Manager** in the panel.
+   - Create a `.env` file with your `DISCORD_TOKEN`, `APPLICATION_ID`, etc.
+   - *Note: Live SQLite databases (`winter_arc.db`) are ignored by Git, so pulling updates will never overwrite user progress or streaks.*
+5. **Verify Startup & Start**:
+   - In the **Startup** tab, ensure **Startup Command** is `python bot.py`.
+   - Click **Start** on the console. Dependencies install automatically from `requirements.txt` and the bot launches.
+
+#### Method 2: Manual ZIP Archive Deployment (`bot_deploy.zip`) (Classic)
+1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and choose the **Python / Generic Discord Bot** egg (Python 3.11+).
+2. **Package Locally**:
+   - Run the bundler script on your local machine:
+     ```bash
+     python create_deploy_zip.py
+     ```
+   - This builds an ultra-lean `bot_deploy.zip` (~130 KB) containing all code, cogs, AI services, and your `.env`, while stripping local databases and caches.
+3. **Upload & Extract**:
+   - Under **File Manager** on Wispbyte, upload `bot_deploy.zip`.
+   - Click the options menu on `bot_deploy.zip` and select **Unarchive / Extract**.
+4. **Install Dependencies**:
+   - In the web terminal console, run:
+     ```bash
+     pip install -r requirements.txt
+     ```
+5. **Verify Startup & Start**:
+   - In **Startup**, set **Startup Command** to `python bot.py`.
+   - Click **Start** on the console. The bot initializes `winter_arc.db` automatically and goes online.
 
 ---
 
