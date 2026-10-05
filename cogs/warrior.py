@@ -1025,7 +1025,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 voting_view = CouncilVotingView(
                     accused=interaction.user,
                     challenger=self.bot.user,
-                    grind_entry={"raw_input": text, "points": pts},
+                    grind_entry={"raw_input": text, "points": pts, "date": today_str},
                     timeout=600.0
                 )
                 CouncilVotingView.active_trials.add(interaction.user.id)

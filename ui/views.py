@@ -652,8 +652,9 @@ class CouncilVotingView(RobustView):
             return
 
         if capping_count > legit_count:
-            # Cap confirmed: zero out today's points
-            db.cap_user_grind(self.accused.id)
+            # Cap confirmed: zero out points for the challenged date
+            target_date = self.grind_entry.get("date")
+            db.cap_user_grind(self.accused.id, date_str=target_date)
             gif = random.choice(CAP_CONFIRMED_GIFS)
             embed = discord.Embed(
                 title="⚖️ Council Verdict: CAP CONFIRMED",

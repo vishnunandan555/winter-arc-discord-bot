@@ -1641,6 +1641,14 @@ def cap_user_grind(discord_id: int, date_str: Optional[str] = None, reason: str 
             SET points_awarded = 0, verdict = 'CAPPED', commentary = ?
             WHERE id = ?;
         """, (f"[CAPPED]: {reason}", row["id"]))
+
+        # If a finalized daily_summary already exists for this date, adjust its points
+        cursor.execute("""
+            UPDATE daily_summaries
+            SET points = MAX(0, points - ?)
+            WHERE user_id = ? AND date = ?;
+        """, (old_points, user["id"], target_date))
+
         conn.commit()
         return {
             "grind_id": row["id"],
