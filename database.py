@@ -193,6 +193,18 @@ def init_db(db_path: str = DB_PATH):
             );
         """)
 
+        # Safe migrations for grind_logs if table was created in an earlier build
+        grind_columns = [
+            ("points_awarded", "INTEGER DEFAULT 0"),
+            ("key_learning", "TEXT"),
+            ("commentary", "TEXT"),
+        ]
+        for col_name, col_def in grind_columns:
+            try:
+                cursor.execute(f"ALTER TABLE grind_logs ADD COLUMN {col_name} {col_def};")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
         # 8. Bot State table (persists scheduler triggers and operational state across restarts)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS bot_state (
