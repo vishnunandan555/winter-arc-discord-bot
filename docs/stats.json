@@ -1,11 +1,11 @@
 {
   "meta": {
-    "generated_at": "2026-09-19T15:37:20.823586+05:30",
-    "date_display": "Saturday, September 19, 2026",
-    "today_str": "2026-09-19",
+    "generated_at": "2026-10-05T21:25:55.966681+05:30",
+    "date_display": "Monday, October 05, 2026",
+    "today_str": "2026-10-05",
     "timezone": "Asia/Kolkata (IST)",
-    "total_warriors": 4,
-    "total_collective_points": 0,
+    "total_warriors": 3,
+    "total_collective_points": 55,
     "apex_threshold": 12000,
     "daily_point_cap": 500
   },
@@ -35,8 +35,8 @@
       "max_points": 100
     },
     {
-      "name": "Sit-ups",
-      "description": "Targets core and hip flexors (1 pt / rep)",
+      "name": "Pull-ups",
+      "description": "Works lats, upper back, and biceps (1 pt / rep)",
       "target": 100,
       "unit": "reps",
       "max_points": 100
@@ -49,39 +49,31 @@
       "max_points": 100
     },
     {
+      "name": "Sit-ups",
+      "description": "Targets core and hip flexors (1 pt / rep)",
+      "target": 100,
+      "unit": "reps",
+      "max_points": 100
+    },
+    {
       "name": "Running",
       "description": "Cardiovascular endurance (1 pt / 100m = 10 pts / km)",
       "target": 10,
       "unit": "km",
-      "max_points": 100
-    },
-    {
-      "name": "Pull-ups",
-      "description": "Works lats, upper back, and biceps (1 pt / rep)",
-      "target": 100,
-      "unit": "reps",
       "max_points": 100
     }
   ],
   "daily_standings": [
     {
       "rank": 1,
-      "username": "Test",
-      "points": 0,
+      "username": "ssstrang3rrr",
+      "points": 55,
       "max_points": 500,
-      "completion_rate": 0.0,
+      "completion_rate": 11.0,
       "perfect_day": false
     },
     {
       "rank": 2,
-      "username": "SKL",
-      "points": 0,
-      "max_points": 500,
-      "completion_rate": 0.0,
-      "perfect_day": false
-    },
-    {
-      "rank": 3,
       "username": "flugel198",
       "points": 0,
       "max_points": 500,
@@ -89,8 +81,8 @@
       "perfect_day": false
     },
     {
-      "rank": 4,
-      "username": "ssstrang3rrr",
+      "rank": 3,
+      "username": "darkmatter3625",
       "points": 0,
       "max_points": 500,
       "completion_rate": 0.0,
@@ -100,38 +92,22 @@
   "overall_standings": [
     {
       "rank": 1,
-      "discord_id": "12345",
-      "username": "Test",
-      "total_points": 0,
-      "streak": 0,
+      "discord_id": "691485824805503056",
+      "username": "ssstrang3rrr",
+      "total_points": 55,
+      "streak": 1,
       "perfect_days": 0,
-      "recorded_days": 0,
+      "recorded_days": 2,
       "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
+      "title": "Initiate",
+      "badge": "\ud83e\udd49",
       "color": "0x7f8c8d",
-      "tier_pct": 0,
-      "pts_to_next": 500,
-      "arc_pct": 0.0
+      "tier_pct": 11,
+      "pts_to_next": 445,
+      "arc_pct": 0.5
     },
     {
       "rank": 2,
-      "discord_id": "99999",
-      "username": "SKL",
-      "total_points": 0,
-      "streak": 0,
-      "perfect_days": 0,
-      "recorded_days": 0,
-      "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
-      "color": "0x7f8c8d",
-      "tier_pct": 0,
-      "pts_to_next": 500,
-      "arc_pct": 0.0
-    },
-    {
-      "rank": 3,
       "discord_id": "716168018836848690",
       "username": "flugel198",
       "total_points": 0,
@@ -139,24 +115,24 @@
       "perfect_days": 0,
       "recorded_days": 0,
       "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
+      "title": "Initiate",
+      "badge": "\ud83e\udd49",
       "color": "0x7f8c8d",
       "tier_pct": 0,
       "pts_to_next": 500,
       "arc_pct": 0.0
     },
     {
-      "rank": 4,
-      "discord_id": "691485824805503056",
-      "username": "ssstrang3rrr",
+      "rank": 3,
+      "discord_id": "943123711366692874",
+      "username": "darkmatter3625",
       "total_points": 0,
       "streak": 0,
       "perfect_days": 0,
       "recorded_days": 0,
       "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
+      "title": "Initiate",
+      "badge": "\ud83e\udd49",
       "color": "0x7f8c8d",
       "tier_pct": 0,
       "pts_to_next": 500,
@@ -166,56 +142,56 @@
   "ranks": [
     {
       "level": 1,
-      "title": "Lone Stray",
-      "badge": "\ud83d\udc3e",
+      "title": "Initiate",
+      "badge": "\ud83e\udd49",
       "min_pts": 0,
       "max_pts": 499,
       "color": "0x7f8c8d"
     },
     {
       "level": 2,
-      "title": "Stray",
-      "badge": "\ud83d\udc3a",
+      "title": "Novice",
+      "badge": "\ud83e\udd49",
       "min_pts": 500,
       "max_pts": 1199,
       "color": "0x95a5a6"
     },
     {
       "level": 3,
-      "title": "Scout",
-      "badge": "\ud83e\udded",
+      "title": "Challenger",
+      "badge": "\ud83e\udd48",
       "min_pts": 1200,
       "max_pts": 1999,
       "color": "0x3498db"
     },
     {
       "level": 4,
-      "title": "Prowler",
-      "badge": "\ud83d\udc3e",
+      "title": "Dedicated",
+      "badge": "\ud83e\udd48",
       "min_pts": 2000,
       "max_pts": 2999,
       "color": "0x2980b9"
     },
     {
       "level": 5,
-      "title": "Tracker",
-      "badge": "\ud83c\udff9",
+      "title": "Disciplined",
+      "badge": "\ud83e\udd47",
       "min_pts": 3000,
       "max_pts": 4199,
       "color": "0x1abc9c"
     },
     {
       "level": 6,
-      "title": "Hunter",
-      "badge": "\ud83d\udde1\ufe0f",
+      "title": "Hardened",
+      "badge": "\ud83e\udd47",
       "min_pts": 4200,
       "max_pts": 5499,
       "color": "0x16a085"
     },
     {
       "level": 7,
-      "title": "Savage",
-      "badge": "\u2694\ufe0f",
+      "title": "Iron",
+      "badge": "\u26a1",
       "min_pts": 5500,
       "max_pts": 6999,
       "color": "0xe67e22"
@@ -230,7 +206,7 @@
     },
     {
       "level": 9,
-      "title": "Frostborn",
+      "title": "Relentless",
       "badge": "\u2744\ufe0f",
       "min_pts": 8500,
       "max_pts": 9799,
@@ -238,28 +214,36 @@
     },
     {
       "level": 10,
-      "title": "Predator",
-      "badge": "\u26a1",
+      "title": "Veteran",
+      "badge": "\ud83d\udd25",
       "min_pts": 9800,
       "max_pts": 10799,
-      "color": "0x9b59b6"
+      "color": "0xe74c3c"
     },
     {
       "level": 11,
-      "title": "Alpha",
-      "badge": "\ud83d\udd25",
+      "title": "Master",
+      "badge": "\ud83d\udc51",
       "min_pts": 10800,
       "max_pts": 11999,
-      "color": "0xe74c3c"
+      "color": "0xf1c40f"
     },
     {
       "level": 12,
       "title": "Apex",
-      "badge": "\ud83d\udc51",
+      "badge": "\ud83d\udc8e",
       "min_pts": 12000,
       "max_pts": null,
-      "color": "0xf1c40f"
+      "color": "0x9b59b6"
     }
   ],
-  "academic_highlights": []
+  "academic_highlights": [
+    {
+      "username": "flugel198",
+      "date": "2026-10-01",
+      "key_learning": "Quantum Gates & Qiskit",
+      "points_awarded": 35,
+      "commentary": "Solid deep work tackling quantum math and Qiskit implementations. Leave the cardio flex for the fitness tracker next time and keep the focus locked on the code."
+    }
+  ]
 }
