@@ -497,51 +497,63 @@ class NukeConfirmView(RobustView):
 # Council & Call-Cap Governance Assets & Views
 # ==========================================
 
+# Council summon (AI roast or /callcap): objections, accusations, and council
+# deciding-fate representations. One gif chosen at random per summon message.
 COUNCIL_SUMMONED_GIFS: List[str] = [
-    "https://media.tenor.com/DP615vqUzeAAAAAM/ace-attorney-phoenix-wright.gif",
-    "https://media.tenor.com/9aSgH93prb8AAAAM/higuruma-meme-jjk.gif",
-    "https://media.tenor.com/W_FsaAqZ2YkAAAAM/phoenix-wright-ace-attorney.gif",
-    "https://media.tenor.com/bm3kkN80t90AAAAM/caption-courtroom-anime.gif",
-    "https://media.tenor.com/JiStbOAbFwIAAAAM/side-eye-hmm.gif",
-    "https://media.tenor.com/1lxTZHxvQUsAAAAM/anakin-skywalker-star-wars-revenge-of-the-sith.gif",
-    "https://media.tenor.com/aGj-frNYMFEAAAAM/cat-cat-dance.gif",
-    "https://media.tenor.com/UAHUJ7LSK2AAAAAM/galactic-republic-flag.gif",
-    "https://media.tenor.com/znGPVdu2GR8AAAAM/eating-ramen-noodles.gif",
-    "https://media.tenor.com/YhGD-tzR3KAAAAAM/tea-spill-the-tea.gif",
-    "https://media.tenor.com/aLGLTuVa5wAAAAAM/tenor.gif",
-    "https://media.tenor.com/XHiHKmWWf9gAAAAM/boring-unimpressed.gif",
-    "https://media.tenor.com/ZF_NNP-7O_AAAAAj/hmm.gif",
-    "https://media.tenor.com/jz-K9VgBqPMAAAAj/buha-821-buha.gif",
+    "https://media.tenor.com/nnujmeraF1QAAAAC/hmm-thinking.gif",
+    "https://media.tenor.com/4i3rnwLdbwUAAAAC/objection-court.gif",
+    "https://media.tenor.com/vRGRCmHizWYAAAAC/higoruma-objection-jujutsu-kaisen.gif",
+    "https://media.tenor.com/JU42eKKaKYUAAAAC/ace-attorney-ace.gif",
+    "https://media.tenor.com/6Sb0kwgyN3QAAAAC/caption-courtroom-anime.gif",
+    "https://media.tenor.com/M6bB0cVDhoMAAAAC/no-reaction-my-honest-reaction.gif",
+    "https://media.tenor.com/ZF_NNP-7O_AAAAAC/hmm.gif",
+    "https://media.tenor.com/jz-K9VgBqPMAAAAC/buha-821-buha.gif",
+    "https://media.tenor.com/-AQCD60blUMAAAAC/ramen-cat.gif",
+    "https://media.tenor.com/YSSI38KUrIoAAAAd/cat-the-council.gif",
+    "https://media.tenor.com/BYwBdEZ4oeAAAAAC/galactic-republic-court.gif",
+    "https://media.tenor.com/Bv5BPqltOikAAAAC/the.gif",
+    "https://media.tenor.com/DyOjHwbvzqYAAAAC/fate.gif",
+    "https://media.tenor.com/y1kenLT3p3gAAAAC/hiromi-higuruma-higuruma.gif",
+    "https://media.tenor.com/CUScSqoyNZAAAAAd/higuruma-jjk.gif",
+    "https://media.tenor.com/u6gmNC6-UsYAAAAC/yuji-stare-yuji-itadori.gif",
+    "https://media.tenor.com/Qwk0J63O4IwAAAAC/happy.gif",
 ]
 
+# Verdict: cap confirmed (disapproval). One gif chosen at random per result message.
 CAP_CONFIRMED_GIFS: List[str] = [
-    "https://media.tenor.com/NeubPwLVK94AAAAM/ace-attorney-phoenix-wright.gif",
-    "https://media.tenor.com/XfxU1QnRpWcAAAAM/oh-my-god-bruh-jjk.gif",
-    "https://media.tenor.com/B0piVWUiKaUAAAAM/patrick-drooling-patrick-star.gif",
-    "https://media.tenor.com/FsNeRoz6apcAAAAM/st-paddys-day-2023.gif",
-    "https://media.tenor.com/I50TI2DmFXIAAAAM/yuji-stare-yuji-itadori.gif",
-    "https://media.tenor.com/Czj7xHpjdQwAAAAM/raven-walk.gif",
-    "https://media.tenor.com/-FOSoTZ8KWoAAAAj/son.gif",
-    "https://media.tenor.com/FhI8aEMJxdUAAAAj/emoji-emoji-meme.gif",
-    "https://media.tenor.com/89jKLhtbnmIAAAAj/really-sus.gif",
-    "https://media.tenor.com/8BvIvPhOJDYAAAAj/doink.gif",
-    "https://media.tenor.com/3Q0GX4tlKoEAAAAj/no.gif",
-    "https://media.tenor.com/cMN5uVyHkysAAAAj/anderstand.gif",
-    "https://media.tenor.com/lY7VOhEjpTEAAAAM/angry.gif",
-    "https://media.tenor.com/HXHCV0LpqNAAAAAM/hilarious-so-funny.gif",
+    "https://media.tenor.com/GCt_Jv5wD38AAAAC/patrick-s-patrick.gif",
+    "https://media.tenor.com/aG80h12EqSIAAAAC/cat-court.gif",
+    "https://media.tenor.com/ezJalkcOLcMAAAAC/phoenix-wright-ace-attorney.gif",
+    "https://media.tenor.com/5SIG5XU_VcQAAAAC/crow-judging.gif",
+    "https://media.tenor.com/-FOSoTZ8KWoAAAAC/son.gif",
+    "https://media.tenor.com/FhI8aEMJxdUAAAAC/emoji-emoji-meme.gif",
+    "https://media.tenor.com/89jKLhtbnmIAAAAC/really-sus.gif",
+    "https://media.tenor.com/8BvIvPhOJDYAAAAC/doink.gif",
+    "https://media.tenor.com/3Q0GX4tlKoEAAAAC/no.gif",
+    "https://media.tenor.com/cMN5uVyHkysAAAAC/anderstand.gif",
+    "https://media.tenor.com/n73fxApWd2QAAAAC/side-eye-sus.gif",
+    "https://media.tenor.com/gZU3n_9Nv2EAAAAC/cat-cat-stare.gif",
+    "https://media.tenor.com/TA12Xjm8PIwAAAAd/side-eye-dog.gif",
+    "https://media.tenor.com/K-ami_tx12oAAAAC/funny-cat.gif",
+    "https://media.tenor.com/Jww37x0z_L0AAAAd/anakin-star-wars.gif",
+    "https://media.tenor.com/u6gmNC6-UsYAAAAC/yuji-stare-yuji-itadori.gif",
+    "https://media.tenor.com/Qwk0J63O4IwAAAAC/happy.gif",
 ]
 
+# Verdict: grind legit (approval). One gif chosen at random per result message.
 LEGIT_VERIFIED_GIFS: List[str] = [
-    "https://media.tenor.com/DcdpcwgX8nMAAAAM/lacucu.gif",
-    "https://media.tenor.com/93mTZ4pPjI0AAAAM/crazy-seal-seal.gif",
-    "https://media.tenor.com/CV8ObVxsVvQAAAAM/hello-jjk.gif",
-    "https://media.tenor.com/peucjgy5sEoAAAAM/euphonium-anime-thumbs-up.gif",
-    "https://media.tenor.com/4p8ils6cSY4AAAAj/vvh157309.gif",
-    "https://media.tenor.com/gotOLnyvy4YAAAAM/bubu-dancing-dance.gif",
-    "https://media.tenor.com/T4Tq9zOHmdIAAAAj/joinha-sla.gif",
-    "https://media.tenor.com/-HLjKV1b6YIAAAAj/yellow.gif",
-    "https://media.tenor.com/ZA03JtK4SwoAAAAM/ghost-ghost-game.gif",
-    "https://media.tenor.com/-ighVtBUFCAAAAAM/hampter-my-honest-reaction.gif",
+    "https://media.tenor.com/tLUcX-K4ILcAAAAC/cat.gif",
+    "https://media.tenor.com/kPSe7B54P1EAAAAC/patrick-meme-patrick.gif",
+    "https://media.tenor.com/STXhuZ7MFf0AAAAC/jujutsu-kaisen-jjk.gif",
+    "https://media.tenor.com/qGPUKbS4t8EAAAAC/knuckles-knuckles-the-echidna.gif",
+    "https://media.tenor.com/2roCm-zykAMAAAAC/seal-seal-of-approval.gif",
+    "https://media.tenor.com/R8wS2yg_5ecAAAAC/thumps-up-glases-meme.gif",
+    "https://media.tenor.com/4p8ils6cSY4AAAAC/vvh157309.gif",
+    "https://media.tenor.com/T4Tq9zOHmdIAAAAC/joinha-sla.gif",
+    "https://media.tenor.com/-HLjKV1b6YIAAAAC/yellow.gif",
+    "https://media.tenor.com/aio2ikRC1GAAAAAC/ghost-xe.gif",
+    "https://media.tenor.com/L8FEenhU_ucAAAAC/white-hamster-meme-hamster-meme.gif",
+    "https://media.tenor.com/Jww37x0z_L0AAAAd/anakin-star-wars.gif",
 ]
 
 
@@ -691,8 +703,8 @@ class CouncilVotingView(RobustView):
                 logger.error(f"Failed to post legit verified resolution: {e}")
 
         else:
-            # Tie or 0:0 inconclusive
-            gif = "https://media.tenor.com/ZF_NNP-7O_AAAAAj/hmm.gif"
+            # Tie or 0:0 inconclusive: the council is still thinking (frogs gif)
+            gif = "https://media.tenor.com/nnujmeraF1QAAAAC/hmm-thinking.gif"
             embed = discord.Embed(
                 title="⚖️ Council Review Dismissed: TIE / INCONCLUSIVE",
                 description=(

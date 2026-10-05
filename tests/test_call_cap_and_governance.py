@@ -424,7 +424,7 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         self.assertTrue(mock_channel.send.called)
         embed = mock_channel.send.call_args.kwargs.get("embed")
         self.assertIn("TIE / INCONCLUSIVE", embed.title)
-        self.assertIn("hmm.gif", embed.image.url)
+        self.assertIn("hmm-thinking.gif", embed.image.url)
 
     def test_admin_grind_blocks_bots_and_cleans_active_trials(self):
         """Verifies that /admin grind block rejects bot targets and discards from active_trials."""
