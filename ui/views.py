@@ -770,6 +770,9 @@ class CallCapConfirmView(RobustView):
         await interaction.response.edit_message(content="⚔️ **The Council has been summoned.** Voting is now active in the channel.", view=self)
 
         log_text = self.grind_entry.get("raw_input", "")
+        # Discord message content is capped at 4000 chars; keep the excerpt bounded.
+        if len(log_text) > 800:
+            log_text = log_text[:797] + "..."
         points = self.grind_entry.get("points", 0)
 
         role_id = settings.get("role_id") if interaction.guild else None

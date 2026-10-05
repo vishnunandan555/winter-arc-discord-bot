@@ -975,6 +975,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         logger.info(f"/grind evaluated for {interaction.user}: {evaluation.get('verdict')} (+{evaluation.get('points')} pts, tag: {evaluation.get('key_learning')})")
 
+        pts = int(evaluation.get("points", 0))
+        # Keep the summoned log excerpt bounded so the Council message stays
+        # within Discord's 4000-character content limit.
+        council_log = text if len(text) <= 800 else text[:797] + "..."
+
         # Record in database
         try:
             db.record_grind_entry(
@@ -1009,7 +1014,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 council_content = (
                     f"{role_ping}🚨 **The Council Has Been Summoned** 🚨\n\n"
                     f"*{bot_mention} has called cap on {interaction.user.mention}'s grind log of*\n"
-                    f"```{text}```\n"
+                    f"```{council_log}```\n"
                     f"*worth {pts} points.*\n\n"
                     f"⚔️ **Summoner**: {bot_mention}\n"
                     f"⚖️ **Accused**: {interaction.user.mention}\n"
