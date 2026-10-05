@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import logging
 import random
+from datetime import datetime
 from typing import Any, Optional, Dict, List, Union
 import discord
 import database as db
+from config import BOT_TZ
 from ui.embeds import (
     build_daily_leaderboard_embed,
     build_weekly_leaderboard_embed,
@@ -689,6 +691,7 @@ class CouncilVotingView(RobustView):
 
         else:
             # Tie or 0:0 inconclusive
+            gif = "https://media.tenor.com/ZF_NNP-7O_AAAAAj/hmm.gif"
             embed = discord.Embed(
                 title="⚖️ Council Review Dismissed: TIE / INCONCLUSIVE",
                 description=(
@@ -697,6 +700,7 @@ class CouncilVotingView(RobustView):
                 ),
                 color=0xF1C40F
             )
+            embed.set_image(url=gif)
             try:
                 await channel.send(embed=embed)
             except Exception as e:
@@ -729,11 +733,27 @@ class CallCapConfirmView(RobustView):
     async def confirm_summon(self, interaction: discord.Interaction, button: discord.ui.Button):
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(content="⚔️ **The Council has been summoned.** Voting is now active in the channel.", view=self)
 
-        CouncilVotingView.active_trials.add(self.target.id)
+        # Concurrency guard: check if trial already became active while ephemeral view was open
+        if self.target.id in CouncilVotingView.active_trials:
+            await interaction.response.edit_message(
+                content=f"⚠️ A Council session is already actively underway for {self.target.mention}.",
+                view=self
+            )
+            return
+
+        # Stale state guard: check if target's points were already revoked
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        fresh_grind = db.get_user_daily_grind(self.target.id, today_str)
+        if not fresh_grind or fresh_grind.get("points", 0) <= 0:
+            await interaction.response.edit_message(
+                content=f"⚠️ {self.target.mention}'s grind log has already concluded or points have already been stripped.",
+                view=self
+            )
+            return
 
         channel = interaction.channel
+        settings = {}
         if interaction.guild:
             settings = db.get_server_settings(interaction.guild.id)
             ch_id = settings.get("channel_id")
@@ -743,7 +763,13 @@ class CallCapConfirmView(RobustView):
                     channel = ch
 
         if not channel:
+            await interaction.response.edit_message(content="❌ Could not locate channel to summon Council.", view=self)
             return
+
+        await interaction.response.edit_message(content="⚔️ **The Council has been summoned.** Voting is now active in the channel.", view=self)
+
+        log_text = self.grind_entry.get("raw_input", "")
+        points = self.grind_entry.get("points", 0)
 
         role_id = settings.get("role_id") if interaction.guild else None
         role_ping = f"<@&{role_id}> " if role_id else ""
@@ -769,12 +795,14 @@ class CallCapConfirmView(RobustView):
             grind_entry=self.grind_entry,
             timeout=600.0
         )
+        CouncilVotingView.active_trials.add(self.target.id)
 
         try:
             msg = await channel.send(content=content, embed=gif_embed, view=voting_view)
             voting_view.message = msg
         except Exception as e:
             logger.error(f"Failed to post Council summon message in channel {channel.id}: {e}", exc_info=True)
+            CouncilVotingView.active_trials.discard(self.target.id)
 
     @discord.ui.button(label="❌ No, Stand Down", style=discord.ButtonStyle.secondary, custom_id="btn_cancel_summon")
     async def cancel_summon(self, interaction: discord.Interaction, button: discord.ui.Button):

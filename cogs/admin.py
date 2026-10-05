@@ -22,7 +22,7 @@ from discord.ext import commands
 
 import database as db
 from config import BOT_TZ, DB_PATH, LOG_FILE_PATH, LOG_LEVEL_NAME
-from ui.views import RobustView
+from ui.views import RobustView, CouncilVotingView
 from helpers import (
     task_autocomplete,
     all_tasks_autocomplete,
@@ -248,6 +248,10 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
             return
 
+        if member.bot:
+            await interaction.response.send_message("❌ Bots cannot be placed on grind probation.", ephemeral=True)
+            return
+
         settings = db.get_server_settings(interaction.guild.id)
         channel_id = settings.get("channel_id")
         target_channel = interaction.guild.get_channel(channel_id) if channel_id else interaction.channel
@@ -259,6 +263,8 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             db.set_grind_probation(member.id, days=duration_days)
             # Strip today's grind points if any
             db.cap_user_grind(member.id)
+            # Dismiss any active Council trial for this member
+            CouncilVotingView.active_trials.discard(member.id)
 
             duration_str = f"**Duration**: `{duration_days} day(s)`\n" if duration_days else "**Duration**: `Indefinite (until unlocked)`\n"
             reason_str = f"**Reason**: *{clean_reason}*\n" if clean_reason else ""

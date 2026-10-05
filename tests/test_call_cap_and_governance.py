@@ -361,7 +361,14 @@ class TestCallCapAndGovernance(WinterArcTestCase):
             asyncio.run(cog.callcap_cmd.callback(cog, inter, target=mock_stranger))
         self.assertIn("not currently enrolled", inter.response.send_message.call_args[0][0])
 
-        # 3. Concurrent active trial
+        # 3. Target is a bot
+        mock_bot_user = self.create_mock_member(999000, "BotUser")
+        mock_bot_user.bot = True
+        with patch("cogs.warrior.require_enrolled", return_value=True):
+            asyncio.run(cog.callcap_cmd.callback(cog, inter, target=mock_bot_user))
+        self.assertIn("cannot call cap on a bot", inter.response.send_message.call_args[0][0])
+
+        # 4. Concurrent active trial
         CouncilVotingView.active_trials.add(self.user_a_id)
         try:
             with patch("cogs.warrior.require_enrolled", return_value=True), \
@@ -370,6 +377,73 @@ class TestCallCapAndGovernance(WinterArcTestCase):
             self.assertIn("already active", inter.response.send_message.call_args[0][0])
         finally:
             CouncilVotingView.active_trials.discard(self.user_a_id)
+
+    def test_callcap_confirm_view_concurrency_and_stale_guards(self):
+        """Verifies that CallCapConfirmView.confirm_summon rejects if a trial started or points were already stripped."""
+        mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
+        mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
+        grind_entry = {"raw_input": "Studied distributed systems", "points": 30}
+
+        view = CallCapConfirmView(challenger=mock_challenger, target=mock_accused, grind_entry=grind_entry)
+        inter = self.create_mock_interaction(user_id=self.user_b_id, display_name="WarriorB")
+        inter.response.edit_message = AsyncMock()
+
+        # 1. Guard against concurrent active trial
+        CouncilVotingView.active_trials.add(self.user_a_id)
+        try:
+            asyncio.run(view.confirm_summon.callback(inter))
+            self.assertIn("already actively underway", inter.response.edit_message.call_args.kwargs.get("content", ""))
+        finally:
+            CouncilVotingView.active_trials.discard(self.user_a_id)
+
+        # 2. Guard against stale entry (no points or revoked)
+        with patch("ui.views.db.get_user_daily_grind", return_value={"points": 0, "verdict": "CAPPED"}):
+            asyncio.run(view.confirm_summon.callback(inter))
+            self.assertIn("points have already been stripped", inter.response.edit_message.call_args.kwargs.get("content", ""))
+
+    def test_council_voting_tie_outcome_with_thinking_gif(self):
+        """Verifies that tied council voting preserves points and sends the thinking GIF."""
+        mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
+        mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
+        grind_entry = {"raw_input": "Advanced compiler optimization", "points": 35}
+
+        view = CouncilVotingView(accused=mock_accused, challenger=mock_challenger, grind_entry=grind_entry, timeout=600.0)
+        # Equal votes (1 cap, 1 legit)
+        view.capping_votes.add(self.user_b_id)
+        view.legit_votes.add(self.user_c_id)
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+        mock_msg = MagicMock(spec=discord.Message)
+        mock_msg.channel = mock_channel
+        mock_msg.edit = AsyncMock()
+        view.message = mock_msg
+
+        asyncio.run(view.on_timeout())
+
+        self.assertTrue(mock_channel.send.called)
+        embed = mock_channel.send.call_args.kwargs.get("embed")
+        self.assertIn("TIE / INCONCLUSIVE", embed.title)
+        self.assertIn("hmm.gif", embed.image.url)
+
+    def test_admin_grind_blocks_bots_and_cleans_active_trials(self):
+        """Verifies that /admin grind block rejects bot targets and discards from active_trials."""
+        bot = MagicMock()
+        admin_cog = AdminCog(bot)
+
+        inter = self.create_mock_interaction(user_id=999999, display_name="Admin")
+        inter.guild = MagicMock()
+        inter.guild.id = 999111
+        inter.guild.get_channel = MagicMock(return_value=self.create_mock_channel())
+
+        mock_bot_member = self.create_mock_member(888999, "TestBot")
+        mock_bot_member.bot = True
+
+        choice_block = MagicMock()
+        choice_block.value = "block"
+
+        asyncio.run(admin_cog.admin_grind.callback(admin_cog, inter, what=choice_block, member=mock_bot_member))
+        self.assertIn("Bots cannot be placed on grind probation", inter.response.send_message.call_args.kwargs.get("content", inter.response.send_message.call_args[0][0]))
 
     def test_grind_blocked_by_probation(self):
         """Verifies that a user on grind probation is blocked from /grind."""
@@ -392,4 +466,5 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         sent_msg = inter.response.send_message.call_args[0][0]
         self.assertIn("Access Suspended", sent_msg)
         self.assertIn("4 more day(s)", sent_msg)
+
 

@@ -1001,6 +1001,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             # AI flagged buzzwords/fluff: summon the Council directly after the reply!
             if interaction.guild and interaction.channel and interaction.user.id not in CouncilVotingView.active_trials:
                 settings = db.get_server_settings(interaction.guild.id)
+                ch_id = settings.get("channel_id")
+                target_channel = interaction.guild.get_channel(ch_id) if ch_id else interaction.channel
                 role_id = settings.get("role_id")
                 role_ping = f"<@&{role_id}> " if role_id else ""
                 pts = evaluation["points"]
@@ -1030,7 +1032,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 CouncilVotingView.active_trials.add(interaction.user.id)
 
                 try:
-                    msg = await interaction.channel.send(content=council_content, embed=gif_embed, view=voting_view)
+                    dest = target_channel or interaction.channel
+                    msg = await dest.send(content=council_content, embed=gif_embed, view=voting_view)
                     voting_view.message = msg
                 except Exception as e:
                     logger.error(f"Failed to post AI-summoned Council trial: {e}", exc_info=True)
@@ -1062,12 +1065,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if not await require_enrolled(interaction):
             return
 
-        if target.id in CouncilVotingView.active_trials:
-            await interaction.response.send_message(f"⏳ A Council trial is already active for {target.mention}.", ephemeral=True)
-            return
-
         if target.id == interaction.user.id:
             await interaction.response.send_message("❌ You cannot call cap on yourself!", ephemeral=True)
+            return
+
+        if target.bot:
+            await interaction.response.send_message("❌ You cannot call cap on a bot!", ephemeral=True)
+            return
+
+        if target.id in CouncilVotingView.active_trials:
+            await interaction.response.send_message(f"⏳ A Council trial is already active for {target.mention}.", ephemeral=True)
             return
 
         if not db.is_user_enrolled(target.id):

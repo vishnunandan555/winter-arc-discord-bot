@@ -66,6 +66,7 @@ class WinterArcTestCase(unittest.TestCase):
         member.name = display_name.lower()
         member.mention = f"<@{user_id}>"
         member.roles = roles or []
+        member.bot = False
         member.guild = MagicMock(spec=discord.Guild)
         member.guild.id = 999111
         return member
