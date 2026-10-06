@@ -467,4 +467,31 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         self.assertIn("Access Suspended", sent_msg)
         self.assertIn("4 more day(s)", sent_msg)
 
+    def test_council_summon_pings_winter_arc_role(self):
+        """Verifies that summoning the Council includes the Winter Arc role ping and allowed_mentions."""
+        mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
+        mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
+        grind_entry = {"raw_input": "Studied distributed systems", "points": 30}
+
+        view = CallCapConfirmView(challenger=mock_challenger, target=mock_accused, grind_entry=grind_entry)
+        inter = self.create_mock_interaction(user_id=self.user_b_id, display_name="WarriorB")
+        inter.response.edit_message = AsyncMock()
+
+        mock_channel = self.create_mock_channel()
+        mock_channel.send = AsyncMock()
+        inter.channel = mock_channel
+        inter.guild = MagicMock()
+        inter.guild.id = 123456
+        inter.guild.get_channel = MagicMock(return_value=mock_channel)
+
+        with patch("ui.views.db.get_user_daily_grind", return_value={"points": 30, "raw_input": "Studied distributed systems"}), \
+             patch("ui.views.db.get_server_settings", return_value={"channel_id": mock_channel.id, "role_id": 999777}):
+            asyncio.run(view.confirm_summon.callback(inter))
+
+        self.assertTrue(mock_channel.send.called)
+        call_kwargs = mock_channel.send.call_args.kwargs
+        self.assertIn("<@&999777>", call_kwargs.get("content", ""))
+        self.assertTrue(call_kwargs.get("allowed_mentions").roles)
+
+
 

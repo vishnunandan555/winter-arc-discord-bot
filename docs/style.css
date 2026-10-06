@@ -1785,7 +1785,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-bottom: 3.5rem;
   flex-wrap: wrap;
 }
@@ -1794,12 +1794,24 @@ code {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.6rem 1.1rem;
+  padding: 0.55rem 1.15rem;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-pill);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
+  color: var(--text-main);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(12px);
+}
+
+.step-badge-item:hover {
+  background: rgba(20, 28, 44, 0.95);
+  border-color: var(--accent-cyan);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 18px rgba(0, 229, 255, 0.2);
 }
 
 .step-num {
@@ -1813,11 +1825,13 @@ code {
   justify-content: center;
   font-size: 0.8rem;
   font-weight: 800;
+  font-family: var(--font-mono);
 }
 
 .step-arrow {
   color: var(--text-dim);
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  user-select: none;
 }
 
 .guide-cards-grid {
@@ -1828,11 +1842,30 @@ code {
 }
 
 .guide-card, .guide-full-card {
+  position: relative;
+  overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
   padding: 2.25rem 2rem;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
+  scroll-margin-top: 85px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.guide-card:hover, .guide-full-card:hover, .platform-tabs-container:hover {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.guide-card::before, .guide-full-card::before, .platform-tabs-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.4), rgba(56, 189, 248, 0.4), transparent);
+  pointer-events: none;
 }
 
 .guide-full-card {
@@ -1841,6 +1874,26 @@ code {
 
 .guide-card-header {
   margin-bottom: 1.25rem;
+}
+
+.guide-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.card-mini-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  color: var(--accent-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .guide-step-tag {
@@ -1853,7 +1906,6 @@ code {
   background: var(--accent-cyan-dim);
   padding: 0.25rem 0.65rem;
   border-radius: var(--radius-pill);
-  margin-bottom: 0.65rem;
 }
 
 .guide-title {
@@ -1889,23 +1941,52 @@ code {
   gap: 0.25rem;
 }
 
-/* Code Blocks */
+/* Code Blocks & Terminal Window Shell */
 .code-block {
   position: relative;
-  background: var(--bg-code);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #05070B;
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-md);
-  margin-top: 0.75rem;
+  margin-top: 0.85rem;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.85rem;
   padding: 0.65rem 1rem;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.terminal-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.terminal-dots .dot.red { background: #FF5F56; }
+.terminal-dots .dot.yellow { background: #FFBD2E; }
+.terminal-dots .dot.green { background: #27C93F; }
+
+.terminal-title {
   color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .code-block pre {
@@ -1917,35 +1998,89 @@ code {
   color: #E2E8F0;
 }
 
+.code-block pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+  display: block;
+}
+
 .code-block .copy-btn {
   position: absolute;
-  top: 0.75rem;
+  top: 0.5rem;
   right: 0.75rem;
-  padding: 0.35rem 0.75rem;
+  padding: 0.3rem 0.75rem;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  z-index: 2;
+  font-family: var(--font-sans);
 }
 
 .code-block .copy-btn:hover {
   background: var(--accent-cyan);
   color: #030712;
   border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+}
+
+.code-block .copy-btn.copied {
+  background: var(--accent-emerald);
+  color: #FFFFFF;
+  border-color: var(--accent-emerald);
+}
+
+/* Guide Callout / Tip Box */
+.guide-tip-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  margin-top: 0.9rem;
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.guide-tip-box strong {
+  color: var(--text-highlight);
+}
+
+.guide-tip-box code {
+  font-size: 0.82rem;
+  padding: 0.1rem 0.35rem;
+}
+
+.guide-tip-box.neutral {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border-subtle);
+  border-left: 3px solid var(--text-dim);
 }
 
 /* Platform Tabs */
 .platform-tabs-container {
+  position: relative;
+  overflow: hidden;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
   padding: 2.5rem 2rem;
   backdrop-filter: blur(16px);
   margin-bottom: 2rem;
+  scroll-margin-top: 85px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .platform-tabs-title {
@@ -1956,13 +2091,17 @@ code {
 .platform-tabs {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 0.65rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.25rem;
   border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 1rem;
+  padding-bottom: 1.25rem;
 }
 
 .plat-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
   padding: 0.65rem 1.25rem;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
@@ -1974,9 +2113,19 @@ code {
   transition: all var(--transition-fast);
 }
 
+.plat-tab-btn svg {
+  stroke: var(--text-muted);
+  transition: stroke var(--transition-fast);
+  flex-shrink: 0;
+}
+
 .plat-tab-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-highlight);
+}
+
+.plat-tab-btn:hover svg {
+  stroke: var(--text-highlight);
 }
 
 .plat-tab-btn.active {
@@ -1984,6 +2133,10 @@ code {
   border-color: var(--border-cyan);
   color: var(--accent-cyan);
   box-shadow: 0 0 16px rgba(0, 229, 255, 0.2);
+}
+
+.plat-tab-btn.active svg {
+  stroke: var(--accent-cyan);
 }
 
 .plat-content {
@@ -1995,35 +2148,49 @@ code {
   animation: fadeIn 0.25s ease-out;
 }
 
+.plat-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .plat-heading {
-  font-size: 1.4rem;
-  margin-bottom: 0.75rem;
+  font-size: 1.45rem;
+  margin-bottom: 0.65rem;
+  text-align: center;
+  color: var(--text-highlight);
 }
 
 .plat-desc {
   font-size: 0.98rem;
   color: var(--text-muted);
   line-height: 1.65;
-  margin-bottom: 1.75rem;
+  margin: 0 auto 2rem auto;
+  text-align: center;
+  max-width: 760px;
 }
 
 /* Sub-Method Tabs (Wispbyte & Panel Deployment Options) */
 .method-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 1.25rem 0 2rem 0;
-  padding: 0.45rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 0 auto 2.25rem auto;
+  padding: 0.4rem;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 620px;
+  box-sizing: border-box;
 }
 
 .method-tab-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 1.15rem;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
   background: transparent;
   border: 1px solid transparent;
@@ -2032,6 +2199,17 @@ code {
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  text-align: center;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.method-tab-btn svg {
+  stroke: var(--text-muted);
+  transition: stroke var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .method-tab-btn:hover {
@@ -2039,32 +2217,59 @@ code {
   color: var(--text-highlight);
 }
 
+.method-tab-btn:hover svg {
+  stroke: var(--text-highlight);
+}
+
 .method-tab-btn.active {
   background: var(--bg-surface);
   border-color: var(--border-cyan);
   color: var(--accent-cyan);
-  box-shadow: 0 0 15px rgba(0, 229, 255, 0.15);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.16);
+}
+
+.method-tab-btn.active svg {
+  stroke: var(--accent-cyan);
 }
 
 .method-pill {
   font-size: 0.72rem;
-  padding: 0.2rem 0.55rem;
+  padding: 0.22rem 0.6rem;
   border-radius: var(--radius-pill);
   font-family: var(--font-mono);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 
-.method-pill.rec {
-  background: rgba(0, 229, 255, 0.18);
+/* Dynamic Pill Badges: active tab pops, inactive tab is subtle */
+.method-tab-btn.active .method-pill.rec {
+  background: var(--accent-cyan-dim);
   color: var(--accent-cyan);
   border: 1px solid var(--border-cyan);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
 }
 
-.method-pill.classic {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-muted);
+.method-tab-btn.active .method-pill.classic {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-highlight);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.method-tab-btn:not(.active) .method-pill.rec {
+  background: rgba(0, 229, 255, 0.06);
+  color: rgba(0, 229, 255, 0.6);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+.method-tab-btn:not(.active) .method-pill.classic {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
   border: 1px solid var(--border-subtle);
 }
 
@@ -2077,10 +2282,25 @@ code {
   animation: fadeIn 0.25s ease-out;
 }
 
+/* Bullet list inside guide steps */
+.guide-param-list {
+  margin: 0.75rem 0 0.85rem 1.25rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.guide-param-list li {
+  padding-left: 0.25rem;
+}
+
 .guide-steps-list {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .guide-step-row {
@@ -2103,18 +2323,27 @@ code {
   font-weight: 700;
   font-size: 0.9rem;
   flex-shrink: 0;
-  margin-top: 0.2rem;
+  margin-top: 0.15rem;
 }
 
 .row-content {
   flex-grow: 1;
 }
 
-.row-content strong {
+.row-content > strong:first-child {
   display: block;
   font-size: 1.05rem;
   color: var(--text-highlight);
   margin-bottom: 0.35rem;
+}
+
+.row-content p strong,
+.row-content li strong {
+  display: inline;
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--text-highlight);
+  margin-bottom: 0;
 }
 
 .row-content p {
@@ -2128,26 +2357,100 @@ code {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .config-cmd-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 1.25rem;
-  background: rgba(0, 0, 0, 0.3);
+  gap: 1.25rem;
+  padding: 1.15rem 1.4rem;
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  flex-wrap: wrap;
+  transition: all var(--transition-fast);
 }
 
-.config-cmd-row code {
+.config-cmd-row:hover {
+  background: rgba(0, 0, 0, 0.55);
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+.cmd-step-idx {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cmd-content-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.cmd-pill-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.cmd-content-col code {
   font-size: 0.92rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  color: var(--accent-cyan);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  font-weight: 600;
+  width: fit-content;
 }
 
-.config-cmd-row span {
+.cmd-desc {
   font-size: 0.92rem;
   color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.cmd-copy-btn {
+  padding: 0.42rem 0.85rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+
+.cmd-copy-btn:hover {
+  background: var(--accent-cyan);
+  color: #030712;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+}
+
+.cmd-copy-btn.copied {
+  background: var(--accent-emerald);
+  color: #FFFFFF;
+  border-color: var(--accent-emerald);
 }
 
 /* SECTION 7: Architecture */
@@ -2902,7 +3205,7 @@ body.menu-open {
     min-height: 32px;
   }
 
-  /* Hosting Manual Mobile */
+  /* Hosting Manual Mobile (<= 768px) */
   .steps-flow {
     display: flex;
     overflow-x: auto;
@@ -2910,8 +3213,10 @@ body.menu-open {
     justify-content: flex-start;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.5rem;
-    gap: 0.6rem;
+    scroll-snap-type: x proximity;
+    padding: 0.25rem 0.25rem 0.85rem 0.25rem;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
   }
 
   .steps-flow::-webkit-scrollbar {
@@ -2920,23 +3225,41 @@ body.menu-open {
 
   .step-badge-item {
     flex: 0 0 auto;
-    padding: 0.5rem 0.85rem;
+    scroll-snap-align: start;
+    padding: 0.45rem 0.85rem;
     font-size: 0.82rem;
   }
 
   .step-arrow {
     flex: 0 0 auto;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .guide-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .guide-card, .guide-full-card {
+    padding: 1.5rem 1.15rem;
+    border-radius: var(--radius-lg);
+  }
+
+  .platform-tabs-container {
+    padding: 1.5rem 1.1rem;
+    border-radius: var(--radius-lg);
   }
 
   .platform-tabs {
     display: flex;
     overflow-x: auto;
     flex-wrap: nowrap;
+    justify-content: flex-start;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    gap: 0.45rem;
-    padding-bottom: 0.5rem;
+    scroll-snap-type: x mandatory;
+    gap: 0.5rem;
+    padding-bottom: 0.65rem;
   }
 
   .platform-tabs::-webkit-scrollbar {
@@ -2945,48 +3268,64 @@ body.menu-open {
 
   .plat-tab-btn {
     flex: 0 0 auto;
-    padding: 0.55rem 1rem;
-    font-size: 0.85rem;
+    scroll-snap-align: start;
+    padding: 0.55rem 0.95rem;
+    font-size: 0.84rem;
+    gap: 0.45rem;
   }
 
   .method-tabs {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    max-width: 100%;
     padding: 0.35rem;
     gap: 0.5rem;
   }
 
   .method-tab-btn {
     width: 100%;
-    justify-content: flex-start;
-    padding: 0.55rem 0.85rem;
-    font-size: 0.84rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.95rem;
+    font-size: 0.86rem;
+    white-space: nowrap;
   }
 
-  .platform-tabs-container {
-    padding: 1.5rem 1rem;
-    border-radius: var(--radius-lg);
+  .code-block {
+    margin-top: 0.65rem;
+  }
+
+  .code-block-header {
+    padding: 0.55rem 4.8rem 0.55rem 0.85rem;
+    font-size: 0.75rem;
+    position: relative;
+  }
+
+  .terminal-title {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .code-block .copy-btn {
+    position: absolute;
+    top: 0.42rem;
+    right: 0.65rem;
+    padding: 0.28rem 0.65rem;
+    font-size: 0.72rem;
   }
 
   .code-block pre {
     padding: 1rem 0.85rem;
     font-size: 0.78rem;
     line-height: 1.55;
-  }
-
-  .code-block .copy-btn {
-    padding: 0.3rem 0.65rem;
-    font-size: 0.72rem;
-    top: 0.5rem;
-    right: 0.5rem;
-  }
-
-  .guide-card, .guide-full-card {
-    padding: 1.5rem 1.15rem;
-    border-radius: var(--radius-lg);
+    -webkit-overflow-scrolling: touch;
   }
 
   .guide-steps-list {
-    gap: 1.15rem;
+    gap: 1.25rem;
   }
 
   .guide-step-row {
@@ -2999,16 +3338,65 @@ body.menu-open {
     font-size: 0.8rem;
   }
 
+  /* Server setup command rows on tablet/mobile */
   .config-cmd-row {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: auto 1fr;
     align-items: flex-start;
-    gap: 0.4rem;
-    padding: 0.85rem 1rem;
+    gap: 0.75rem 0.85rem;
+    padding: 1.1rem 1rem;
+  }
+
+  .cmd-step-idx {
+    grid-column: 1;
+    grid-row: 1;
+    width: 26px;
+    height: 26px;
+    font-size: 0.75rem;
+  }
+
+  .cmd-content-col {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cmd-pill-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .cmd-pill-wrap::-webkit-scrollbar {
+    display: none;
   }
 
   .config-cmd-row code {
-    font-size: 0.84rem;
-    word-break: break-all;
+    font-size: 0.82rem;
+    padding: 0.32rem 0.65rem;
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  .cmd-desc {
+    font-size: 0.86rem;
+    line-height: 1.5;
+    margin-top: 0.35rem;
+    display: block;
+  }
+
+  .cmd-copy-btn {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    text-align: center;
+    padding: 0.52rem;
+    font-size: 0.82rem;
+    min-height: 36px;
+    margin-top: 0.25rem;
   }
 
   /* Toast Notification on Mobile: Centered at bottom */
@@ -3051,6 +3439,68 @@ body.menu-open {
 
   .hero-metrics {
     grid-template-columns: 1fr;
+  }
+
+  /* Hosting Section Mobile Specifics (<= 480px) */
+  .platform-tabs-title {
+    font-size: 1.35rem;
+  }
+
+  .plat-heading {
+    font-size: 1.2rem;
+  }
+
+  .plat-desc {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .guide-title {
+    font-size: 1.22rem;
+  }
+
+  .guide-card, .guide-full-card, .platform-tabs-container {
+    padding: 1.25rem 0.85rem;
+  }
+
+  .guide-ordered-list {
+    padding-left: 1.15rem;
+    font-size: 0.88rem;
+    gap: 0.75rem;
+  }
+
+  .guide-param-list {
+    margin-left: 0.5rem;
+    font-size: 0.85rem;
+    word-break: break-word;
+  }
+
+  .guide-tip-box {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.82rem;
+    flex-direction: column;
+    gap: 0.35rem;
+    word-break: break-word;
+  }
+
+  .code-block pre {
+    padding: 0.85rem 0.75rem;
+    font-size: 0.74rem;
+  }
+
+  .plat-tab-btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  .method-tab-btn {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.82rem;
+  }
+
+  .method-pill {
+    font-size: 0.66rem;
+    padding: 0.16rem 0.45rem;
   }
 }
 

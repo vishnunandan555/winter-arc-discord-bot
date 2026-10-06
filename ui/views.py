@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Optional, Dict, List, Union
 import discord
 import database as db
-from config import BOT_TZ
+from config import BOT_TZ, DEFAULT_ROLE_ID
 from ui.embeds import (
     build_daily_leaderboard_embed,
     build_weekly_leaderboard_embed,
@@ -787,7 +787,7 @@ class CallCapConfirmView(RobustView):
             log_text = log_text[:797] + "..."
         points = self.grind_entry.get("points", 0)
 
-        role_id = settings.get("role_id") if interaction.guild else None
+        role_id = (settings.get("role_id") if interaction.guild else None) or DEFAULT_ROLE_ID
         role_ping = f"<@&{role_id}> " if role_id else ""
 
         content = (
@@ -814,7 +814,12 @@ class CallCapConfirmView(RobustView):
         CouncilVotingView.active_trials.add(self.target.id)
 
         try:
-            msg = await channel.send(content=content, embed=gif_embed, view=voting_view)
+            msg = await channel.send(
+                content=content,
+                embed=gif_embed,
+                view=voting_view,
+                allowed_mentions=discord.AllowedMentions(roles=True, users=True)
+            )
             voting_view.message = msg
         except Exception as e:
             logger.error(f"Failed to post Council summon message in channel {channel.id}: {e}", exc_info=True)

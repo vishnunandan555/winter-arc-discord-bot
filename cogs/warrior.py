@@ -20,7 +20,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import database as db
-from config import BOT_TZ, MAX_SINGLE_SET_LIMITS
+from config import BOT_TZ, MAX_SINGLE_SET_LIMITS, DEFAULT_ROLE_ID
 from helpers import (
     require_enrolled,
     task_autocomplete,
@@ -1008,7 +1008,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 settings = db.get_server_settings(interaction.guild.id)
                 ch_id = settings.get("channel_id")
                 target_channel = interaction.guild.get_channel(ch_id) if ch_id else interaction.channel
-                role_id = settings.get("role_id")
+                role_id = settings.get("role_id") or DEFAULT_ROLE_ID
                 role_ping = f"<@&{role_id}> " if role_id else ""
                 bot_mention = self.bot.user.mention if self.bot.user else "🐺 Amarok"
                 council_content = (
@@ -1037,7 +1037,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
                 try:
                     dest = target_channel or interaction.channel
-                    msg = await dest.send(content=council_content, embed=gif_embed, view=voting_view)
+                    msg = await dest.send(
+                        content=council_content,
+                        embed=gif_embed,
+                        view=voting_view,
+                        allowed_mentions=discord.AllowedMentions(roles=True, users=True)
+                    )
                     voting_view.message = msg
                 except Exception as e:
                     logger.error(f"Failed to post AI-summoned Council trial: {e}", exc_info=True)
