@@ -30,6 +30,7 @@ Before deploying to any host:
 Wispbyte provides low-cost 24/7 Discord bot server containers running Python with automatic restart on crash and web console monitoring. You can deploy using either the **New GitHub Auto-Pull Integration** (recommended) or the **Classic ZIP Bundle Upload**.
 
 #### Method 1: Direct GitHub Integration & Auto-Pull (New & Recommended)
+
 1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and pick the **Python / Generic Discord Bot** egg (Python 3.11+).
 2. **Configure GitHub Integration**:
    - In your server sidebar, open the **GitHub Integration** tab.
@@ -47,6 +48,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
    - Click **Start** on the console. Dependencies install automatically from `requirements.txt` and the bot launches.
 
 #### Method 2: Manual ZIP Archive Deployment (`bot_deploy.zip`) (Classic)
+
 1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and choose the **Python / Generic Discord Bot** egg (Python 3.11+).
 2. **Package Locally**:
    - Run the bundler script on your local machine:
@@ -69,6 +71,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 ---
 
 ### Option B: Linux VPS / Ubuntu Server (Systemd Service)
+
 For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 
 1. **Clone and setup virtual environment**:
@@ -91,7 +94,9 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```bash
    sudo nano /etc/systemd/system/winter-arc.service
    ```
+
    Paste the following service definition:
+
    ```ini
    [Unit]
    Description=Winter Arc Discord Bot
@@ -126,6 +131,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 ---
 
 ### Option C: Docker & Docker Compose (Containerized)
+
 1. Ensure Docker and Docker Compose are installed on your server.
 2. Clone repository and set up environment:
    ```bash
@@ -143,6 +149,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 ---
 
 ### Option D: Cloud Background Worker (Render / Railway)
+
 1. In Render or Railway, create a new **Background Worker** (not a Web Service).
 2. Connect your GitHub repository.
 3. Configure settings:
@@ -165,6 +172,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 The website is a static, responsive web application located in the `docs/` directory.
 
 ### Option A: GitHub Pages (Free, Zero Configuration)
+
 1. Push your repository to GitHub:
    ```bash
    git push origin main
@@ -174,11 +182,12 @@ The website is a static, responsive web application located in the `docs/` direc
    - Under **Build and deployment** > **Branch**, select `main` and folder `/docs`
    - Click **Save**
 3. Your site will be live at:
-   ```
+   ```text
    https://<your-username>.github.io/<your-repo-name>/
    ```
 
 ### Option B: Vercel (1-Click Deployment)
+
 The repository includes a pre-configured `vercel.json` pointing to `docs`:
 1. In [vercel.com](https://vercel.com), import your forked repository.
 2. Vercel detects `outputDirectory: "docs"`.
@@ -190,18 +199,18 @@ The repository includes a pre-configured `vercel.json` pointing to `docs`:
 
 Once your bot process is running:
 1. In your Discord server, assign the dedicated broadcast channel:
-   ```
+   ```text
    /admin set_channel channel:#winter-arc
    ```
 2. Assign the ping role:
-   ```
+   ```text
    /admin set_role role:@Winter Arc
    ```
 3. Have your members join:
-   ```
+   ```text
    /enroll
    ```
 4. Test the scheduled layouts:
-   ```
+   ```text
    /test_reminder type:morning
    ```

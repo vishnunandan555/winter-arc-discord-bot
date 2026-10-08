@@ -1,11 +1,11 @@
 {
   "meta": {
-    "generated_at": "2026-10-05T21:25:55.966681+05:30",
-    "date_display": "Monday, October 05, 2026",
-    "today_str": "2026-10-05",
+    "generated_at": "2026-10-08T22:12:34.903290+05:30",
+    "date_display": "Thursday, October 08, 2026",
+    "today_str": "2026-10-08",
     "timezone": "Asia/Kolkata (IST)",
     "total_warriors": 3,
-    "total_collective_points": 55,
+    "total_collective_points": 0,
     "apex_threshold": 12000,
     "daily_point_cap": 500
   },
@@ -67,9 +67,9 @@
     {
       "rank": 1,
       "username": "ssstrang3rrr",
-      "points": 55,
+      "points": 0,
       "max_points": 500,
-      "completion_rate": 11.0,
+      "completion_rate": 0.0,
       "perfect_day": false
     },
     {
@@ -94,17 +94,17 @@
       "rank": 1,
       "discord_id": "691485824805503056",
       "username": "ssstrang3rrr",
-      "total_points": 55,
-      "streak": 1,
+      "total_points": 0,
+      "streak": 0,
       "perfect_days": 0,
       "recorded_days": 2,
       "level": 1,
       "title": "Initiate",
       "badge": "\ud83e\udd49",
       "color": "0x7f8c8d",
-      "tier_pct": 11,
-      "pts_to_next": 445,
-      "arc_pct": 0.5
+      "tier_pct": 0,
+      "pts_to_next": 500,
+      "arc_pct": 0.0
     },
     {
       "rank": 2,
@@ -113,7 +113,7 @@
       "total_points": 0,
       "streak": 0,
       "perfect_days": 0,
-      "recorded_days": 0,
+      "recorded_days": 1,
       "level": 1,
       "title": "Initiate",
       "badge": "\ud83e\udd49",
@@ -129,7 +129,7 @@
       "total_points": 0,
       "streak": 0,
       "perfect_days": 0,
-      "recorded_days": 0,
+      "recorded_days": 1,
       "level": 1,
       "title": "Initiate",
       "badge": "\ud83e\udd49",

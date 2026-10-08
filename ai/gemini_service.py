@@ -356,6 +356,73 @@ async def generate_reminder_motivation(
         return random.choice(CURATED_STOIC_FALLBACKS)
 
 
+async def generate_personalized_morning_briefing(
+    briefing_context: Dict[str, Any]
+) -> str:
+    """
+    Generates a deeply personalized 2-sentence morning discipline quote/callout for a warrior's
+    private morning DM based on their actual past 7 days performance, streak, disciplines, and grinds.
+    """
+    import random
+    client = get_gemini_client()
+    if not client:
+        return random.choice(CURATED_STOIC_FALLBACKS)
+
+    u_name = briefing_context.get("username", "Warrior")
+    streak = briefing_context.get("streak", 0)
+    total_7d = briefing_context.get("total_pts_7d", 0)
+    solid_days = briefing_context.get("solid_days", 0)
+    zero_days = briefing_context.get("zero_days", 0)
+    shields = briefing_context.get("frost_shields", 0)
+    disciplines = briefing_context.get("top_disciplines", [])
+    grinds = briefing_context.get("recent_grinds", [])
+
+    context_lines = [
+        f"Warrior: {u_name}",
+        f"Active Streak: {streak} consecutive days",
+        f"Past 7 Days Output: {total_7d} total points ({solid_days} days hit >=30 pts, {zero_days} days had 0 pts)",
+        f"Frost Shields Available: {shields}",
+    ]
+    if disciplines:
+        context_lines.append(f"Top Recent Volume: {', '.join(disciplines)}")
+    if grinds:
+        context_lines.append(f"Recent Deep Work / Study: {', '.join(grinds)}")
+
+    prompt = (
+        f"You are Amarok, the grounded discipline coach for the Winter Arc Discord community.\n"
+        f"Write a personal, direct 1-to-2 sentence morning kickoff reflection for {u_name}'s private DM.\n\n"
+        f"WARRIOR'S EXACT 7-DAY CONTEXT:\n"
+        + "\n".join(f"- {line}" for line in context_lines) + "\n\n"
+        "STRICT CONSTRAINTS:\n"
+        "- LENGTH: EXACTLY 2 SHORT SENTENCES (STRICTLY UNDER 40 WORDS TOTAL).\n"
+        "- AUTHENTIC GROUNDING: Mention or directly reference their actual recent momentum (e.g. if their streak is high, or if they barely survived, or if they had high push-up volume or deep work). Do not recite raw stats mechanically; synthesize it into real coaching.\n"
+        "- ZERO CLICHÉS, ZERO FANTASY ROLEPLAY: Ban words like 'howl', 'wolf pack', 'blizzards', 'frost gods', 'shadows'.\n"
+        "- TONE: Blunt, respectful, focused on setting the standard today. No corporate fluff.\n\n"
+        "Output ONLY the plain text sentences. Do not use quotes or prefixes."
+    )
+
+    try:
+        from google.genai import types
+        logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for personalized morning briefing for {u_name}...")
+        response = await client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=100,
+            ),
+        )
+        txt = (response.text or "").strip().strip('"').strip("'")
+        if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
+            txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+        if txt and len(txt.split()) <= 50:
+            return txt
+        return random.choice(CURATED_STOIC_FALLBACKS)
+    except Exception as e:
+        logger.warning(f"Could not generate personalized morning briefing for {u_name}: {e}")
+        return random.choice(CURATED_STOIC_FALLBACKS)
+
+
 async def generate_evening_alert_data(
     warriors_data: List[Dict[str, Any]],
     override_quote: Optional[str] = None

@@ -2,8 +2,8 @@
 
   <img src="docs/assets/winter_arc_banner_vector_clean_1360x480.png" alt="Winter Arc Discord Bot Banner" width="100%" style="border-radius: 12px; margin-bottom: 1rem;">
 
-  # Winter Arc Discord Bot
-  
+  <h1 align="center">Winter Arc Discord Bot</h1>
+
   **An open-source, self-hosted fitness accountability ecosystem for private Discord communities.**  
   *Track volume, defend streaks, conquer the cold, and ascend through a 12-tier discipline hierarchy.*
 
@@ -27,10 +27,11 @@
 Most fitness and habit trackers fail because working out in isolation provides no tribal pressure, while commercial apps are plagued by paywalls, subscriptions, and bloat.
 
 **Winter Arc moves the accountability loop directly into Discord:**
+
 - **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
 - **Dual AI Workout Logging**: Log workouts with standard slash commands or natural language with Groq and Gemini AI.
-- **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/callcap`) protect server integrity from vanity claims.
+- **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/accuse`) protect server integrity from vanity claims.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
 ---
@@ -43,7 +44,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **Monospace Habit Calendar** | `/streak` renders an aligned, monospace monthly matrix and full 92-day campaign view with status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
 | **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
-| **Tribal Council Governance** | Real-time integrity verification: `/callcap` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
+| **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |
 
@@ -55,6 +56,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 ## 🚀 Quickstart Guide
 
 ### 1. Clone & Setup Virtual Environment
+
 ```bash
 # Clone the repository
 git clone https://github.com/vishnunandan555/winter-arc-discord-bot.git
@@ -69,10 +71,13 @@ pip install -r requirements.txt
 ```
 
 ### 2. Configure Environment Variables
+
 Copy `.env.example` to `.env` and fill in your Discord credentials:
+
 ```bash
 cp .env.example .env
 ```
+
 ```env
 # Required: Discord Bot Token from Discord Developer Portal
 DISCORD_TOKEN=your_bot_token_here
@@ -90,9 +95,11 @@ GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ### 3. Launch the Bot
+
 ```bash
 python bot.py
 ```
+
 *The bot will connect to Discord, initialize `winter_arc.db`, and sync all 24 slash commands automatically.*
 
 ---
@@ -128,8 +135,8 @@ The bot registers **24 native slash commands** designed with Discord autocomplet
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
 | **Habits & Streaks** | `/streak`, `/today`, `/tasks`, `/history` | Monospace habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
-| **Tribal Governance**| `/callcap` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
-| **Recovery & Settings**| `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping`| Streak shield defense, morning/evening DM preferences, manual, and latency check. |
+| **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
+| **Recovery & Settings** | `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, morning/evening DM preferences, manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`) | Channel binding, role ping, multi-target DMs, discipline customization, and disciplinary probation. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
@@ -151,28 +158,30 @@ Winter Arc is engineered for 24/7 reliability with minimal resource consumption 
 For complete step-by-step instructions, see the **[Full Hosting Guide (docs/HOSTING.md)](docs/HOSTING.md)**.
 
 ### 🚀 Wispbyte Deployment Options
+
 - **Method 1 (Recommended): GitHub Auto-Pull** — Configure your repo in Wispbyte's **GitHub Integration** tab with `Auto Update on Startup` enabled. Bot reboots automatically pull the latest commits without manual file transfers.
 - **Method 2 (Classic): One-Click ZIP Bundle** — Generate an ultra-lean production archive with a single command:
+
 ```bash
 python create_deploy_zip.py
 ```
+
 > **What this does:**
 > - Automatically bundles all bot code, cogs, AI services, test suites, and Docker configs.
 > - **Includes your `.env` file** so your credentials and token work instantly upon unzipping.
 > - Excludes all local databases (`*.db`), virtual environments (`.venv`), caches, and website assets to keep the upload ultra-lean (~130 KB).
 > - Produces a fresh `bot_deploy.zip` ready to upload and extract in your server's file manager.
 
-
 ---
 
 ## 📂 Project Architecture
 
-```
+```text
 winter-arc-discord-bot/
 ├── ai/                      # Groq & Gemini AI service integrations
 ├── cogs/                    # Discord command extensions (warrior & admin cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (64 test cases across 8 modules)
+├── tests/                   # Modular domain test suite (77 test cases across 9 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

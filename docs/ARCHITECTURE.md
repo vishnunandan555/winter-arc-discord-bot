@@ -27,7 +27,7 @@ Technical design specification, component separation, database schema, and scori
 │  • /profile, /ranks          ││  • /admin dm, /admin tasks  │
 │  • /leaderboard, /stats      ││  • /admin grind (probation) │
 │  • /history, /ping, /help    ││  • /nuke (Owner 2FA Purge)  │
-│  • /callcap (Council trial)  ││  • /test_reminder           │
+│  • /accuse (Council trial)   ││  • /test_reminder           │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │
                ▼                              ▼
@@ -97,7 +97,7 @@ winter-arc-bot/
 │   └── views.py              # Interactive views (CouncilVotingView, CallCapConfirmView, etc.)
 ├── cogs/
 │   ├── __init__.py
-│   ├── warrior.py            # User-facing slash commands & /callcap
+│   ├── warrior.py            # User-facing slash commands & /accuse
 │   └── admin.py              # Administrator commands, /admin grind, /nuke
 ├── dm_templates.py           # Centralized DM announcement & invitation templates
 ├── tests/                    # Modular domain test suite (77 tests across 9 modules)
@@ -126,6 +126,7 @@ winter-arc-bot/
 SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 
 ### `users`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Internal user ID |
@@ -135,6 +136,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `enrolled` | BOOLEAN | `1` if active, `0` if unenrolled via `/leave_arc` |
 
 ### `tasks`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Discipline ID |
@@ -146,6 +148,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `active` | BOOLEAN | `1` if active in daily calculations |
 
 ### `daily_logs`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Log entry ID |
@@ -156,6 +159,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `date` | TEXT | ISO format date (`YYYY-MM-DD`) |
 
 ### `daily_summaries`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Summary entry ID |
@@ -166,6 +170,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `perfect_day` | BOOLEAN | `1` if user achieved 100% completion |
 
 ### `server_settings`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `guild_id` | INTEGER PRIMARY KEY | Discord Guild ID |
@@ -173,6 +178,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `role_id` | INTEGER | Role pinged during announcements |
 
 ### `grind_logs`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Grind entry ID |
@@ -185,6 +191,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `commentary` | TEXT | Amarok's gritty evaluation / roast |
 
 ### `shield_logs`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `id` | INTEGER PRIMARY KEY | Shield consumption ID |
@@ -194,6 +201,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `reason` | TEXT | Rest or recovery explanation |
 
 ### `bot_state`
+
 | Column | Type | Description |
 | :--- | :--- | :--- |
 | `key` | TEXT PRIMARY KEY | State identifier (e.g. `grind_ban_{discord_id}`) |
@@ -219,10 +227,10 @@ $$\text{Arc Progress \%} = \min\left(100.0, \frac{\text{Lifetime Points}}{12000}
 The Winter Arc governance system enforces authenticity through a dual-trigger architecture:
 
 1. **Automated AI Sentinel**: When Gemini flags vague buzzword bingo or ungrounded claims (`verdict == 'ROASTED'`), Amarok credits token effort points (+10 pts) and immediately auto-summons the Council in the designated announcements channel.
-2. **Community Challenge (`/callcap @member`)**: Any enrolled brother can challenge a dishonest log. To prevent petty rivalry or jealousy, the challenger must pass an ephemeral **Honor Code Verification Modal** before the public trial is summoned.
+2. **Community Challenge (`/accuse @member`)**: Any enrolled brother can challenge a dishonest log. To prevent petty rivalry or jealousy, the challenger must pass an ephemeral **Honor Code Verification Modal** before the public trial is summoned.
 3. **Democratic Resolution (`CouncilVotingView`)**:
-   - 10-minute public voting session with real-time button counts: `[ 🧢 He's Capping ]` vs `[ ✅ Legit ]`.
+   - 10-minute public voting session with real-time button counts: `[ 🔨 Guilty ]` vs `[ 🛡️ Innocent ]`.
    - The accused is blocked from self-voting; only enrolled pack members may cast votes.
    - Concludes with thematic animated courtroom GIFs (Phoenix Wright, Higuruma court, cat council).
-   - If Capped: Points are stripped (`cap_user_grind`). If Legit or Tied: Points stand.
+   - If Guilty: Points are stripped (`cap_user_grind`). If Innocent or Tied: Points stand.
 4. **Administrative Probation (`/admin grind`)**: Server administrators can suspend `/grind` access (`block` with custom duration & reason) or restore it (`unlock`).

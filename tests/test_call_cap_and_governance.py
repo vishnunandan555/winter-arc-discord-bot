@@ -203,7 +203,7 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         # Cap confirmed resolution sent
         self.assertTrue(mock_channel.send.called)
         sent_embed = mock_channel.send.call_args.kwargs.get("embed")
-        self.assertIn("CAP CONFIRMED", sent_embed.title)
+        self.assertIn("GUILTY", sent_embed.title)
         self.assertIn(sent_embed.image.url, CAP_CONFIRMED_GIFS)
 
         # Verify accused points were stripped
@@ -253,7 +253,7 @@ class TestCallCapAndGovernance(WinterArcTestCase):
 
         self.assertTrue(mock_channel.send.called)
         sent_embed = mock_channel.send.call_args.kwargs.get("embed")
-        self.assertIn("GRIND LEGIT", sent_embed.title)
+        self.assertIn("NOT GUILTY", sent_embed.title)
         self.assertIn(sent_embed.image.url, LEGIT_VERIFIED_GIFS)
 
         # Points still 30
@@ -342,7 +342,7 @@ class TestCallCapAndGovernance(WinterArcTestCase):
             self.assertTrue(url.endswith(".gif"))
 
     def test_callcap_guards_and_concurrent_trial_prevention(self):
-        """Verifies /callcap guards: self-challenge, non-enrolled target, no grind log, and concurrent trial."""
+        """Verifies /accuse guards: self-challenge, non-enrolled target, no grind log, and concurrent trial."""
         bot = MagicMock()
         cog = WarriorCog(bot)
 
@@ -350,30 +350,30 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         inter_self = self.create_mock_interaction(user_id=self.user_a_id, display_name="WarriorA")
         mock_a = self.create_mock_member(self.user_a_id, "WarriorA")
         with patch("cogs.warrior.require_enrolled", return_value=True):
-            asyncio.run(cog.callcap_cmd.callback(cog, inter_self, target=mock_a))
-        self.assertIn("cannot call cap on yourself", inter_self.response.send_message.call_args[0][0])
+            asyncio.run(cog.accuse_cmd.callback(cog, inter_self, target=mock_a))
+        self.assertIn("cannot accuse yourself", inter_self.response.send_message.call_args[0][0])
 
         # 2. Target not enrolled
         inter = self.create_mock_interaction(user_id=self.user_b_id, display_name="WarriorB")
         mock_stranger = self.create_mock_member(999888, "Stranger")
         with patch("cogs.warrior.require_enrolled", return_value=True), \
              patch("cogs.warrior.db.is_user_enrolled", return_value=False):
-            asyncio.run(cog.callcap_cmd.callback(cog, inter, target=mock_stranger))
+            asyncio.run(cog.accuse_cmd.callback(cog, inter, target=mock_stranger))
         self.assertIn("not currently enrolled", inter.response.send_message.call_args[0][0])
 
         # 3. Target is a bot
         mock_bot_user = self.create_mock_member(999000, "BotUser")
         mock_bot_user.bot = True
         with patch("cogs.warrior.require_enrolled", return_value=True):
-            asyncio.run(cog.callcap_cmd.callback(cog, inter, target=mock_bot_user))
-        self.assertIn("cannot call cap on a bot", inter.response.send_message.call_args[0][0])
+            asyncio.run(cog.accuse_cmd.callback(cog, inter, target=mock_bot_user))
+        self.assertIn("cannot accuse a bot", inter.response.send_message.call_args[0][0])
 
         # 4. Concurrent active trial
         CouncilVotingView.active_trials.add(self.user_a_id)
         try:
             with patch("cogs.warrior.require_enrolled", return_value=True), \
                  patch("cogs.warrior.db.is_user_enrolled", return_value=True):
-                asyncio.run(cog.callcap_cmd.callback(cog, inter, target=mock_a))
+                asyncio.run(cog.accuse_cmd.callback(cog, inter, target=mock_a))
             self.assertIn("already active", inter.response.send_message.call_args[0][0])
         finally:
             CouncilVotingView.active_trials.discard(self.user_a_id)

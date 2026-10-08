@@ -721,10 +721,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="⚖️ `/callcap [target]` — Community Council Verification",
+            name="⚖️ `/accuse [target]` — Community Council Verification",
             value=(
-                "Challenge a suspect `/grind` claim. Triggers an ephemeral Honor Code verification prompt, then initiates a 10-minute public Council poll in the channel.\n"
-                "If the brotherhood confirms cap, the suspect's grind points for today are stripped."
+                "Challenge a suspect `/grind` claim. Triggers an ephemeral Honor Code verification prompt, then initiates a 10-minute public Council trial in the channel.\n"
+                "If the brotherhood rules guilty, the suspect's grind points for today are stripped."
             ),
             inline=False
         )
@@ -752,7 +752,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• `/today [member]` — Live daily progress card with individual emoji progress bars, points breakdown, and live streak status.\n"
                 "• `/tasks [member]` — Extended disciplines overview with targets, units, muscle groups, and live progress bars.\n"
-                "• `/streak [member]` — Habit consistency calendar & streak dashboard! Monday–Sunday weekly matrix with status tags (🟩 30+ pts, ⭐ Perfect Days (100%), 🛡️ Streak Shield, 🟥 Missed, ▫️ Upcoming) and interactive buttons for **Current Month** and the **Full 3-Phase Campaign Calendar** (Oct 1 – Dec 31, 92 days)."
+                "• `/streak [member]` — Habit consistency overview & streak dashboard with status tags (🟩 30+ pts, ⭐ Perfect Days (100%), 🛡️ Streak Shield, 🟥 Missed, ▫️ Upcoming) and an interactive button to switch to the full calendar.\n"
+                "• `/calendar [member]` — Direct 3-phase campaign habit calendar view (Oct 1 – Dec 31, 92 days) with an interactive button to switch back to streak overview."
             ),
             inline=False
         )
@@ -922,8 +923,9 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="⚡ Command Directory Cheat Sheet",
             value=(
                 "• **Logging**: `/quick` • `/log` • `/set` • `/grind`\n"
-                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/profile` • `/ranks`\n"
+                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/calendar` • `/profile` • `/ranks`\n"
                 "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
+                "• **Governance**: `/accuse`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
                 "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
                 "• **Admin**: `/admin set_channel` • `/admin set_role` • `/admin overview` • `/admin health` • `/test_reminder`"
@@ -1380,25 +1382,170 @@ def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -
 
 def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> discord.Embed:
     """Builds the interactive private DM notification settings embed."""
-    master_icon = "🟢 Enabled" if settings["dm_reminders"] else "🔴 Disabled"
-    morning_icon = "🟢 On" if settings["dm_morning"] else "⚪ Off"
-    evening_icon = "🟢 On" if settings["dm_evening"] else "⚪ Off"
+    master_icon = "🟢 Enabled" if settings.get("dm_reminders") else "🔴 Disabled"
+    morning_icon = "🟢 On" if settings.get("dm_morning") else "⚪ Off"
+    afternoon_icon = "🟢 On" if settings.get("dm_afternoon") else "⚪ Off"
+    evening_icon = "🟢 On" if settings.get("dm_evening") else "⚪ Off"
 
     desc = (
-        f"**{user.display_name}** • Notification Preferences\n\n"
-        f"**Master DM Notifications**: {master_icon}\n"
+        f"**{user.display_name}** • Personal Accountability Reminders\n\n"
+        f"**Master DM Switch**: {master_icon}\n"
         f"• 🌅 **Morning Kickoff (05:00 IST)**: {morning_icon}\n"
-        f"• 🌙 **Evening Streak Alert (21:00 IST)**: {evening_icon}\n\n"
-        "_Toggle settings using the interactive buttons below._\n"
-        "_Note: Ensure your Discord privacy settings allow DMs from server members._"
+        f"• ☀️ **Afternoon Check-in (16:30 IST)**: {afternoon_icon}\n"
+        f"• 🌙 **Evening Streak Warning (21:00 IST)**: {evening_icon}\n\n"
+        "_Toggle individual reminders using the buttons below._\n"
+        "_Note: Ensure your Discord privacy settings allow Direct Messages from server members._"
     )
 
     embed = discord.Embed(
-        title="⚙️ Winter Arc — Private Accountability Settings",
+        title="⚙️ Winter Arc — Personal Reminders & DMs",
         description=desc,
         color=0x5865F2
     )
-    embed.set_footer(text="Zero spam • Only high-leverage discipline alerts")
+    embed.set_footer(text="Zero server spam • Direct personal accountability")
+    return embed
+
+
+def build_dm_morning_message(
+    tasks: List[Dict[str, Any]],
+    streak: int,
+    date_display: str,
+    quote: Optional[str] = None,
+    curr_phase: Optional[Dict[str, Any]] = None,
+    phase_progress: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Builds clean personal text message for the 05:00 IST morning DM briefing."""
+    if curr_phase and phase_progress:
+        header = f"🌅 **Winter Arc — Day {phase_progress['day_num']} of {curr_phase['name']}**"
+    else:
+        header = f"🌅 **Winter Arc — Morning Briefing ({date_display})**"
+
+    streak_line = f"🔥 **Active Streak**: **{streak} days**"
+
+    quote_text = (quote or "When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love. — Marcus Aurelius").strip()
+    quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
+
+    task_lines = []
+    for t in tasks:
+        tgt = format_num(t["target"])
+        task_lines.append(f"• **{t['name']}**: `{tgt} {t['unit']}` *({t.get('max_points', 100)} pts)*")
+    tasks_block = "**Today's Challenge (500 pts max):**\n" + "\n".join(task_lines)
+
+    subtext = "-# Log sets with /log or /quick • Deep work with /grind • /reminders to adjust"
+
+    return f"{header}\n{streak_line}\n\n{quote_section}\n\n{tasks_block}\n\n{subtext}"
+
+
+def build_dm_afternoon_message(
+    user_name: str,
+    points: int,
+    max_points: int,
+    streak: int,
+) -> str:
+    """Builds clean personal text message for the 16:30 IST afternoon DM check-in."""
+    pct = int(round((points / max_points * 100))) if max_points > 0 else 0
+    header = "☀️ **Winter Arc — Afternoon Check-in (16:30 IST)**"
+
+    if points >= 500:
+        body = (
+            f"**{user_name}**, you've completely maxed out the board today! **500 / 500 pts** (⭐ Perfect Day).\n"
+            f"Your **{streak}-day streak** is fully defended. Rest up and recover."
+        )
+    elif points >= MIN_STREAK_POINTS:
+        remaining = max_points - points
+        body = (
+            f"**{user_name}**, you're sitting at **{points} / {max_points} pts** ({pct}%).\n"
+            f"🔥 **Streak is already secured for today ({streak} days)!**\n\n"
+            f"You have **{remaining} points** remaining on the board if you want to push for a clean sweep."
+        )
+    else:
+        needed = MIN_STREAK_POINTS - points
+        body = (
+            f"**{user_name}**, you have logged **{points} / {max_points} pts** ({pct}%) so far today.\n"
+            f"⚠️ You need **{needed} more points** before midnight to defend your **{streak}-day streak**.\n\n"
+            f"Drop and knock out a quick set of push-ups or squats before your evening gets busy."
+        )
+
+    subtext = "-# Log sets with /log or /quick • 30 pts/day minimum • /reminders to adjust"
+    return f"{header}\n\n{body}\n\n{subtext}"
+
+
+def build_dm_evening_message(
+    user_name: str,
+    points: int,
+    max_points: int,
+    streak: int,
+    shields: int,
+    quote: Optional[str] = None,
+) -> str:
+    """Builds clean personal text message for the 21:00 IST evening streak warning DM (3h before midnight)."""
+    header = "🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**"
+
+    if points >= 500:
+        body = (
+            f"**{user_name}**, scores lock in at 00:00 IST.\n"
+            f"You finished at **500 pts** (⭐ Perfect Day). Your **{streak}-day streak** will advance cleanly at midnight."
+        )
+    elif points >= MIN_STREAK_POINTS:
+        body = (
+            f"**{user_name}**, scores lock in at 00:00 IST.\n"
+            f"You logged **{points} pts** today. Your **{streak}-day streak** is safely secured for tomorrow!"
+        )
+    else:
+        needed = MIN_STREAK_POINTS - points
+        shield_text = (
+            f"• Available Frost Shields: `{shields} / 2` (A shield will be auto-consumed at midnight)"
+            if shields > 0
+            else "• Available Frost Shields: `0 / 2` ⚠️ **No shields left! Your streak will break if you don't hit 30 pts!**"
+        )
+        body = (
+            f"**{user_name}**, scores finalize at **00:00 IST**.\n"
+            f"You currently have **{points} / 30 points** needed for your streak ({needed} pts missing).\n\n"
+            f"{shield_text}\n\n"
+            f"Get your reps in now and log with `/log` before the board resets!"
+        )
+
+    quote_section = f"\n\n> {quote.strip()}" if quote else ""
+    subtext = "-# Log sets with /log • Rollover at 00:00 IST • /reminders to adjust"
+
+    return f"{header}\n\n{body}{quote_section}\n\n{subtext}"
+
+
+def build_dm_afternoon_embed(user: discord.User, points: int, max_points: int, streak: int) -> discord.Embed:
+    """Builds private afternoon progress DM embed sent at 16:30 IST."""
+    pct = int(round((points / max_points * 100))) if max_points > 0 else 0
+    needed = max(0, MIN_STREAK_POINTS - points)
+
+    if points >= 500:
+        desc = (
+            f"**{user.display_name}**, outstanding execution!\n\n"
+            f"You reached **500 / 500 pts** (⭐ 100% Perfect Day).\n"
+            f"🔥 **{streak}-day streak** safely preserved for midnight rollover."
+        )
+        color = 0x2ECC71
+    elif points >= MIN_STREAK_POINTS:
+        desc = (
+            f"**{user.display_name}**, solid work so far.\n\n"
+            f"📊 **Today's Score**: **{points} / {max_points} pts** ({pct}%)\n"
+            f"🔥 **Streak Status**: Secured for today ({streak} days)!\n\n"
+            f"Push for 500 pts before midnight to claim a Perfect Day."
+        )
+        color = 0x3498DB
+    else:
+        desc = (
+            f"**{user.display_name}**, midday check-in.\n\n"
+            f"📊 **Today's Score**: **{points} / {max_points} pts** ({pct}%)\n"
+            f"⚠️ **{needed} more points needed** to secure your **{streak}-day streak**.\n\n"
+            "_Drop and log a quick set with `/log` or `/quick` before the evening rush!_"
+        )
+        color = 0xE67E22
+
+    embed = discord.Embed(
+        title="☀️ Winter Arc — Afternoon Check-in",
+        description=desc,
+        color=color
+    )
+    embed.set_footer(text="Day resets at 00:00 IST • /reminders to configure")
     return embed
 
 

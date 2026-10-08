@@ -38,6 +38,9 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/streak`)**: Why `/streak`? Inspired by GitHub contribution graphs, visual streak squares create psychological momentum that makes breaking the chain painful.",
     "💡 **Tip (`/streak`)**: Pro Tip: Click the **Calendar** button below your `/streak` embed to inspect the entire 92-day 3-phase campaign calendar (Oct 1 – Dec 31)!",
 
+    # 🗓️ /calendar — Full 3-Phase Campaign Habit Calendar
+    "💡 **Tip (`/calendar`)**: How to use: Run `/calendar` to directly view your full 92-day 3-phase habit calendar matrix (Oct 1 – Dec 31) with an interactive button to switch back to `/streak`!",
+
     # 📊 /today — Daily Progress Dashboard
     "💡 **Tip (`/today`)**: How to use: Run `/today` to inspect your live daily checklist, individual exercise progress bars, daily points total, and streak status.",
     "💡 **Tip (`/today`)**: Why `/today`? It gives you instant clarity on how close you are to today's 500-point ceiling and whether your streak is already locked in.",

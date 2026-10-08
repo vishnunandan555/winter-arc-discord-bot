@@ -30,7 +30,11 @@ from ui.embeds import (
     build_podium_embed,
     build_midnight_finalization_message,
     build_dm_morning_embed,
+    build_dm_morning_message,
+    build_dm_afternoon_embed,
+    build_dm_afternoon_message,
     build_dm_evening_embed,
+    build_dm_evening_message,
     build_weekly_state_of_the_pack_embed,
     build_weekly_recap_message,
     build_phase_podium_embed,
@@ -99,6 +103,7 @@ class WinterArcScheduler:
                 db.set_bot_state("last_afternoon_date", today_str, db_path=self.db_path)
                 logger.info(f"Triggering Afternoon Check-in for {today_str}...")
                 await self.broadcast_afternoon_checkin()
+                await self.dispatch_afternoon_dms()
 
             # 3. 21:00 - 21:05 IST - Evening Streak Warning Channel Broadcast & Personal DMs (3h before midnight)
             if now.hour == 21 and now.minute < 5 and self._last_evening_date != today_str:
@@ -311,7 +316,7 @@ class WinterArcScheduler:
                         curr_phase=curr_phase,
                         phase_progress=phase_progress,
                         quote=quote,
-                        role_ping=ping,
+                        role_ping="",
                     )
                     await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
                 except Exception as e:
@@ -361,7 +366,7 @@ class WinterArcScheduler:
                         enrolled_users=enrolled_users,
                         today_str=today_str,
                         quote=quote,
-                        role_ping=ping,
+                        role_ping="",
                     )
                     await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
                 except Exception as e:
@@ -418,7 +423,7 @@ class WinterArcScheduler:
                         warriors_data=warriors_data,
                         callouts=callouts,
                         stoic_quote=stoic_quote,
-                        role_ping=ping,
+                        role_ping="",
                     )
                     await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
                 except Exception as e:
@@ -530,7 +535,7 @@ class WinterArcScheduler:
                             date_str=yesterday,
                             leaderboard=leaderboard,
                             ai_recap=ai_recap,
-                            role_ping=ping,
+                            role_ping="",
                         )
                         await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
                         for alert in individual_alerts:
@@ -717,26 +722,24 @@ class WinterArcScheduler:
                 discord_user = await self.bot.fetch_user(discord_id)
             if discord_user:
                 streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
-                history = db.get_user_history(discord_id, days=3, db_path=self.db_path)
-                recent_logs = db.get_user_recent_logs(discord_id, limit=3, db_path=self.db_path)
-                recent_grinds = db.get_user_recent_grinds(discord_id, limit=2, db_path=self.db_path)
+                briefing_context = db.get_user_weekly_briefing_context(discord_id, db_path=self.db_path)
+                curr_phase = get_current_phase()
+                phase_progress = get_phase_progress(curr_phase) if curr_phase else None
                 quote = ""
                 try:
-                    quote = await gemini_service.generate_reminder_motivation(
-                        reminder_type="morning",
-                        user_context={
-                            "username": discord_user.display_name,
-                            "streak": streak,
-                            "recent_logs": recent_logs,
-                            "recent_grinds": recent_grinds,
-                        },
-                        recent_history=history
-                    )
+                    quote = await gemini_service.generate_personalized_morning_briefing(briefing_context)
                 except Exception as e:
                     logger.debug(f"Could not generate AI DM quote: {e}")
 
-                embed = build_dm_morning_embed(active_tasks, streak, date_display, quote=quote)
-                await discord_user.send(embed=embed)
+                msg = build_dm_morning_message(
+                    tasks=active_tasks,
+                    streak=streak,
+                    date_display=date_display,
+                    quote=quote,
+                    curr_phase=curr_phase,
+                    phase_progress=phase_progress,
+                )
+                await discord_user.send(content=msg)
                 return True
         except discord.Forbidden:
             logger.debug(f"Cannot send morning DM to user {discord_id} (DMs closed).")
@@ -768,6 +771,51 @@ class WinterArcScheduler:
         dispatched = sum(1 for r in results if r is True)
         logger.info(f"Morning briefing DMs dispatched to {dispatched}/{len(users)} member(s).")
 
+    async def _send_single_afternoon_dm(self, user_record: Dict[str, Any], today_str: str) -> bool:
+        discord_id = user_record["discord_id"]
+        try:
+            discord_user = self.bot.get_user(discord_id)
+            if not discord_user:
+                discord_user = await self.bot.fetch_user(discord_id)
+            if discord_user:
+                prog = db.get_user_daily_progress(discord_id, today_str, db_path=self.db_path)
+                streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
+                msg = build_dm_afternoon_message(
+                    user_name=discord_user.display_name,
+                    points=prog.get("total_points", 0),
+                    max_points=prog.get("max_possible_points", 500),
+                    streak=streak,
+                )
+                await discord_user.send(content=msg)
+                return True
+        except discord.Forbidden:
+            logger.debug(f"Cannot send afternoon DM to user {discord_id} (DMs closed).")
+        except Exception as e:
+            logger.warning(f"Error sending afternoon DM to user {discord_id}: {e}")
+        return False
+
+    async def dispatch_afternoon_dms(self):
+        """Dispatches personal afternoon check-in DMs concurrently to opted-in members."""
+        users = db.get_opted_in_dm_users(category="afternoon", db_path=self.db_path)
+        if not users:
+            return
+
+        now = get_now_ist()
+        today_str = now.strftime("%Y-%m-%d")
+
+        sem = asyncio.Semaphore(2)
+
+        async def _bounded_afternoon_dm(u):
+            async with sem:
+                res = await self._send_single_afternoon_dm(u, today_str)
+                await asyncio.sleep(0.1)
+                return res
+
+        tasks = [_bounded_afternoon_dm(u) for u in users]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        dispatched = sum(1 for r in results if r is True)
+        logger.info(f"Afternoon check-in DMs dispatched to {dispatched}/{len(users)} member(s).")
+
     async def _send_single_evening_dm(self, user_record: Dict[str, Any], today_str: str) -> bool:
         discord_id = user_record["discord_id"]
         try:
@@ -778,9 +826,6 @@ class WinterArcScheduler:
                 progress = db.get_user_daily_progress(discord_id, today_str, db_path=self.db_path)
                 streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
                 shield_status = db.get_user_shield_status(discord_id, db_path=self.db_path)
-                history = db.get_user_history(discord_id, days=3, db_path=self.db_path)
-                recent_logs = db.get_user_recent_logs(discord_id, limit=3, db_path=self.db_path)
-                recent_grinds = db.get_user_recent_grinds(discord_id, limit=2, db_path=self.db_path)
                 quote = ""
                 try:
                     quote = await gemini_service.generate_reminder_motivation(
@@ -789,16 +834,20 @@ class WinterArcScheduler:
                             "username": discord_user.display_name,
                             "streak": streak,
                             "today_points": progress.get("total_points", 0),
-                            "recent_logs": recent_logs,
-                            "recent_grinds": recent_grinds,
                         },
-                        recent_history=history
                     )
                 except Exception as e:
                     logger.debug(f"Could not generate AI DM quote: {e}")
 
-                embed = build_dm_evening_embed(discord_user, progress, streak, shield_status, quote=quote)
-                await discord_user.send(embed=embed)
+                msg = build_dm_evening_message(
+                    user_name=discord_user.display_name,
+                    points=progress.get("total_points", 0),
+                    max_points=progress.get("max_possible_points", 500),
+                    streak=streak,
+                    shields=shield_status.get("frost_shields", 0),
+                    quote=quote,
+                )
+                await discord_user.send(content=msg)
                 return True
         except discord.Forbidden:
             logger.debug(f"Cannot send evening DM to user {discord_id} (DMs closed).")

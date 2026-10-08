@@ -104,8 +104,8 @@ class LeaderboardView(RobustView):
         await interaction.response.edit_message(embed=embed, view=self)
 
 
-class SettingsView(RobustView):
-    """Interactive view for configuring personal DM notifications."""
+class RemindersView(RobustView):
+    """Interactive view for configuring personal DM notifications and reminders."""
 
     def __init__(self, user_id: int, settings: dict):
         super().__init__(timeout=180.0)
@@ -114,56 +114,73 @@ class SettingsView(RobustView):
         self._sync_buttons()
 
     def _sync_buttons(self):
-        master = self.settings["dm_reminders"]
+        master = self.settings.get("dm_reminders", False)
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 if child.custom_id == "toggle_master":
-                    child.label = "🔔 Master DMs: Enabled" if master else "🔕 Master DMs: Disabled"
+                    child.label = "🔔 Master Switch: Enabled" if master else "🔕 Master Switch: Disabled"
                     child.style = discord.ButtonStyle.success if master else discord.ButtonStyle.secondary
                 elif child.custom_id == "toggle_morning":
                     child.disabled = not master
-                    child.label = "🌅 Morning: On" if self.settings["dm_morning"] else "🌅 Morning: Off"
-                    child.style = discord.ButtonStyle.primary if self.settings["dm_morning"] and master else discord.ButtonStyle.secondary
+                    child.label = "🌅 Morning: On" if self.settings.get("dm_morning") else "🌅 Morning: Off"
+                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_morning") and master else discord.ButtonStyle.secondary
+                elif child.custom_id == "toggle_afternoon":
+                    child.disabled = not master
+                    child.label = "☀️ Afternoon: On" if self.settings.get("dm_afternoon") else "☀️ Afternoon: Off"
+                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_afternoon") and master else discord.ButtonStyle.secondary
                 elif child.custom_id == "toggle_evening":
                     child.disabled = not master
-                    child.label = "🌙 Evening: On" if self.settings["dm_evening"] else "🌙 Evening: Off"
-                    child.style = discord.ButtonStyle.primary if self.settings["dm_evening"] and master else discord.ButtonStyle.secondary
+                    child.label = "🌙 Evening: On" if self.settings.get("dm_evening") else "🌙 Evening: Off"
+                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_evening") and master else discord.ButtonStyle.secondary
 
     async def _guard_user(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ These settings belong to another member. Run `/settings` to manage yours.", ephemeral=True)
+            await interaction.response.send_message("❌ These settings belong to another member. Run `/reminders` to manage yours.", ephemeral=True)
             return False
         return True
 
-    @discord.ui.button(label="🔔 Master DMs", style=discord.ButtonStyle.secondary, custom_id="toggle_master")
+    @discord.ui.button(label="🔔 Master Switch", style=discord.ButtonStyle.secondary, custom_id="toggle_master", row=0)
     async def toggle_master_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        new_state = not self.settings["dm_reminders"]
+        new_state = not self.settings.get("dm_reminders", False)
         self.settings = db.update_user_dm_settings(self.user_id, dm_reminders=new_state)
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="🌅 Morning: On", style=discord.ButtonStyle.secondary, custom_id="toggle_morning")
+    @discord.ui.button(label="🌅 Morning: On", style=discord.ButtonStyle.secondary, custom_id="toggle_morning", row=1)
     async def toggle_morning_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        new_state = not self.settings["dm_morning"]
+        new_state = not self.settings.get("dm_morning", True)
         self.settings = db.update_user_dm_settings(self.user_id, dm_morning=new_state)
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="🌙 Evening: On", style=discord.ButtonStyle.secondary, custom_id="toggle_evening")
+    @discord.ui.button(label="☀️ Afternoon: On", style=discord.ButtonStyle.secondary, custom_id="toggle_afternoon", row=1)
+    async def toggle_afternoon_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._guard_user(interaction):
+            return
+        new_state = not self.settings.get("dm_afternoon", True)
+        self.settings = db.update_user_dm_settings(self.user_id, dm_afternoon=new_state)
+        self._sync_buttons()
+        embed = build_settings_embed(interaction.user, self.settings)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="🌙 Evening: On", style=discord.ButtonStyle.secondary, custom_id="toggle_evening", row=1)
     async def toggle_evening_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
-        new_state = not self.settings["dm_evening"]
+        new_state = not self.settings.get("dm_evening", True)
         self.settings = db.update_user_dm_settings(self.user_id, dm_evening=new_state)
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+SettingsView = RemindersView
 
 
 class HelpView(RobustView):
@@ -325,34 +342,35 @@ class ServerRecordsView(RobustView):
 
 class StreakConsistencyView(RobustView):
     """
-    Streamlined 2-button view for /streak and /consistency:
-    - [Current]: Shows our current month habit consistency only (no month changes)
+    Streamlined 2-button view for /streak and /calendar:
+    - [Streak]: Shows our habit consistency dashboard & active streak status
     - [Calendar]: Opens the full 3-phase Winter Arc campaign calendar view
     """
     def __init__(
         self,
         target_user: Any,
         author_id: int,
-        current_view: str = "current"
+        current_view: str = "streak"
     ):
         super().__init__(timeout=300)
         self.target_user = target_user
         self.author_id = author_id
-        self.current_view = current_view
+        # Normalize "current" to "streak" for backwards compatibility
+        self.current_view = "streak" if current_view in ("streak", "current") else "calendar"
         self._build_buttons()
 
     def _build_buttons(self):
         self.clear_items()
 
-        is_current = (self.current_view == "current")
-        current_btn = discord.ui.Button(
-            label="Current",
-            style=discord.ButtonStyle.primary if is_current else discord.ButtonStyle.secondary,
+        is_streak = (self.current_view == "streak")
+        streak_btn = discord.ui.Button(
+            label="Streak",
+            style=discord.ButtonStyle.primary if is_streak else discord.ButtonStyle.secondary,
             custom_id="streak_view_current",
-            disabled=is_current
+            disabled=is_streak
         )
-        current_btn.callback = self._current_callback
-        self.add_item(current_btn)
+        streak_btn.callback = self._streak_callback
+        self.add_item(streak_btn)
 
         is_calendar = (self.current_view == "calendar")
         calendar_btn = discord.ui.Button(
@@ -364,17 +382,20 @@ class StreakConsistencyView(RobustView):
         calendar_btn.callback = self._calendar_callback
         self.add_item(calendar_btn)
 
-    async def _current_callback(self, interaction: discord.Interaction):
+    async def _streak_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
             await interaction.response.send_message("Only the member who ran the command can navigate.", ephemeral=True)
             return
-        self.current_view = "current"
+        self.current_view = "streak"
         self._build_buttons()
         import database as db
         from ui.embeds import build_streak_consistency_embed
         data = db.get_user_monthly_consistency(self.target_user.id)
         embed = build_streak_consistency_embed(self.target_user, data)
         await interaction.response.edit_message(content=None, embed=embed, view=self)
+
+    # Alias for backwards compatibility
+    _current_callback = _streak_callback
 
     async def _calendar_callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.author_id:
@@ -583,9 +604,9 @@ class CouncilVotingView(RobustView):
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 if child.custom_id == "vote_cap":
-                    child.label = f"🧢 He's Capping ({len(self.capping_votes)})"
+                    child.label = f"🔨 Guilty ({len(self.capping_votes)})"
                 elif child.custom_id == "vote_legit":
-                    child.label = f"✅ Legit ({len(self.legit_votes)})"
+                    child.label = f"🛡️ Innocent ({len(self.legit_votes)})"
 
     async def _guard_voter(self, interaction: discord.Interaction) -> bool:
         if self.is_finished():
@@ -608,14 +629,14 @@ class CouncilVotingView(RobustView):
 
         return True
 
-    @discord.ui.button(label="🧢 He's Capping (0)", style=discord.ButtonStyle.secondary, custom_id="vote_cap")
+    @discord.ui.button(label="🔨 Guilty (0)", style=discord.ButtonStyle.secondary, custom_id="vote_cap")
     async def vote_cap_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_voter(interaction):
             return
 
         user_id = interaction.user.id
         if user_id in self.capping_votes:
-            await interaction.response.send_message("🗳️ You have already cast your vote as **He's Capping**.", ephemeral=True)
+            await interaction.response.send_message("🗳️ You have already cast your vote as **Guilty**.", ephemeral=True)
             return
 
         self.legit_votes.discard(user_id)
@@ -623,16 +644,16 @@ class CouncilVotingView(RobustView):
         self._sync_labels()
 
         await interaction.response.edit_message(view=self)
-        await interaction.followup.send("🗳️ Vote recorded: **He's Capping** 🧢", ephemeral=True)
+        await interaction.followup.send("🗳️ Vote recorded: **Guilty** 🔨", ephemeral=True)
 
-    @discord.ui.button(label="✅ Legit (0)", style=discord.ButtonStyle.secondary, custom_id="vote_legit")
+    @discord.ui.button(label="🛡️ Innocent (0)", style=discord.ButtonStyle.secondary, custom_id="vote_legit")
     async def vote_legit_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_voter(interaction):
             return
 
         user_id = interaction.user.id
         if user_id in self.legit_votes:
-            await interaction.response.send_message("🗳️ You have already cast your vote as **Legit**.", ephemeral=True)
+            await interaction.response.send_message("🗳️ You have already cast your vote as **Innocent**.", ephemeral=True)
             return
 
         self.capping_votes.discard(user_id)
@@ -640,7 +661,7 @@ class CouncilVotingView(RobustView):
         self._sync_labels()
 
         await interaction.response.edit_message(view=self)
-        await interaction.followup.send("🗳️ Vote recorded: **Legit** ✅", ephemeral=True)
+        await interaction.followup.send("🗳️ Vote recorded: **Innocent** 🛡️", ephemeral=True)
 
     async def on_timeout(self) -> None:
         CouncilVotingView.active_trials.discard(self.accused.id)
@@ -664,14 +685,14 @@ class CouncilVotingView(RobustView):
             return
 
         if capping_count > legit_count:
-            # Cap confirmed: zero out points for the challenged date
+            # Accusation confirmed: zero out points for the challenged date
             target_date = self.grind_entry.get("date")
             db.cap_user_grind(self.accused.id, date_str=target_date)
             gif = random.choice(CAP_CONFIRMED_GIFS)
             embed = discord.Embed(
-                title="⚖️ Council Verdict: CAP CONFIRMED",
+                title="⚖️ Council Verdict: CAP CONFIRMED (GUILTY)",
                 description=(
-                    f"The Council has spoken: **{capping_count} Capping** vs **{legit_count} Legit**.\n\n"
+                    f"The Council has spoken: **{capping_count} Guilty** vs **{legit_count} Innocent**.\n\n"
                     f"{self.accused.mention}'s grind points for today (`{points} pts`) have been **stripped**.\n"
                     "Authenticity and sweat are the bedrock of the Winter Arc. No shortcuts."
                 ),
@@ -684,12 +705,12 @@ class CouncilVotingView(RobustView):
                 logger.error(f"Failed to post cap confirmed resolution: {e}")
 
         elif legit_count > capping_count:
-            # Legit verified: points stand
+            # Accusation dismissed: points stand
             gif = random.choice(LEGIT_VERIFIED_GIFS)
             embed = discord.Embed(
-                title="⚖️ Council Verdict: GRIND LEGIT",
+                title="⚖️ Council Verdict: GRIND LEGIT (NOT GUILTY)",
                 description=(
-                    f"The Council has spoken: **{legit_count} Legit** vs **{capping_count} Capping**.\n\n"
+                    f"The Council has spoken: **{legit_count} Innocent** vs **{capping_count} Guilty**.\n\n"
                     f"{self.accused.mention}'s daily grind has been verified by the brotherhood.\n"
                     f"Their **`{points} pts` stand**.\n\n"
                     "Stay disciplined and keep grinding."
@@ -703,7 +724,7 @@ class CouncilVotingView(RobustView):
                 logger.error(f"Failed to post legit verified resolution: {e}")
 
         else:
-            # Tie or 0:0 inconclusive: the council is still thinking (frogs gif)
+            # Tie or 0:0 inconclusive
             gif = "https://media.tenor.com/nnujmeraF1QAAAAC/hmm-thinking.gif"
             embed = discord.Embed(
                 title="⚖️ Council Review Dismissed: TIE / INCONCLUSIVE",
@@ -792,10 +813,10 @@ class CallCapConfirmView(RobustView):
 
         content = (
             f"{role_ping}🚨 **The Council Has Been Summoned** 🚨\n\n"
-            f"*{self.challenger.mention} has called cap on {self.target.mention}'s grind log of*\n"
+            f"*{self.challenger.mention} has formally accused {self.target.mention} of submitting an illegitimate grind log:*\n"
             f"```{log_text}```\n"
             f"*worth {points} points.*\n\n"
-            f"⚔️ **Summoner**: {self.challenger.mention}\n"
+            f"⚔️ **Accuser**: {self.challenger.mention}\n"
             f"⚖️ **Accused**: {self.target.mention}\n"
             f"🎯 **Stake**: {points} Points\n\n"
             "⏳ Cast your vote below. Decision resolves when the timer concludes."
@@ -832,5 +853,4 @@ class CallCapConfirmView(RobustView):
         await interaction.response.edit_message(content="🛡️ **Stand down confirmed.** The Council was not summoned.", view=self)
 
 
-
-
+AccuseConfirmView = CallCapConfirmView

@@ -633,7 +633,7 @@ class TestStreakCalendar(WinterArcTestCase):
         )
         self.assertEqual(len(view.children), 2)
         btn_labels = [c.label for c in view.children]
-        self.assertEqual(btn_labels, ["Current", "Calendar"])
+        self.assertEqual(btn_labels, ["Streak", "Calendar"])
         self.assertTrue(view.children[0].disabled)
         self.assertFalse(view.children[1].disabled)
 
@@ -652,7 +652,7 @@ class TestStreakCalendar(WinterArcTestCase):
 
             inter.response.edit_message.reset_mock()
             await view._current_callback(inter)
-            self.assertEqual(view.current_view, "current")
+            self.assertEqual(view.current_view, "streak")
             self.assertTrue(view.children[0].disabled)
             self.assertFalse(view.children[1].disabled)
             inter.response.edit_message.assert_called_once()
@@ -682,5 +682,16 @@ class TestStreakCalendar(WinterArcTestCase):
                 self.assertEqual(call_kw["embed"].footer.text, STREAK_LEGEND_FOOTER)
                 self.assertEqual(call_kw["embed"].title, "📅 Winter Arc — Streak and Consistency")
                 self.assertIsInstance(call_kw["view"], StreakConsistencyView)
+                self.assertEqual(call_kw["view"].current_view, "streak")
+
+                # Test /calendar command
+                cmd_inter.followup.send.reset_mock()
+                await cog.calendar_cmd.callback(cog, cmd_inter)
+                cmd_inter.followup.send.assert_called_once()
+                cal_kw = cmd_inter.followup.send.call_args[1]
+                self.assertEqual(cal_kw["embed"].footer.text, STREAK_LEGEND_FOOTER)
+                self.assertEqual(cal_kw["embed"].title, "📅 Winter Arc — Full Calendar")
+                self.assertIsInstance(cal_kw["view"], StreakConsistencyView)
+                self.assertEqual(cal_kw["view"].current_view, "calendar")
 
         asyncio.run(test_streak_commands())

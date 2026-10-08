@@ -788,7 +788,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         view = StreakConsistencyView(
             target_user=target_user,
             author_id=interaction.user.id,
-            current_view="current"
+            current_view="streak"
         )
         await interaction.followup.send(embed=embed, view=view)
         await safe_react(interaction, "🔥", "🐺")
@@ -807,6 +807,50 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 user_name=target_user.display_name,
                 command_name="streak",
                 extra_info=f"Streak {h.get('current_streak', 0)}d (Peak: {h.get('highest_streak', 0)}d), Consistency: {h.get('consistency_pct', 0)}%, Shields: {h.get('shields_left', 0)}/2",
+                command_output=cmd_out
+            )
+        )
+
+    @app_commands.command(name="calendar", description="View your 3-phase habit calendar and arc progress.")
+    @app_commands.describe(member="Optional: Check another member's calendar")
+    async def calendar_cmd(
+        self,
+        interaction: discord.Interaction,
+        member: Optional[discord.Member] = None
+    ):
+        target_user = member or interaction.user
+        if target_user.id == interaction.user.id:
+            if not await require_enrolled(interaction):
+                return
+        else:
+            if not db.is_user_enrolled(target_user.id):
+                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                return
+
+        await interaction.response.defer()
+
+        calendar_data = db.get_user_full_campaign_calendar(target_user.id)
+        embed = build_full_calendar_embed(target_user, calendar_data)
+        view = StreakConsistencyView(
+            target_user=target_user,
+            author_id=interaction.user.id,
+            current_view="calendar"
+        )
+        await interaction.followup.send(embed=embed, view=view)
+        await safe_react(interaction, "📅", "🐺")
+
+        cmd_out = format_embed_as_text(embed)
+
+        asyncio.create_task(
+            dispatch_tip(interaction, target_user.id, target_user.display_name)
+        )
+
+        asyncio.create_task(
+            groq_service.dispatch_interaction_nudge(
+                interaction=interaction,
+                user_id=target_user.id,
+                user_name=target_user.display_name,
+                command_name="calendar",
                 command_output=cmd_out
             )
         )
@@ -886,12 +930,20 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         )
 
     # ==========================================
-    # Personal Direct Messaging Settings
+    # Personal Direct Messaging Settings & Reminders
     # ==========================================
+
+    @app_commands.command(name="reminders", description="Configure private daily DM reminders (morning, afternoon, evening).")
+    @app_commands.describe(dms="Quick toggle to enable or disable all DM reminders")
+    async def reminders_cmd(self, interaction: discord.Interaction, dms: Optional[bool] = None):
+        await self._handle_reminders_cmd(interaction, dms=dms)
 
     @app_commands.command(name="settings", description="Configure personal DM notifications and accountability.")
     @app_commands.describe(dms="Quick toggle to enable/disable all DM notifications")
     async def settings_cmd(self, interaction: discord.Interaction, dms: Optional[bool] = None):
+        await self._handle_reminders_cmd(interaction, dms=dms)
+
+    async def _handle_reminders_cmd(self, interaction: discord.Interaction, dms: Optional[bool] = None):
         if not await require_enrolled(interaction):
             return
 
@@ -1063,10 +1115,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
         )
 
-    @app_commands.command(name="callcap", description="Challenge a member's daily grind log and summon the Council.")
-    @app_commands.describe(target="The member whose grind log you want to challenge")
-    async def callcap_cmd(self, interaction: discord.Interaction, target: discord.Member):
-        logger.info(f"Slash command '/callcap' invoked by {interaction.user} against {target}")
+    @app_commands.command(name="accuse", description="Formally accuse a member of an illegitimate grind log and summon the Council.")
+    @app_commands.describe(target="The member whose grind log you want to accuse")
+    async def accuse_cmd(self, interaction: discord.Interaction, target: discord.Member):
+        logger.info(f"Slash command '/accuse' invoked by {interaction.user} against {target}")
         if not interaction.guild:
             await interaction.response.send_message("❌ This command must be used within a server text channel.", ephemeral=True)
             return
@@ -1075,11 +1127,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             return
 
         if target.id == interaction.user.id:
-            await interaction.response.send_message("❌ You cannot call cap on yourself!", ephemeral=True)
+            await interaction.response.send_message("❌ You cannot accuse yourself!", ephemeral=True)
             return
 
         if target.bot:
-            await interaction.response.send_message("❌ You cannot call cap on a bot!", ephemeral=True)
+            await interaction.response.send_message("❌ You cannot accuse a bot!", ephemeral=True)
             return
 
         if target.id in CouncilVotingView.active_trials:
@@ -1110,7 +1162,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             f"**Accused**: {target.mention}\n"
             f'**Claimed Log**: *"{snippet}"*\n'
             f"**Points at Stake**: {pts} pts\n\n"
-            "Are you certain this log is not legit and wish to summon a formal Council vote?\n\n"
+            "Are you certain this log is illegitimate and wish to summon a formal Council trial?\n\n"
             "📜 **Honor Code Notice**:\n"
             '> *"Bringing down brothers out of jealousy or petty rivalry is against the philosophy of Winter Arc. A warrior of honor does not abuse the Council."*'
         )

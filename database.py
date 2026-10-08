@@ -163,6 +163,7 @@ def init_db(db_path: str = DB_PATH):
             ("last_shield_milestone", "INTEGER DEFAULT 0"),
             ("dm_reminders", "BOOLEAN DEFAULT 0"),
             ("dm_morning", "BOOLEAN DEFAULT 1"),
+            ("dm_afternoon", "BOOLEAN DEFAULT 1"),
             ("dm_evening", "BOOLEAN DEFAULT 1"),
         ]
         for col_name, col_def in user_columns:
@@ -1504,11 +1505,13 @@ def get_user_dm_settings(discord_id: int, db_path: str = DB_PATH) -> Dict[str, A
         return {
             "dm_reminders": False,
             "dm_morning": True,
+            "dm_afternoon": True,
             "dm_evening": True,
         }
     return {
         "dm_reminders": bool(user.get("dm_reminders", 0)),
         "dm_morning": bool(user.get("dm_morning", 1) if user.get("dm_morning") is not None else 1),
+        "dm_afternoon": bool(user.get("dm_afternoon", 1) if user.get("dm_afternoon") is not None else 1),
         "dm_evening": bool(user.get("dm_evening", 1) if user.get("dm_evening") is not None else 1),
     }
 
@@ -1517,6 +1520,7 @@ def update_user_dm_settings(
     discord_id: int,
     dm_reminders: Optional[bool] = None,
     dm_morning: Optional[bool] = None,
+    dm_afternoon: Optional[bool] = None,
     dm_evening: Optional[bool] = None,
     db_path: str = DB_PATH
 ) -> Dict[str, Any]:
@@ -1533,12 +1537,15 @@ def update_user_dm_settings(
     if dm_morning is not None:
         updates.append("dm_morning = ?")
         params.append(1 if dm_morning else 0)
+    if dm_afternoon is not None:
+        updates.append("dm_afternoon = ?")
+        params.append(1 if dm_afternoon else 0)
     if dm_evening is not None:
         updates.append("dm_evening = ?")
         params.append(1 if dm_evening else 0)
 
     if updates:
-        allowed_clauses = {"dm_reminders = ?", "dm_morning = ?", "dm_evening = ?"}
+        allowed_clauses = {"dm_reminders = ?", "dm_morning = ?", "dm_afternoon = ?", "dm_evening = ?"}
         if not all(clause in allowed_clauses for clause in updates):
             raise ValueError("Unauthorized column modification attempt.")
         params.append(user["id"])
@@ -1551,17 +1558,69 @@ def update_user_dm_settings(
 
 
 def get_opted_in_dm_users(category: str = "all", db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """Fetches users who have enabled DMs, optionally filtered by category (morning/evening)."""
+    """Fetches users who have enabled DMs, optionally filtered by category (morning/afternoon/evening)."""
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         query = "SELECT * FROM users WHERE enrolled = 1 AND dm_reminders = 1"
         if category == "morning":
             query += " AND dm_morning = 1"
+        elif category == "afternoon":
+            query += " AND dm_afternoon = 1"
         elif category == "evening":
             query += " AND dm_evening = 1"
         query += " ORDER BY id ASC;"
         cursor.execute(query)
         return [dict(r) for r in cursor.fetchall()]
+
+
+def get_user_weekly_briefing_context(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Gathers 7-day personal accountability context for dynamic morning AI briefing:
+    - Active streak
+    - Past 7 days score breakdown (points, shield use, completion rate)
+    - Total points logged across the week
+    - Days hitting minimum (>= 30 pts) vs missed/shielded days
+    - Primary physical disciplines trained
+    - Recent deep work / grind topics
+    - Remaining Frost Shield inventory
+    """
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return {}
+
+    today_str = get_today_str()
+    streak = calculate_streak(discord_id, today_str, db_path)
+    history_7d = get_user_history(discord_id, days=7, db_path=db_path)
+    recent_logs = get_user_recent_logs(discord_id, limit=6, db_path=db_path)
+    recent_grinds = get_user_recent_grinds(discord_id, limit=3, db_path=db_path)
+
+    total_pts_7d = sum(d.get("points", 0) for d in history_7d)
+    solid_days = sum(1 for d in history_7d if d.get("points", 0) >= 30)
+    perfect_days = sum(1 for d in history_7d if d.get("perfect_day", False) or d.get("points", 0) >= 500)
+    zero_days = sum(1 for d in history_7d if d.get("points", 0) == 0)
+
+    # Aggregate physical volume
+    task_vol: Dict[str, float] = {}
+    for l in recent_logs:
+        t_name = l.get("task_name", "task")
+        task_vol[t_name] = task_vol.get(t_name, 0.0) + float(l.get("amount", 0))
+
+    top_disciplines = [f"{v:.0f} {k}" for k, v in sorted(task_vol.items(), key=lambda x: x[1], reverse=True)[:3]]
+    recent_grind_topics = [g.get("key_learning") or g.get("raw_input", "")[:40] for g in recent_grinds if g.get("key_learning") or g.get("raw_input")]
+
+    return {
+        "discord_id": discord_id,
+        "username": user.get("username", "Warrior"),
+        "streak": streak,
+        "frost_shields": user.get("frost_shields", 0),
+        "total_pts_7d": total_pts_7d,
+        "solid_days": solid_days,
+        "perfect_days": perfect_days,
+        "zero_days": zero_days,
+        "history_7d": history_7d,
+        "top_disciplines": top_disciplines,
+        "recent_grinds": recent_grind_topics,
+    }
 
 
 # ==========================================

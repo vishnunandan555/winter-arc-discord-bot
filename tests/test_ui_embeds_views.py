@@ -698,7 +698,7 @@ class TestInteractiveViews(WinterArcTestCase):
                     self.assertIn("most Perfect Days", all_text)
                     self.assertIn("/recap [member]", all_text)
                     self.assertIn("Phase Explorer", all_text)
-                    self.assertIn("Perfect Days (100%)", all_text)
+                    self.assertIn("Perfect Day", all_text)
                 elif cat == "shields":
                     self.assertIn("30 points", all_text)
                     self.assertIn("7-day streak milestone", all_text)
