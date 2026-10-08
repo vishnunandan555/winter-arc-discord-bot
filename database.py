@@ -1831,6 +1831,8 @@ def get_phase_leaderboard(phase_id: int, db_path: str = DB_PATH) -> List[Dict[st
             if today_pts > 0:
                 active += 1
 
+        streak = calculate_streak(d_id, end_date if not include_today else today_str, db_path)
+
         leaderboard.append({
             "user_id": u_id,
             "discord_id": d_id,
@@ -1838,6 +1840,7 @@ def get_phase_leaderboard(phase_id: int, db_path: str = DB_PATH) -> List[Dict[st
             "total_points": pts,
             "perfect_days": perfect,
             "active_days": active,
+            "streak": streak,
         })
 
     leaderboard.sort(key=lambda x: (x["total_points"], x["perfect_days"]), reverse=True)

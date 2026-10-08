@@ -1593,20 +1593,24 @@ def build_quicklog_embed(
     return embed
 
 
+def _format_day_ordinal(n: int) -> str:
+    """Returns day with ordinal suffix, e.g. 1st, 2nd, 3rd, 4th, 11th, 12th, 21st, 22nd."""
+    if 11 <= (n % 100) <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def build_weekly_recap_message(
     weekly_stats: Dict[str, Any],
     top_warriors: List[Dict[str, Any]],
     ai_speech: Optional[str] = None,
-    role_ping: str = ""
+    role_ping: str = "",
+    date_dt: Optional[datetime] = None
 ) -> str:
-    """Builds native Discord broadcast for Sunday 20:00 weekly recap."""
-    clean_ping = role_ping.strip()
-    prefix = f"{clean_ping} " if clean_ping else ""
-
-    header = (
-        f"{prefix}[WinterArc] Weekly Community Recap 📊\n"
-        "The week is officially in the books."
-    )
+    """Builds native Discord broadcast for Sunday 10:00 weekly recap."""
+    header = "### Winter Arc | Weekly Recap"
 
     ai_section = ""
     if ai_speech:
@@ -1614,29 +1618,41 @@ def build_weekly_recap_message(
         ai_section = clean_ai if clean_ai.startswith(">") else f"> {clean_ai}"
 
     podium_lines = []
-    for idx, w in enumerate(top_warriors[:3]):
-        badge = ["🥇", "🥈", "🥉"][idx] if idx < 3 else f"#{idx+1}"
+    badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    for idx, w in enumerate(top_warriors[:5]):
+        badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
         d_id = w.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{w['username']}**"
-        podium_lines.append(f"{badge} {user_mention} — **{w['points']} pts**")
+        user_mention = f"<@{d_id}>" if d_id else f"**{w.get('username', 'Warrior')}**"
+        pts = w.get("points", w.get("total_points", 0))
+        podium_lines.append(f"{badge} {user_mention} — **{pts:,} pts**")
 
-    podium_block = "**🏆 Week's Top 3**\n" + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
+    podium_block = "**Weekly Top 5**\n" + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
 
     vol_lines = [
-        f"• 💪 Push-ups: `{weekly_stats.get('total_pushups', 0):,}`",
-        f"• 🧗 Pull-ups: `{weekly_stats.get('total_pullups', 0):,}`",
-        f"• 🦵 Squats: `{weekly_stats.get('total_squats', 0):,}`",
-        f"• 🧘 Sit-ups: `{weekly_stats.get('total_situps', 0):,}`",
-        f"• 🏃 Running: `{weekly_stats.get('total_km', 0):,.1f} km`",
+        f"• Push-ups: `{weekly_stats.get('total_pushups', 0):,}` reps",
+        f"• Pull-ups: `{weekly_stats.get('total_pullups', 0):,}` reps",
+        f"• Squats: `{weekly_stats.get('total_squats', 0):,}` reps",
+        f"• Sit-ups: `{weekly_stats.get('total_situps', 0):,}` reps",
+        f"• Running: `{weekly_stats.get('total_km', 0):,.1f}` km",
     ]
-    vol_block = "**🌐 Community Workout Volume**\n" + "\n".join(vol_lines)
+    vol_block = "**Weekly Workout Volume**\n" + "\n".join(vol_lines)
 
-    subtext = "-# New weekly leaderboard begins tomorrow at 00:00 IST"
+    clean_ping = role_ping.strip()
+    ping_section = clean_ping if clean_ping else ""
+
+    if not date_dt:
+        date_dt = datetime.now(BOT_TZ)
+    day_str = _format_day_ordinal(date_dt.day)
+    date_display = date_dt.strftime(f"%A, {day_str} %B %Y")
+    subtext = f"-# {date_display} | Winter Arc"
 
     sections = [header]
     if ai_section:
         sections.append(ai_section)
-    sections.append(f"{podium_block}\n\n{vol_block}")
+    sections.append(podium_block)
+    sections.append(vol_block)
+    if ping_section:
+        sections.append(ping_section)
     sections.append(subtext)
 
     return "\n\n".join(sections)
@@ -1647,31 +1663,37 @@ def build_weekly_state_of_the_pack_embed(
     top_warriors: List[Dict[str, Any]],
     ai_speech: str
 ) -> discord.Embed:
-    """Builds the Sunday 20:00 IST community broadcast embed."""
+    """Builds the Sunday 10:00 IST community broadcast embed."""
     podium_lines = []
-    for idx, w in enumerate(top_warriors[:3]):
-        badge = ["👑", "⚔️", "🛡️"][idx] if idx < 3 else f"#{idx+1}"
-        podium_lines.append(f"{badge} **{w['username']}** — **{w['points']} pts**")
+    badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    for idx, w in enumerate(top_warriors[:5]):
+        badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
+        pts = w.get("points", w.get("total_points", 0))
+        podium_lines.append(f"{badge} **{w.get('username', 'Warrior')}** — **{pts:,} pts**")
 
     ai_block = f"> {ai_speech}\n\n" if ai_speech else ""
     desc = (
         ai_block
-        + "**🏆 Week's Podium**\n"
+        + "**Weekly Top 5**\n"
         + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
-        + "\n\n**🌐 Community Total Volume**\n"
-        f"• 💪 **Push-ups**: `{weekly_stats.get('total_pushups', 0):,}`\n"
-        f"• 🧗 **Pull-ups**: `{weekly_stats.get('total_pullups', 0):,}`\n"
-        f"• 🦵 **Squats**: `{weekly_stats.get('total_squats', 0):,}`\n"
-        f"• 🧘 **Sit-ups**: `{weekly_stats.get('total_situps', 0):,}`\n"
-        f"• 🏃 **Running**: `{weekly_stats.get('total_km', 0):,.1f} km`"
+        + "\n\n**Weekly Workout Volume**\n"
+        f"• Push-ups: `{weekly_stats.get('total_pushups', 0):,}` reps\n"
+        f"• Pull-ups: `{weekly_stats.get('total_pullups', 0):,}` reps\n"
+        f"• Squats: `{weekly_stats.get('total_squats', 0):,}` reps\n"
+        f"• Sit-ups: `{weekly_stats.get('total_situps', 0):,}` reps\n"
+        f"• Running: `{weekly_stats.get('total_km', 0):,.1f}` km"
     )
 
+    now_dt = datetime.now(BOT_TZ)
+    day_str = _format_day_ordinal(now_dt.day)
+    date_display = now_dt.strftime(f"%A, {day_str} %B %Y")
+
     embed = discord.Embed(
-        title="📊 Winter Arc — Weekly Community Recap",
+        title="Winter Arc | Weekly Recap",
         description=desc,
         color=0xF1C40F
     )
-    embed.set_footer(text="New weekly leaderboard begins tomorrow at 00:00 IST")
+    embed.set_footer(text=f"{date_display} • Winter Arc")
     return embed
 
 
@@ -1812,16 +1834,10 @@ def build_phase_conclusion_message(
     role_ping: str = ""
 ) -> str:
     """Builds native Discord broadcast for the monthly Phase Conclusion ceremony."""
-    clean_ping = role_ping.strip()
-    prefix = f"{clean_ping} " if clean_ping else ""
     p_name = phase_dict.get("name", "Phase")
     p_num = phase_dict.get("id", 1)
-    p_days = phase_dict.get("total_days", 31)
 
-    header = (
-        f"{prefix}[WinterArc] Phase {p_num} Concluded • {p_name} 🏆\n"
-        f"{p_days} days of baseline execution locked in. Scores are now archived."
-    )
+    header = f"### Winter Arc | Phase {p_num} Concluded • {p_name}"
 
     quote_section = ""
     if ceremony_speech:
@@ -1829,43 +1845,56 @@ def build_phase_conclusion_message(
         quote_section = clean_speech if clean_speech.startswith(">") else f"> {clean_speech}"
 
     top_lines = []
-    top_3 = phase_lb[:3]
-    for idx, u in enumerate(top_3):
-        badge = ["🥇", "🥈", "🥉"][idx]
+    badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    top_5 = phase_lb[:5]
+    for idx, u in enumerate(top_5):
+        badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
         d_id = u.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{u['username']}**"
-        clean = u.get("perfect_days", 0)
-        clean_str = f" *({clean} perfect days)*" if clean > 0 else ""
-        top_lines.append(f"{badge} {user_mention} — **{u['total_points']:,} pts**{clean_str}")
+        user_mention = f"<@{d_id}>" if d_id else f"**{u.get('username', 'Warrior')}**"
+        streak = u.get("streak", 0)
+        streak_str = f" *({streak}-day streak)*"
+        pts = u.get("total_points", u.get("points", 0))
+        top_lines.append(f"{badge} {user_mention} — **{pts:,} pts**{streak_str}")
 
-    runners_up = []
-    for idx, u in enumerate(phase_lb[3:6], start=4):
-        d_id = u.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{u['username']}**"
-        runners_up.append(f"{idx}th: {user_mention} — **{u['total_points']:,} pts**")
+    standings_block = f"**Phase {p_num} Top Standings**\n" + ("\n".join(top_lines) if top_lines else "_No participants recorded._")
 
-    if runners_up:
-        top_lines.append(" • ".join(runners_up))
-
-    standings_block = f"**🏆 Phase {p_num} Top Standings**\n" + ("\n".join(top_lines) if top_lines else "_No participants recorded._")
-
-    # Community stats
-    total_pts = sum(u.get("total_points", 0) for u in phase_lb)
-    total_clean = sum(u.get("perfect_days", 0) for u in phase_lb)
+    # Stats without the word Community
+    total_pts = sum(u.get("total_points", u.get("points", 0)) for u in phase_lb)
     active_count = len(phase_lb)
+    max_streak = max((u.get("streak", 0) for u in phase_lb), default=0)
+    avg_pts = round(total_pts / active_count) if active_count > 0 else 0
 
     totals_block = (
-        f"**🌐 Community Phase {p_num} Totals**\n"
-        f"• Active Participants: `{active_count}`\n"
-        f"• Perfect Days Logged: `{total_clean}`\n"
-        f"• Total Volume: `{total_pts:,} pts`"
+        f"**Winter Arc Phase {p_num} Stats:**\n"
+        f"• Active Warriors: `{active_count}`\n"
+        f"• Total Points Logged: `{total_pts:,} pts`\n"
+        f"• Longest Active Streak: `{max_streak} days`\n"
+        f"• Average Pack Output: `{avg_pts:,} pts / warrior`"
     )
 
     next_block = ""
     if next_phase_dict:
-        next_block = f"⚡ **{next_phase_dict['short_name']} ({next_phase_dict['name']})** begins tomorrow at 00:00 IST."
+        next_id = next_phase_dict.get("id", p_num + 1)
+        next_name = next_phase_dict.get("name", "THE HUNT")
+        if next_id == 2:
+            phase_quote = "First Frost was about becoming the person capable of facing winter. The Hunt is about becoming the person who refuses to leave empty-handed. Whatever you chose to pursue this winter, pursue it completely."
+        elif next_id == 3:
+            phase_quote = "The Hunt forged your discipline into instinct. The Endgame is where champions are made—while the rest of the world celebrates early, we finish what we started."
+        elif next_id == 4:
+            phase_quote = "The war with yourself has been fought and won. Aftermath is not a return to comfort, but the integration of who you have permanently become."
+        else:
+            phase_quote = "A new trial begins. Carry your momentum forward and execute without compromise."
 
-    subtext = "-# Phase snapshot archived • Streaks carry over uninterrupted"
+        next_block = (
+            f"**Next Phase:**\n"
+            f"⚔️ **Phase {next_id}: {next_name}** officially begins today.\n"
+            f"> \"{phase_quote}\""
+        )
+
+    clean_ping = role_ping.strip()
+    ping_section = clean_ping if clean_ping else ""
+
+    subtext = f"-# Phase {p_num} archived • Discipline compounds • Winter Arc"
 
     sections = [header]
     if quote_section:
@@ -1874,6 +1903,8 @@ def build_phase_conclusion_message(
     sections.append(totals_block)
     if next_block:
         sections.append(next_block)
+    if ping_section:
+        sections.append(ping_section)
     sections.append(subtext)
 
     return "\n\n".join(sections)

@@ -61,7 +61,10 @@ Technical design specification, component separation, database schema, and scori
 │                 WinterArcScheduler (scheduler.py)           │
 │   • 05:00 IST: Morning Kickoff announcement                 │
 │   • 16:30 IST: Midday Progress check-in                     │
+│   • 21:00 IST: Evening Streak Warning broadcast             │
+│   • Sun 10:00 IST: Weekly Community Recap                   │
 │   • 00:00 IST: Midnight finalization & podium broadcast     │
+│   • Month-end 00:00 IST: Phase Conclusion Ceremony         │
 │   • Real-time web export hook (export_web_stats.py)         │
 └──────────────┬──────────────────────────────────────────────┘
                │

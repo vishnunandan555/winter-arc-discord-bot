@@ -358,12 +358,12 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             {"username": "WarriorTwo", "points": 1200}
         ]
         embed = build_weekly_state_of_the_pack_embed(stats, top, "Solid weekly execution across the board.")
-        self.assertEqual(embed.title, "📊 Winter Arc — Weekly Community Recap")
+        self.assertEqual(embed.title, "Winter Arc | Weekly Recap")
         self.assertNotIn("Weekly Reflection", embed.description)
         self.assertNotIn("State of the Pack", embed.title)
         self.assertIn("Solid weekly execution across the board.", embed.description)
         self.assertIn("4,200", embed.description)
-        self.assertIn("150.5 km", embed.description)
+        self.assertIn("150.5", embed.description)
 
         banned_tropes = ["shadow", "crucible", "howling", "pack respects", "blizzard", "frost take"]
         for quote in CURATED_STOIC_FALLBACKS + REACTIVE_STOIC_FALLBACKS:
@@ -506,6 +506,8 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             {"discord_id": 1001, "username": "Vikram", "points": 3200},
             {"discord_id": 1002, "username": "Alex", "points": 2800},
             {"discord_id": 1003, "username": "Sam", "points": 2100},
+            {"discord_id": 1004, "username": "Devin", "points": 1800},
+            {"discord_id": 1005, "username": "Arjun", "points": 1500},
         ]
         recap_msg = build_weekly_recap_message(
             weekly_stats=weekly_stats,
@@ -513,22 +515,28 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             ai_speech="Unstoppable consistency.",
             role_ping="@Coldfornt"
         )
-        self.assertIn("@Coldfornt [WinterArc] Weekly Community Recap 📊", recap_msg)
-        self.assertIn("🥇 <@1001> — **3200 pts**", recap_msg)
-        self.assertIn("🥈 <@1002> — **2800 pts**", recap_msg)
-        self.assertIn("🥉 <@1003> — **2100 pts**", recap_msg)
-        self.assertIn("• 💪 Push-ups: `1,500`", recap_msg)
-        self.assertIn("• 🏃 Running: `42.5 km`", recap_msg)
+        self.assertIn("### Winter Arc | Weekly Recap", recap_msg)
+        self.assertIn("**Weekly Top 5**", recap_msg)
+        self.assertIn("🥇 <@1001> — **3,200 pts**", recap_msg)
+        self.assertIn("🥈 <@1002> — **2,800 pts**", recap_msg)
+        self.assertIn("🥉 <@1003> — **2,100 pts**", recap_msg)
+        self.assertIn("4️⃣ <@1004> — **1,800 pts**", recap_msg)
+        self.assertIn("5️⃣ <@1005> — **1,500 pts**", recap_msg)
+        self.assertIn("**Weekly Workout Volume**", recap_msg)
+        self.assertIn("• Push-ups: `1,500` reps", recap_msg)
+        self.assertIn("• Running: `42.5` km", recap_msg)
         self.assertIn("> Unstoppable consistency.", recap_msg)
+        self.assertIn("@Coldfornt", recap_msg)
+        self.assertTrue(recap_msg.strip().endswith("| Winter Arc"))
 
         # 7. build_phase_conclusion_message
         phase_dict = {"id": 1, "name": "FIRST FROST", "short_name": "Phase 1", "total_days": 31}
         phase_lb = [
-            {"discord_id": 1001, "username": "Vikram", "total_points": 14200, "perfect_days": 28},
-            {"discord_id": 1002, "username": "Alex", "total_points": 12850, "perfect_days": 25},
-            {"discord_id": 1003, "username": "Devin", "total_points": 9400, "perfect_days": 19},
-            {"discord_id": 1004, "username": "Sam", "total_points": 8100},
-            {"discord_id": 1005, "username": "Arjun", "total_points": 7500},
+            {"discord_id": 1001, "username": "Vikram", "total_points": 14200, "streak": 28},
+            {"discord_id": 1002, "username": "Alex", "total_points": 12850, "streak": 25},
+            {"discord_id": 1003, "username": "Devin", "total_points": 9400, "streak": 19},
+            {"discord_id": 1004, "username": "Sam", "total_points": 8100, "streak": 15},
+            {"discord_id": 1005, "username": "Arjun", "total_points": 7500, "streak": 12},
         ]
         next_phase = {"id": 2, "name": "THE HUNT", "short_name": "Phase 2"}
         phase_msg = build_phase_conclusion_message(
@@ -538,17 +546,22 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             next_phase_dict=next_phase,
             role_ping="@Coldfornt"
         )
-        self.assertIn("@Coldfornt [WinterArc] Phase 1 Concluded • FIRST FROST 🏆", phase_msg)
-        self.assertIn("🥇 <@1001> — **14,200 pts** *(28 perfect days)*", phase_msg)
-        self.assertIn("🥈 <@1002> — **12,850 pts** *(25 perfect days)*", phase_msg)
-        self.assertIn("🥉 <@1003> — **9,400 pts** *(19 perfect days)*", phase_msg)
-        self.assertIn("4th: <@1004> — **8,100 pts**", phase_msg)
-        self.assertIn("5th: <@1005> — **7,500 pts**", phase_msg)
-        self.assertIn("• Active Participants: `5`", phase_msg)
-        self.assertIn("• Perfect Days Logged: `72`", phase_msg)
-        self.assertIn("• Total Volume: `52,050 pts`", phase_msg)
-        self.assertIn("⚡ **Phase 2 (THE HUNT)** begins tomorrow at 00:00 IST.", phase_msg)
-        self.assertIn("-# Phase snapshot archived • Streaks carry over uninterrupted", phase_msg)
+        self.assertIn("### Winter Arc | Phase 1 Concluded • FIRST FROST", phase_msg)
+        self.assertIn("**Phase 1 Top Standings**", phase_msg)
+        self.assertIn("🥇 <@1001> — **14,200 pts** *(28-day streak)*", phase_msg)
+        self.assertIn("🥈 <@1002> — **12,850 pts** *(25-day streak)*", phase_msg)
+        self.assertIn("🥉 <@1003> — **9,400 pts** *(19-day streak)*", phase_msg)
+        self.assertIn("4️⃣ <@1004> — **8,100 pts** *(15-day streak)*", phase_msg)
+        self.assertIn("5️⃣ <@1005> — **7,500 pts** *(12-day streak)*", phase_msg)
+        self.assertIn("**Winter Arc Phase 1 Stats:**", phase_msg)
+        self.assertIn("• Active Warriors: `5`", phase_msg)
+        self.assertIn("• Total Points Logged: `52,050 pts`", phase_msg)
+        self.assertIn("• Longest Active Streak: `28 days`", phase_msg)
+        self.assertIn("• Average Pack Output: `10,410 pts / warrior`", phase_msg)
+        self.assertIn("⚔️ **Phase 2: THE HUNT** officially begins today.", phase_msg)
+        self.assertIn("First Frost was about becoming the person capable of facing winter", phase_msg)
+        self.assertIn("@Coldfornt", phase_msg)
+        self.assertIn("-# Phase 1 archived • Discipline compounds • Winter Arc", phase_msg)
 
 
 class TestInteractiveViews(WinterArcTestCase):

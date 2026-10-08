@@ -4,7 +4,9 @@ scheduler.py - Dedicated Channel Scheduler for Winter Arc Bot (Asia/Kolkata)
 Runs background checks every 30 seconds for:
 - 05:00 IST: Morning challenge kickoff with role ping in dedicated channel
 - 16:30 IST: Afternoon check-in with group progress and role ping in dedicated channel
-- 00:00 IST: Midnight day finalization & podium broadcast in dedicated channel
+- 21:00 IST: Evening streak warning with role ping in dedicated channel
+- Sun 10:00 IST: Weekly Community Recap with role ping in dedicated channel
+- 00:00 IST: Midnight day finalization, podium broadcast, and month-end Phase Conclusion ceremonies
 """
 
 import os
@@ -106,8 +108,8 @@ class WinterArcScheduler:
                 await self.broadcast_evening_checkin()
                 await self.dispatch_evening_dms()
 
-            # 3.5 Sunday 20:00 - 20:05 IST - Weekly State of the Pack
-            if now.weekday() == 6 and now.hour == 20 and now.minute < 5 and self._last_sunday_date != today_str:
+            # 3.5 Sunday 10:00 - 10:05 IST - Weekly State of the Pack
+            if now.weekday() == 6 and now.hour == 10 and now.minute < 5 and self._last_sunday_date != today_str:
                 self._last_sunday_date = today_str
                 db.set_bot_state("last_sunday_date", today_str, db_path=self.db_path)
                 logger.info(f"Triggering Sunday State of the Pack for {today_str}...")
@@ -620,7 +622,10 @@ class WinterArcScheduler:
         start_date = (now.date() - timedelta(days=6)).isoformat()
 
         weekly_grinds = db.get_weekly_grind_highlights(start_date, end_date, db_path=self.db_path)
-        overall_data = db.get_overall_leaderboard(db_path=self.db_path)
+        weekly_lb = db.get_weekly_leaderboard(start_date, end_date, db_path=self.db_path)
+        if not weekly_lb:
+            weekly_lb = db.get_overall_leaderboard(db_path=self.db_path)
+        top_warriors = weekly_lb[:5]
         enrolled_users = db.get_enrolled_users(db_path=self.db_path)
 
         # Compute weekly pack cumulative volume across all users
@@ -662,22 +667,23 @@ class WinterArcScheduler:
 
         ai_speech = await gemini_service.generate_weekly_state_of_the_pack(
             weekly_stats=weekly_volume,
-            top_warriors=overall_data[:3],
+            top_warriors=top_warriors,
             weekly_grinds=weekly_grinds,
             ghosts_count=ghosts_count
         )
         if not ai_speech:
             ai_speech = "Week 1 is in the books. Execution continues tomorrow at 00:00 IST."
 
-        embed = build_weekly_state_of_the_pack_embed(weekly_volume, overall_data[:3], ai_speech)
+        embed = build_weekly_state_of_the_pack_embed(weekly_volume, top_warriors, ai_speech)
         allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
 
         if target_channel:
             msg = build_weekly_recap_message(
                 weekly_stats=weekly_volume,
-                top_warriors=overall_data[:3],
+                top_warriors=top_warriors,
                 ai_speech=ai_speech,
                 role_ping=role_ping,
+                date_dt=now,
             )
             await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
             return embed
@@ -688,9 +694,10 @@ class WinterArcScheduler:
                 try:
                     msg = build_weekly_recap_message(
                         weekly_stats=weekly_volume,
-                        top_warriors=overall_data[:3],
+                        top_warriors=top_warriors,
                         ai_speech=ai_speech,
                         role_ping=ping,
+                        date_dt=now,
                     )
                     await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
                 except Exception as e:

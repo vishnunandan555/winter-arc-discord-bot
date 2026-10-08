@@ -45,7 +45,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
 | **Tribal Council Governance** | Real-time integrity verification: `/callcap` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
-| **Automated Cadence** | Morning kickoff (07:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), and midnight finalization (00:00 IST). |
+| **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |
 
 > 📖 **Want the deep dive?**  
 > Explore the full [12-Tier Hierarchy](https://winter-arc-discord-bot.vercel.app/#ranks) and [Seasonal Phase Roadmap](https://winter-arc-discord-bot.vercel.app/#phases) on the website.

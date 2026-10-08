@@ -193,29 +193,30 @@ async def generate_weekly_state_of_the_pack(
     weekly_grinds: List[Dict[str, Any]],
     ghosts_count: int
 ) -> str:
-    """Generates the Sunday 20:00 IST community broadcast (under 120 words)."""
+    """Generates the Sunday 10:00 IST community broadcast reflection (under 75 words)."""
     client = get_gemini_client()
     if not client:
         return ""
 
-    apex = top_warriors[0] if top_warriors else {"username": "Nobody", "points": 0}
+    leaderboard_lines = [
+        f"#{idx+1} {w.get('username', 'Warrior')} ({w.get('points', w.get('total_points', 0))} pts)"
+        for idx, w in enumerate(top_warriors[:5])
+    ]
     grind_summaries = [f"{g['username']} ({g.get('key_learning', 'study')})" for g in weekly_grinds[:4]]
 
     prompt = (
-        f"Generate a Sunday night weekly recap for the Winter Arc Discord fitness and study community.\n"
-        f"Weekly Data:\n"
-        f"- Week Leader: {apex['username']} with {apex['points']} points.\n"
-        f"- Total Community Volume: {weekly_stats.get('total_pushups', 0)} push-ups, {weekly_stats.get('total_km', 0)} km run.\n"
-        f"- Deep Work Highlights: {', '.join(grind_summaries) if grind_summaries else 'Minimal'}\n"
-        f"- Inactive members all week: {ghosts_count}\n\n"
-        "Structure:\n"
-        "1. Acknowledge the week's top performer and the total workout volume logged.\n"
-        "2. A brief, grounded callout to anyone who went completely dark this week.\n"
-        "3. A clean, motivating closing sentence for the new week starting tomorrow.\n"
-        "TONE & CONSTRAINTS:\n"
-        "- NO FANTASY ROLEPLAY: Ban tropes like 'the frost took them', 'the pack prowls', 'shadows', 'crucible'.\n"
-        "- Talk like a real, respected coach or senior peer speaking in chat.\n"
-        "- Total length: UNDER 100 WORDS. Concise and punchy."
+        f"Generate a short Sunday morning weekly commentary for the Winter Arc Discord community.\n"
+        f"Full Weekly Results Context:\n"
+        f"- Top 5 Leaderboard: {', '.join(leaderboard_lines) if leaderboard_lines else 'None recorded'}\n"
+        f"- Total Weekly Volume: {weekly_stats.get('total_pushups', 0):,} push-ups, {weekly_stats.get('total_pullups', 0):,} pull-ups, {weekly_stats.get('total_squats', 0):,} squats, {weekly_stats.get('total_situps', 0):,} sit-ups, {weekly_stats.get('total_km', 0):,.1f} km run.\n"
+        f"- Deep Work / Study Highlights: {', '.join(grind_summaries) if grind_summaries else 'Minimal'}\n"
+        f"- Inactive Members (0 pts all week): {ghosts_count}\n\n"
+        "TASK & CONSTRAINTS:\n"
+        "1. Frame a motivational or roast commentary based on the results.\n"
+        "2. DO NOT recite or list out all the raw numbers and data (e.g. do not say 'we did 14,250 pushups and Sam had 3,200 points'), because the full leaderboard and workout volumes are already displayed directly beneath this quote in the message.\n"
+        "3. Keep it to a few sharp words: 2 to 3 concise sentences (UNDER 65 WORDS TOTAL).\n"
+        "4. Acknowledge the top performers' consistency, deliver a quick grounded callout/roast to the ghosts, and set the tone for the new week.\n"
+        "5. TONE: Grounded, authentic, respected coach or senior peer in chat. NO corny fantasy roleplay tropes."
     )
 
     try:
@@ -225,7 +226,7 @@ async def generate_weekly_state_of_the_pack(
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                max_output_tokens=250,
+                max_output_tokens=180,
             ),
         )
         return response.text.strip()
