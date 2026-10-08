@@ -275,7 +275,7 @@ class WinterArcScheduler:
         override_quote: Optional[str] = None,
     ):
         """Sends morning daily motivation and active challenge targets to dedicated channel."""
-        active_tasks = db.get_active_tasks()
+        active_tasks = db.get_active_tasks(db_path=self.db_path)
         now = get_now_ist()
         date_display = now.strftime("%A, %B %d, %Y")
 
@@ -333,7 +333,7 @@ class WinterArcScheduler:
         """Sends afternoon check-in showing enrolled group progress to dedicated channel."""
         now = get_now_ist()
         today_str = now.strftime("%Y-%m-%d")
-        enrolled_users = db.get_enrolled_users()
+        enrolled_users = db.get_enrolled_users(db_path=self.db_path)
 
         quote = override_quote or ""
         if not quote:
@@ -434,7 +434,7 @@ class WinterArcScheduler:
         now = get_now_ist()
         yesterday = (now - timedelta(days=1)).date().isoformat()
 
-        leaderboard = db.finalize_daily_summaries(yesterday)
+        leaderboard = db.finalize_daily_summaries(yesterday, db_path=self.db_path)
         embed = build_podium_embed(yesterday, leaderboard)
 
         # Notify users whose streak was preserved by an automated Streak Shield
@@ -467,8 +467,8 @@ class WinterArcScheduler:
         # AI Daily Toast & Roast
         ai_recap = ""
         try:
-            grind_highlights = db.get_daily_grind_highlights(yesterday)
-            enrolled_users = db.get_enrolled_users()
+            grind_highlights = db.get_daily_grind_highlights(yesterday, db_path=self.db_path)
+            enrolled_users = db.get_enrolled_users(db_path=self.db_path)
             active_yesterday = {e["discord_id"] for e in leaderboard if e["points"] > 0}
             slacker_count = len(enrolled_users) - len(active_yesterday)
 
