@@ -356,7 +356,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         app_commands.Choice(name="Morning Kickoff (05:00 Channel)", value="morning"),
         app_commands.Choice(name="Afternoon Group Check-in (16:30 Channel)", value="afternoon"),
         app_commands.Choice(name="Evening Streak Alert (21:00 Channel)", value="evening"),
-        app_commands.Choice(name="Sunday State of the Pack (20:00 Channel)", value="sunday"),
+        app_commands.Choice(name="Sunday Weekly Recap (10:00 Channel)", value="sunday"),
         app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
         app_commands.Choice(name="Phase Conclusion Ceremony (Channel)", value="phase_ceremony"),
         app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),

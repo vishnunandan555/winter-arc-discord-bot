@@ -915,7 +915,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• ☀️ `16:30 IST` — Mid-day Check-in & Roster Standings\n"
                 "• ⚠️ `21:00 IST` — Evening Streak Warning (Save Your Streak)\n"
                 "• 🌑 `00:00 IST` — Midnight Reckoning & Final Day Tally\n"
-                "• 🏆 `Sunday 20:00` — Weekly Community Recap & State of the Pack"
+                "• 🏆 `Sunday 10:00` — Winter Arc Weekly Recap & Volume Podium"
             ),
             inline=False
         )

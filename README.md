@@ -100,13 +100,13 @@ GROQ_API_KEY=your_groq_api_key_here
 python bot.py
 ```
 
-*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 24 slash commands automatically.*
+*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 26 slash commands automatically.*
 
 ---
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **77 comprehensive test cases** organized into 9 domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **88 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -116,6 +116,7 @@ python test_engine.py
 python -m unittest discover tests
 
 # Or run individual domain test modules
+python -m unittest tests/test_reminders_and_dms.py
 python -m unittest tests/test_call_cap_and_governance.py
 python -m unittest tests/test_streaks_shields.py
 python -m unittest tests/test_scoring_logging.py
@@ -128,16 +129,16 @@ python -m unittest tests/test_cogs_bot.py
 
 ## 📋 Slash Command Overview
 
-The bot registers **25 native slash commands** designed with Discord autocomplete and button pagination:
+The bot registers **26 native slash commands** designed with Discord autocomplete and button pagination:
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
 | **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, 3-phase full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
-| **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
+| **Tribal Governance** | `/accuse`, `/callcap` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
 | **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences, manual, and latency check. |
-| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`) | Channel binding, role ping, multi-target DMs, discipline customization, and disciplinary probation. |
+| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`), `/test_reminder`, `/nuke` | Channel binding, role ping, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
 👉 **[Search & Filter All Commands Interactively on the Website »](https://winter-arc-discord-bot.vercel.app/#commands)**
