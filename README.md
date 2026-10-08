@@ -168,6 +168,7 @@ python create_deploy_zip.py
 ```
 
 > **What this does:**
+>
 > - Automatically bundles all bot code, cogs, AI services, test suites, and Docker configs.
 > - **Includes your `.env` file** so your credentials and token work instantly upon unzipping.
 > - Excludes all local databases (`*.db`), virtual environments (`.venv`), caches, and website assets to keep the upload ultra-lean (~130 KB).

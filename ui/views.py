@@ -741,7 +741,7 @@ class CouncilVotingView(RobustView):
                 logger.error(f"Failed to post council tie resolution: {e}")
 
 
-class CallCapConfirmView(RobustView):
+class AccuseConfirmView(RobustView):
     """
     Ephemeral confirmation view presented to a challenger before summoning the Council.
     Enforces the Winter Arc Honor Code against petty rivalry.
@@ -854,4 +854,5 @@ class CallCapConfirmView(RobustView):
         await interaction.response.edit_message(content="🛡️ **Stand down confirmed.** The Council was not summoned.", view=self)
 
 
-AccuseConfirmView = CallCapConfirmView
+# Backwards compatibility alias
+CallCapConfirmView = AccuseConfirmView

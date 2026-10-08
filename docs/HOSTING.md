@@ -1,6 +1,7 @@
 # Hosting & Deployment Guide: Winter Arc Bot & Showcase
 
 This guide covers deployment instructions for:
+
 1. **The Showcase & Documentation Website** (GitHub Pages or Vercel)
 2. **The 24/7 Discord Bot Process** (Wispbyte / Pterodactyl, Linux VPS with Systemd, Docker / Compose, or Render / Railway)
 
@@ -9,6 +10,7 @@ This guide covers deployment instructions for:
 ## Part 1: Discord Developer Portal Setup (Required)
 
 Before deploying to any host:
+
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and click **New Application**.
 2. Go to the **Bot** tab:
    - Click **Reset Token** and save your `DISCORD_TOKEN`.
@@ -51,19 +53,25 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 
 1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and choose the **Python / Generic Discord Bot** egg (Python 3.11+).
 2. **Package Locally**:
+
    - Run the bundler script on your local machine:
+
      ```bash
      python create_deploy_zip.py
      ```
+
    - This builds an ultra-lean `bot_deploy.zip` (~130 KB) containing all code, cogs, AI services, and your `.env`, while stripping local databases and caches.
 3. **Upload & Extract**:
    - Under **File Manager** on Wispbyte, upload `bot_deploy.zip`.
    - Click the options menu on `bot_deploy.zip` and select **Unarchive / Extract**.
 4. **Install Dependencies**:
+
    - In the web terminal console, run:
+
      ```bash
      pip install -r requirements.txt
      ```
+
 5. **Verify Startup & Start**:
    - In **Startup**, set **Startup Command** to `python bot.py`.
    - Click **Start** on the console. The bot initializes `winter_arc.db` automatically and goes online.
@@ -75,6 +83,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 
 1. **Clone and setup virtual environment**:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/winter-arc-discord-bot.git
    cd winter-arc-discord-bot
@@ -84,6 +93,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```
 
 2. **Configure `.env`**:
+
    ```bash
    cp .env.example .env
    nano .env
@@ -91,6 +101,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```
 
 3. **Create a Systemd Service**:
+
    ```bash
    sudo nano /etc/systemd/system/winter-arc.service
    ```
@@ -116,6 +127,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```
 
 4. **Enable and start the service**:
+
    ```bash
    sudo systemctl daemon-reload
    sudo systemctl enable winter-arc
@@ -124,6 +136,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```
 
 5. **View live bot logs**:
+
    ```bash
    journalctl -u winter-arc -f
    ```
@@ -134,13 +147,16 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
 
 1. Ensure Docker and Docker Compose are installed on your server.
 2. Clone repository and set up environment:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/winter-arc-discord-bot.git
    cd winter-arc-discord-bot
    cp .env.example .env
    nano .env
    ```
+
 3. Build and launch with persistent volume:
+
    ```bash
    docker compose up -d --build
    docker compose logs -f
@@ -174,14 +190,17 @@ The website is a static, responsive web application located in the `docs/` direc
 ### Option A: GitHub Pages (Free, Zero Configuration)
 
 1. Push your repository to GitHub:
+
    ```bash
    git push origin main
    ```
+
 2. In your GitHub repository:
    - Go to **Settings** > **Pages**
    - Under **Build and deployment** > **Branch**, select `main` and folder `/docs`
    - Click **Save**
 3. Your site will be live at:
+
    ```text
    https://<your-username>.github.io/<your-repo-name>/
    ```
@@ -189,6 +208,7 @@ The website is a static, responsive web application located in the `docs/` direc
 ### Option B: Vercel (1-Click Deployment)
 
 The repository includes a pre-configured `vercel.json` pointing to `docs`:
+
 1. In [vercel.com](https://vercel.com), import your forked repository.
 2. Vercel detects `outputDirectory: "docs"`.
 3. Click **Deploy**.
@@ -198,19 +218,27 @@ The repository includes a pre-configured `vercel.json` pointing to `docs`:
 ## Part 4: Initial Server Onboarding Checklist
 
 Once your bot process is running:
+
 1. In your Discord server, assign the dedicated broadcast channel:
+
    ```text
    /admin set_channel channel:#winter-arc
    ```
+
 2. Assign the ping role:
+
    ```text
    /admin set_role role:@Winter Arc
    ```
+
 3. Have your members join:
+
    ```text
    /enroll
    ```
+
 4. Test the scheduled layouts:
+
    ```text
    /test_reminder type:morning
    ```

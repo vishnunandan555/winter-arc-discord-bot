@@ -70,7 +70,7 @@ from ui.views import (
     RecapView,
     ServerRecordsView,
     StreakConsistencyView,
-    CallCapConfirmView,
+    AccuseConfirmView,
     CouncilVotingView,
     COUNCIL_SUMMONED_GIFS,
 )
@@ -1167,7 +1167,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             '> *"Bringing down brothers out of jealousy or petty rivalry is against the philosophy of Winter Arc. A warrior of honor does not abuse the Council."*'
         )
 
-        view = CallCapConfirmView(
+        view = AccuseConfirmView(
             challenger=interaction.user,
             target=target,
             grind_entry=grind_entry

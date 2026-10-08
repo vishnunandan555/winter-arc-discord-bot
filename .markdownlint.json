@@ -2,6 +2,9 @@
   "default": true,
   "MD013": false,
   "MD024": false,
+  "MD031": {
+    "list_items": false
+  },
   "MD033": {
     "allowed_elements": [
       "div",
