@@ -41,7 +41,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | Feature | Description |
 | :--- | :--- |
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
-| **Monospace Habit Calendar** | `/streak` renders an aligned, monospace monthly matrix and full 92-day campaign view with status highlights. |
+| **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full 92-day campaign view with interactive bidirectional switching and status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
 | **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
@@ -128,15 +128,15 @@ python -m unittest tests/test_cogs_bot.py
 
 ## 📋 Slash Command Overview
 
-The bot registers **24 native slash commands** designed with Discord autocomplete and button pagination:
+The bot registers **25 native slash commands** designed with Discord autocomplete and button pagination:
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
-| **Habits & Streaks** | `/streak`, `/today`, `/tasks`, `/history` | Monospace habit calendar, daily progress card, task guide, and past logs. |
+| **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, 3-phase full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
-| **Recovery & Settings** | `/shield`, `/settings`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, morning/evening DM preferences, manual, and latency check. |
+| **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences, manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`) | Channel binding, role ping, multi-target DMs, discipline customization, and disciplinary probation. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 

@@ -515,10 +515,10 @@ class NukeConfirmView(RobustView):
 
 
 # ==========================================
-# Council & Call-Cap Governance Assets & Views
+# Council & Accuse Governance Assets & Views
 # ==========================================
 
-# Council summon (AI roast or /callcap): objections, accusations, and council
+# Council summon (AI roast or /accuse): objections, accusations, and council
 # deciding-fate representations. One gif chosen at random per summon message.
 COUNCIL_SUMMONED_GIFS: List[str] = [
     "https://media.tenor.com/nnujmeraF1QAAAAC/hmm-thinking.gif",
@@ -844,6 +844,7 @@ class CallCapConfirmView(RobustView):
             voting_view.message = msg
         except Exception as e:
             logger.error(f"Failed to post Council summon message in channel {channel.id}: {e}", exc_info=True)
+            voting_view.stop()
             CouncilVotingView.active_trials.discard(self.target.id)
 
     @discord.ui.button(label="❌ No, Stand Down", style=discord.ButtonStyle.secondary, custom_id="btn_cancel_summon")

@@ -582,7 +582,7 @@ class WinterArcScheduler:
             bottom_warriors = [w for w in phase_lb if w["total_points"] < 100]
             ceremony_speech = await gemini_service.generate_phase_ceremony(
                 phase_info=phase_dict,
-                top_warriors=phase_lb[:3],
+                top_warriors=phase_lb[:5],
                 bottom_warriors=bottom_warriors,
                 next_phase_info=next_phase
             )

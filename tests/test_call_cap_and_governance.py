@@ -1,5 +1,5 @@
 """
-tests/test_call_cap_and_governance.py - Comprehensive Unit Tests for /callcap, Council Voting, Disciplinary Probation, and /admin grind
+tests/test_call_cap_and_governance.py - Comprehensive Unit Tests for /accuse, Council Voting, Disciplinary Probation, and /admin grind
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import database as db
 from config import BOT_TZ
 from ui.views import (
     CallCapConfirmView,
+    AccuseConfirmView,
     CouncilVotingView,
     COUNCIL_SUMMONED_GIFS,
     CAP_CONFIRMED_GIFS,
@@ -24,7 +25,7 @@ from cogs.admin import AdminCog
 
 
 class TestCallCapAndGovernance(WinterArcTestCase):
-    """Test suite covering database probation methods, /callcap flow, and /admin grind commands."""
+    """Test suite covering database probation methods, /accuse flow, and /admin grind commands."""
 
     def setUp(self):
         super().setUp()
@@ -109,8 +110,8 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         stats_after = db.get_user_stats(self.user_a_id, db_path=self.test_db)
         self.assertEqual(stats_after["lifetime_points"], stats_before["lifetime_points"] - 45)
 
-    def test_callcap_confirm_view_honor_code(self):
-        """Verifies CallCapConfirmView structure, honor code prompt, and Stand Down button."""
+    def test_accuse_confirm_view_honor_code(self):
+        """Verifies AccuseConfirmView/CallCapConfirmView structure, honor code prompt, and Stand Down button."""
         mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
         mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
         grind_entry = {
@@ -341,7 +342,7 @@ class TestCallCapAndGovernance(WinterArcTestCase):
             self.assertTrue(url.startswith("https://media.tenor.com/"), f"Invalid GIF URL: {url}")
             self.assertTrue(url.endswith(".gif"))
 
-    def test_callcap_guards_and_concurrent_trial_prevention(self):
+    def test_accuse_guards_and_concurrent_trial_prevention(self):
         """Verifies /accuse guards: self-challenge, non-enrolled target, no grind log, and concurrent trial."""
         bot = MagicMock()
         cog = WarriorCog(bot)
@@ -378,8 +379,8 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         finally:
             CouncilVotingView.active_trials.discard(self.user_a_id)
 
-    def test_callcap_confirm_view_concurrency_and_stale_guards(self):
-        """Verifies that CallCapConfirmView.confirm_summon rejects if a trial started or points were already stripped."""
+    def test_accuse_confirm_view_concurrency_and_stale_guards(self):
+        """Verifies that AccuseConfirmView/CallCapConfirmView rejects if a trial started or points were already stripped."""
         mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
         mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
         grind_entry = {"raw_input": "Studied distributed systems", "points": 30}
@@ -492,6 +493,47 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         call_kwargs = mock_channel.send.call_args.kwargs
         self.assertIn("<@&999777>", call_kwargs.get("content", ""))
         self.assertTrue(call_kwargs.get("allowed_mentions").roles)
+
+    def test_accuse_confirm_view_stand_down_cancels(self):
+        """Verifies that selecting Stand Down disables buttons and does not summon the Council."""
+        mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
+        mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
+        grind_entry = {"raw_input": "Studied distributed systems", "points": 30}
+
+        view = AccuseConfirmView(challenger=mock_challenger, target=mock_accused, grind_entry=grind_entry)
+        inter = self.create_mock_interaction(user_id=self.user_b_id, display_name="WarriorB")
+        inter.response.edit_message = AsyncMock()
+
+        asyncio.run(view.cancel_summon.callback(inter))
+        self.assertTrue(all(child.disabled for child in view.children))
+        call_kwargs = inter.response.edit_message.call_args.kwargs
+        self.assertIn("Stand down confirmed", call_kwargs.get("content", ""))
+        self.assertNotIn(self.user_a_id, CouncilVotingView.active_trials)
+
+    def test_accuse_confirm_view_channel_send_failure_cleans_up(self):
+        """Verifies that if channel.send raises an exception, the active trial is cleaned up and view stopped."""
+        mock_challenger = self.create_mock_member(self.user_b_id, "WarriorB")
+        mock_accused = self.create_mock_member(self.user_a_id, "WarriorA")
+        grind_entry = {"raw_input": "Studied distributed systems", "points": 30}
+
+        view = AccuseConfirmView(challenger=mock_challenger, target=mock_accused, grind_entry=grind_entry)
+        inter = self.create_mock_interaction(user_id=self.user_b_id, display_name="WarriorB")
+        inter.response.edit_message = AsyncMock()
+
+        mock_channel = self.create_mock_channel()
+        mock_channel.send = AsyncMock(side_effect=discord.DiscordException("Forbidden"))
+        inter.channel = mock_channel
+        inter.guild = MagicMock()
+        inter.guild.id = 123456
+        inter.guild.get_channel = MagicMock(return_value=mock_channel)
+
+        with patch("ui.views.db.get_user_daily_grind", return_value={"points": 30, "raw_input": "Studied distributed systems"}), \
+             patch("ui.views.db.get_server_settings", return_value={"channel_id": mock_channel.id}):
+            asyncio.run(view.confirm_summon.callback(inter))
+
+        # Must be removed from active trials so user is not permanently stuck
+        self.assertNotIn(self.user_a_id, CouncilVotingView.active_trials)
+
 
 
 

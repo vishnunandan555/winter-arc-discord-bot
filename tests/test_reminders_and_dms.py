@@ -229,3 +229,176 @@ class TestRemindersAndDMs(WinterArcTestCase):
                         self.assertTrue(mock_channel.send.called)
                         sent_content = mock_channel.send.call_args.kwargs.get("content", "")
                         self.assertNotIn("<@&999888>", sent_content)
+
+    def test_scheduler_dm_dispatch_edge_cases(self):
+        """Verifies individual DM dispatch error resilience, closed DMs, and missing user handling."""
+        mock_bot = MagicMock()
+        mock_discord_user = MagicMock(spec=discord.User)
+        mock_discord_user.send = AsyncMock()
+        mock_discord_user.display_name = "TestSpartan"
+        mock_bot.get_user.return_value = mock_discord_user
+
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        user_record = {"discord_id": self.user_id, "username": "TestSpartan"}
+        active_tasks = db.get_active_tasks(db_path=self.test_db)
+
+        # 1. Successful DM dispatches
+        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
+            res_m = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
+            self.assertTrue(res_m)
+            self.assertTrue(mock_discord_user.send.called)
+
+        res_a = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
+        self.assertTrue(res_a)
+
+        res_e = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
+        self.assertTrue(res_e)
+
+        # 2. Closed DMs (discord.Forbidden)
+        mock_discord_user.send.side_effect = discord.Forbidden(MagicMock(), "Cannot send messages to this user")
+        res_m_forbidden = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
+        self.assertFalse(res_m_forbidden)
+
+        res_a_forbidden = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
+        self.assertFalse(res_a_forbidden)
+
+        res_e_forbidden = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
+        self.assertFalse(res_e_forbidden)
+
+        # 3. Missing user (get_user and fetch_user return None)
+        mock_bot.get_user.return_value = None
+        mock_bot.fetch_user = AsyncMock(return_value=None)
+        res_missing = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
+        self.assertFalse(res_missing)
+
+    def test_reminders_slash_command_and_quick_parameter(self):
+        """Verifies /reminders command invocation, quick dms toggle argument, and un-enrolled guard."""
+        from cogs.warrior import WarriorCog
+        mock_bot = MagicMock()
+        cog = WarriorCog(mock_bot)
+
+        # 1. Quick toggle dms=False
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        asyncio.run(cog.reminders_cmd.callback(cog, inter, dms=False))
+        inter.response.send_message.assert_called_once()
+        s = db.get_user_dm_settings(self.user_id, db_path=self.test_db)
+        self.assertFalse(s["dm_reminders"])
+
+        # 2. Quick toggle dms=True
+        inter_on = self.create_mock_interaction(user_id=self.user_id)
+        asyncio.run(cog.reminders_cmd.callback(cog, inter_on, dms=True))
+        s_on = db.get_user_dm_settings(self.user_id, db_path=self.test_db)
+        self.assertTrue(s_on["dm_reminders"])
+
+        # 3. Un-enrolled user rejected
+        inter_stranger = self.create_mock_interaction(user_id=999888)
+        asyncio.run(cog.reminders_cmd.callback(cog, inter_stranger))
+        inter_stranger.response.send_message.assert_called_once()
+        self.assertIn("not enrolled", str(inter_stranger.response.send_message.call_args))
+
+    def test_test_reminder_admin_command_options(self):
+        """Verifies /test_reminder admin command for morning_dm, afternoon_dm, and evening_dm previews."""
+        from cogs.admin import AdminCog
+        mock_bot = MagicMock()
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        mock_bot.scheduler = scheduler
+        cog = AdminCog(mock_bot)
+
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        inter.user.send = AsyncMock()
+
+        # Morning DM preview
+        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Test morning reflection."):
+            asyncio.run(cog.test_reminder.callback(cog, inter, reminder_type="morning_dm"))
+            self.assertTrue(inter.user.send.called)
+            inter.followup.send.assert_called()
+
+        # Afternoon DM preview
+        inter.user.send.reset_mock()
+        inter.followup.send.reset_mock()
+        asyncio.run(cog.test_reminder.callback(cog, inter, reminder_type="afternoon_dm"))
+        self.assertTrue(inter.user.send.called)
+        inter.followup.send.assert_called()
+
+        # Evening DM preview
+        inter.user.send.reset_mock()
+        inter.followup.send.reset_mock()
+        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Test evening alert."):
+            asyncio.run(cog.test_reminder.callback(cog, inter, reminder_type="evening_dm"))
+            self.assertTrue(inter.user.send.called)
+            inter.followup.send.assert_called()
+
+    def test_weekly_recap_and_phase_conclusion_broadcast_formatters(self):
+        """Verifies exact formatting, headings, volume, streak metrics, and role ping placement."""
+        from ui.embeds import build_weekly_recap_message, build_phase_conclusion_message
+
+        # 1. Weekly Recap Message
+        weekly_stats = {
+            "total_pushups": 1420,
+            "total_pullups": 350,
+            "total_squats": 1200,
+            "total_situps": 800,
+            "total_km": 42.5
+        }
+        top_warriors = [
+            {"discord_id": 111, "username": "Spartan", "points": 1500},
+            {"discord_id": 222, "username": "Valkyrie", "points": 1350},
+            {"discord_id": 333, "username": "Titan", "points": 1100},
+            {"discord_id": 444, "username": "Ranger", "points": 950},
+            {"discord_id": 555, "username": "Scout", "points": 800},
+            {"discord_id": 666, "username": "Ghost", "points": 200},  # 6th should be excluded from top 5
+        ]
+        recap_msg = build_weekly_recap_message(
+            weekly_stats=weekly_stats,
+            top_warriors=top_warriors,
+            ai_speech="Discipline is the only currency here. Strong week from the vanguard.",
+            role_ping="<@&999111>",
+            date_dt=datetime(2026, 10, 11, 10, 0, tzinfo=BOT_TZ)
+        )
+        self.assertIn("### Winter Arc | Weekly Recap", recap_msg)
+        self.assertIn("> Discipline is the only currency here", recap_msg)
+        self.assertIn("**Weekly Top 5**", recap_msg)
+        self.assertIn("<@111> — **1,500 pts**", recap_msg)
+        self.assertIn("<@555> — **800 pts**", recap_msg)
+        self.assertNotIn("<@666>", recap_msg)  # Only top 5
+        self.assertIn("**Weekly Workout Volume**", recap_msg)
+        self.assertIn("1,420 reps", recap_msg)
+        self.assertIn("42.5 km", recap_msg)
+        # Role ping at end before footer
+        self.assertIn("<@&999111>", recap_msg)
+        self.assertTrue(recap_msg.endswith("-# Sunday, 11th October 2026 | Winter Arc"))
+
+        # 2. Phase Conclusion Message
+        phase_dict = {"id": 1, "name": "First Frost", "short_name": "Phase 1"}
+        next_phase = {"id": 2, "name": "THE HUNT", "short_name": "Phase 2"}
+        phase_lb = [
+            {"discord_id": 111, "username": "Spartan", "total_points": 15000, "streak": 31},
+            {"discord_id": 222, "username": "Valkyrie", "total_points": 13500, "streak": 28},
+            {"discord_id": 333, "username": "Titan", "total_points": 11000, "streak": 25},
+            {"discord_id": 444, "username": "Ranger", "total_points": 9500, "streak": 21},
+            {"discord_id": 555, "username": "Scout", "total_points": 8000, "streak": 18},
+            {"discord_id": 666, "username": "Ghost", "total_points": 1000, "streak": 5},
+        ]
+        ceremony_speech = "First Frost has separated the committed from the curious."
+        conclusion_msg = build_phase_conclusion_message(
+            phase_dict=phase_dict,
+            phase_lb=phase_lb,
+            ceremony_speech=ceremony_speech,
+            next_phase_dict=next_phase,
+            role_ping="<@&999111>"
+        )
+        self.assertIn("### Winter Arc | Phase 1 Concluded • First Frost", conclusion_msg)
+        self.assertIn("> First Frost has separated the committed", conclusion_msg)
+        self.assertIn("**Phase 1 Top Standings**", conclusion_msg)
+        self.assertIn("<@111> — **15,000 pts** *(31-day streak)*", conclusion_msg)
+        self.assertNotIn("<@666>", conclusion_msg)  # Only top 5
+        self.assertIn("**Winter Arc Phase 1 Stats:**", conclusion_msg)
+        self.assertNotIn("Community", conclusion_msg)  # Word Community removed
+        self.assertIn("Longest Active Streak: `31 days`", conclusion_msg)
+        self.assertIn("⚔️ **Phase 2: THE HUNT** officially begins today.", conclusion_msg)
+        self.assertIn("First Frost was about becoming the person capable of facing winter.", conclusion_msg)
+        self.assertIn("<@&999111>", conclusion_msg)
+        self.assertIn("-# Phase 1 archived • Discipline compounds • Winter Arc", conclusion_msg)
+
+

@@ -24,10 +24,12 @@ Technical design specification, component separation, database schema, and scori
 │      cogs.warrior            ││        cogs.admin           │
 │  • /enroll, /leave_arc       ││  • /admin overview         │
 │  • /today, /log, /set        ││  • /admin set_channel, role │
-│  • /profile, /ranks          ││  • /admin dm, /admin tasks  │
-│  • /leaderboard, /stats      ││  • /admin grind (probation) │
-│  • /history, /ping, /help    ││  • /nuke (Owner 2FA Purge)  │
-│  • /accuse (Council trial)   ││  • /test_reminder           │
+│  • /streak, /calendar        ││  • /admin dm, /admin tasks  │
+│  • /profile, /ranks          ││  • /admin grind (probation) │
+│  • /leaderboard, /stats      ││  • /nuke (Owner 2FA Purge)  │
+│  • /history, /recap, /quick  ││  • /test_reminder           │
+│  • /reminders, /settings     ││                             │
+│  • /accuse (Council trial)   ││                             │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │
                ▼                              ▼

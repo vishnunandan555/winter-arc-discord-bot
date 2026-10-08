@@ -360,6 +360,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         app_commands.Choice(name="Midnight Finalization (00:00 Channel)", value="midnight"),
         app_commands.Choice(name="Phase Conclusion Ceremony (Channel)", value="phase_ceremony"),
         app_commands.Choice(name="Personal Morning Briefing (Direct DM)", value="morning_dm"),
+        app_commands.Choice(name="Personal Afternoon Check-in (Direct DM)", value="afternoon_dm"),
         app_commands.Choice(name="Personal Evening Streak Alert (Direct DM)", value="evening_dm"),
         app_commands.Choice(name="Reactive Groq Observation (Follow-up Nudge)", value="groq_nudge"),
     ])
@@ -426,29 +427,42 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             await scheduler.broadcast_phase_conclusion(curr_phase, target_channel=channel, role_ping=role_ping)
             await interaction.followup.send(f"✅ Dispatched Phase Conclusion Ceremony for **{curr_phase['name']}** to {channel.mention}.", ephemeral=True)
         elif reminder_type == "morning_dm":
-            from ui.embeds import build_dm_morning_embed
+            from ui.embeds import build_dm_morning_message
             from config import BOT_TZ
             from ai import gemini_service
             active_tasks = db.get_active_tasks()
             today_str = datetime.now(BOT_TZ).strftime("%A, %B %d, %Y")
             quote = ""
             try:
-                quote = await gemini_service.generate_reminder_motivation(
-                    reminder_type="morning",
-                    user_context=tester_context,
-                    recent_history=user_history
-                )
+                briefing_context = db.get_user_weekly_briefing_context(interaction.user.id)
+                quote = await gemini_service.generate_personalized_morning_briefing(briefing_context)
             except Exception as e:
                 logger.debug(f"Could not generate test morning DM quote: {e}")
 
-            dm_embed = build_dm_morning_embed(active_tasks, user_streak, today_str, quote=quote)
+            dm_msg = build_dm_morning_message(active_tasks, user_streak, today_str, quote=quote)
             try:
-                await interaction.user.send(embed=dm_embed)
-                await interaction.followup.send("✅ Dispatched Morning Briefing DM preview with dynamic AI quote to your inbox.", ephemeral=True)
+                await interaction.user.send(content=dm_msg)
+                await interaction.followup.send("✅ Dispatched Morning Briefing DM preview with personalized AI quote to your inbox.", ephemeral=True)
+            except discord.Forbidden:
+                await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
+        elif reminder_type == "afternoon_dm":
+            from ui.embeds import build_dm_afternoon_message
+            from config import BOT_TZ
+            today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+            prog = db.get_user_daily_progress(interaction.user.id, today_str)
+            dm_msg = build_dm_afternoon_message(
+                user_name=interaction.user.display_name,
+                points=prog.get("total_points", 0),
+                max_points=prog.get("max_possible_points", 500),
+                streak=user_streak,
+            )
+            try:
+                await interaction.user.send(content=dm_msg)
+                await interaction.followup.send("✅ Dispatched Afternoon Check-in DM preview to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
         elif reminder_type == "evening_dm":
-            from ui.embeds import build_dm_evening_embed
+            from ui.embeds import build_dm_evening_message
             from config import BOT_TZ
             from ai import gemini_service
             today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
@@ -465,10 +479,17 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             except Exception as e:
                 logger.debug(f"Could not generate test evening DM quote: {e}")
 
-            dm_embed = build_dm_evening_embed(interaction.user, prog, user_streak, shield_status, quote=quote)
+            dm_msg = build_dm_evening_message(
+                user_name=interaction.user.display_name,
+                points=prog.get("total_points", 0),
+                max_points=prog.get("max_possible_points", 500),
+                streak=user_streak,
+                shields=shield_status.get("frost_shields", 0),
+                quote=quote,
+            )
             try:
-                await interaction.user.send(embed=dm_embed)
-                await interaction.followup.send("✅ Dispatched Evening Streak Alert DM preview with dynamic AI quote to your inbox.", ephemeral=True)
+                await interaction.user.send(content=dm_msg)
+                await interaction.followup.send("✅ Dispatched Evening Streak Alert DM preview to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
         elif reminder_type == "groq_nudge":
