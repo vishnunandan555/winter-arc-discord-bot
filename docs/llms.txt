@@ -59,12 +59,13 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
   - L12: Apex (12,000+ pts)
 
 ### 5. Automated Cadence (Dedicated Channel)
-- `05:00 IST`: Morning Kickoff & daily targets announcement + personal wakeup DMs.
-- `16:30 IST`: Midday pack progress pulse.
-- `21:00 IST`: Evening Streak Warning (3h before midnight).
+- `05:00 IST`: Morning Kickoff & daily targets announcement (silent broadcast) + personal AI wakeup briefings.
+- `16:30 IST`: Afternoon pack progress check-in (silent broadcast) + personal progress check DMs.
+- `21:00 IST`: Evening Streak Warning (silent broadcast, 3h before midnight) + personal streak defense alerts.
 - `00:00 IST`: Midnight Podium Finalization, streak calculations, and rollover.
-- `Sunday 20:00 IST`: Weekly State of the Pack & weekly podium.
-- Broadcasts strictly inside channel set by `/admin set_channel` (zero spam in other channels).
+- `Sunday 10:00 IST`: Weekly State of the Pack & weekly podium.
+- Broadcasts strictly inside channel set by `/admin set_channel` (zero role ping spam).
+- Personal DM reminders configurable individually via `/reminders`.
 
 ## Quick Start / Deployment
 ```bash

@@ -252,19 +252,22 @@ class TestRemindersAndDMs(WinterArcTestCase):
         res_a = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
         self.assertTrue(res_a)
 
-        res_e = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
-        self.assertTrue(res_e)
+        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Defend the streak."):
+            res_e = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
+            self.assertTrue(res_e)
 
         # 2. Closed DMs (discord.Forbidden)
         mock_discord_user.send.side_effect = discord.Forbidden(MagicMock(), "Cannot send messages to this user")
-        res_m_forbidden = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
+        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
+            res_m_forbidden = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
         self.assertFalse(res_m_forbidden)
 
         res_a_forbidden = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
         self.assertFalse(res_a_forbidden)
 
-        res_e_forbidden = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
-        self.assertFalse(res_e_forbidden)
+        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Defend the streak."):
+            res_e_forbidden = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
+            self.assertFalse(res_e_forbidden)
 
         # 3. Missing user (get_user and fetch_user return None)
         mock_bot.get_user.return_value = None
@@ -282,20 +285,21 @@ class TestRemindersAndDMs(WinterArcTestCase):
         inter = self.create_mock_interaction(user_id=self.user_id)
         asyncio.run(cog.reminders_cmd.callback(cog, inter, dms=False))
         inter.response.send_message.assert_called_once()
-        s = db.get_user_dm_settings(self.user_id, db_path=self.test_db)
+        s = db.get_user_dm_settings(self.user_id, db_path=db.DB_PATH)
         self.assertFalse(s["dm_reminders"])
 
         # 2. Quick toggle dms=True
         inter_on = self.create_mock_interaction(user_id=self.user_id)
         asyncio.run(cog.reminders_cmd.callback(cog, inter_on, dms=True))
-        s_on = db.get_user_dm_settings(self.user_id, db_path=self.test_db)
+        s_on = db.get_user_dm_settings(self.user_id, db_path=db.DB_PATH)
         self.assertTrue(s_on["dm_reminders"])
 
         # 3. Un-enrolled user rejected
         inter_stranger = self.create_mock_interaction(user_id=999888)
         asyncio.run(cog.reminders_cmd.callback(cog, inter_stranger))
         inter_stranger.response.send_message.assert_called_once()
-        self.assertIn("not enrolled", str(inter_stranger.response.send_message.call_args))
+        sent_embed = inter_stranger.response.send_message.call_args.kwargs.get("embed")
+        self.assertIn("Not Enrolled", sent_embed.title)
 
     def test_test_reminder_admin_command_options(self):
         """Verifies /test_reminder admin command for morning_dm, afternoon_dm, and evening_dm previews."""
@@ -363,8 +367,8 @@ class TestRemindersAndDMs(WinterArcTestCase):
         self.assertIn("<@555> — **800 pts**", recap_msg)
         self.assertNotIn("<@666>", recap_msg)  # Only top 5
         self.assertIn("**Weekly Workout Volume**", recap_msg)
-        self.assertIn("1,420 reps", recap_msg)
-        self.assertIn("42.5 km", recap_msg)
+        self.assertIn("`1,420` reps", recap_msg)
+        self.assertIn("`42.5` km", recap_msg)
         # Role ping at end before footer
         self.assertIn("<@&999111>", recap_msg)
         self.assertTrue(recap_msg.endswith("-# Sunday, 11th October 2026 | Winter Arc"))

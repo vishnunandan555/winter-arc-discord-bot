@@ -1498,8 +1498,10 @@ def check_and_award_shield(discord_id: int, streak: int, db_path: Optional[str] 
 # Direct Messaging Preferences DAO
 # ==========================================
 
-def get_user_dm_settings(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+def get_user_dm_settings(discord_id: int, db_path: Optional[str] = None) -> Dict[str, Any]:
     """Retrieves user's private DM notification preferences."""
+    if db_path is None:
+        db_path = DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return {
@@ -1522,9 +1524,11 @@ def update_user_dm_settings(
     dm_morning: Optional[bool] = None,
     dm_afternoon: Optional[bool] = None,
     dm_evening: Optional[bool] = None,
-    db_path: str = DB_PATH
+    db_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """Updates user's private DM notification preferences."""
+    if db_path is None:
+        db_path = DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         raise ValueError("User not found in Winter Arc database.")
@@ -1557,8 +1561,10 @@ def update_user_dm_settings(
     return get_user_dm_settings(discord_id, db_path)
 
 
-def get_opted_in_dm_users(category: str = "all", db_path: str = DB_PATH) -> List[Dict[str, Any]]:
+def get_opted_in_dm_users(category: str = "all", db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """Fetches users who have enabled DMs, optionally filtered by category (morning/afternoon/evening)."""
+    if db_path is None:
+        db_path = DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         query = "SELECT * FROM users WHERE enrolled = 1 AND dm_reminders = 1"
@@ -1573,7 +1579,7 @@ def get_opted_in_dm_users(category: str = "all", db_path: str = DB_PATH) -> List
         return [dict(r) for r in cursor.fetchall()]
 
 
-def get_user_weekly_briefing_context(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+def get_user_weekly_briefing_context(discord_id: int, db_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Gathers 7-day personal accountability context for dynamic morning AI briefing:
     - Active streak
@@ -1584,6 +1590,8 @@ def get_user_weekly_briefing_context(discord_id: int, db_path: str = DB_PATH) ->
     - Recent deep work / grind topics
     - Remaining Frost Shield inventory
     """
+    if db_path is None:
+        db_path = DB_PATH
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return {}
