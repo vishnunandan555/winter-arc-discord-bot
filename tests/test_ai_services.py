@@ -62,14 +62,15 @@ class TestGeminiGrindService(WinterArcTestCase):
         self.assertEqual(len(weekly_hl), 1)
 
     def test_gemini_grind_evaluator_api_or_error_handling(self):
-        """Verifies Gemini evaluation return schema (verdict, points, commentary) or graceful exception."""
+        """Verifies Gemini evaluation return schema (verdict, points, commentary, excluded disciplines) or graceful exception."""
         try:
             res = asyncio.run(evaluate_grind("Studied operating systems 4 hours and solved 2 Hard DP problems"))
             self.assertIn("verdict", res)
             self.assertIn(res["verdict"], ["ACCEPTED", "REJECTED", "ROASTED"])
             self.assertIn("points", res)
-            self.assertTrue(0 <= res["points"] <= 60)
+            self.assertTrue(0 <= res["points"] <= 50)
             self.assertIn("commentary", res)
+            self.assertIn("tracked_disciplines_excluded", res)
         except GeminiServiceError as e:
             self.assertTrue(len(str(e)) > 0)
 

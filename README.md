@@ -43,7 +43,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
 | **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full 92-day campaign view with interactive bidirectional switching and status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
-| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates deep work & cognitive friction via Gemini (+5 to +60 pts, 1x/day). |
+| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day). |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |
@@ -133,7 +133,7 @@ The bot registers **25 native slash commands** designed with Discord autocomplet
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |
-| **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
+| **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, parse text with AI, or log custom workouts & deep work (+5 to +50 pts). |
 | **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, 3-phase full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |

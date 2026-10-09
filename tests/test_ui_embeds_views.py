@@ -168,6 +168,21 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
         self.assertEqual(injection_reply, "Prompt injections won't get you points here. Put down the prompt tricks and go do real work.")
         self.assertNotIn("Points Earned", injection_reply)
 
+        # 6. Test custom workout and excluded core disciplines formatting
+        grind_custom = {
+            "verdict": "ACCEPTED",
+            "points": 45,
+            "key_learning": "Physical: 20 Surya Namaskaras, 3x12 Bicep Curls",
+            "tracked_disciplines_excluded": ["40 push-ups", "5km run"],
+            "commentary": "Solid volume on those Surya Namaskars and curls. Keep grinding."
+        }
+        custom_reply = format_grind_reply(grind_custom)
+        self.assertIn("Solid volume on those Surya Namaskars", custom_reply)
+        self.assertIn("**Points Earned**: 45 pts", custom_reply)
+        self.assertIn("Physical: 20 Surya Namaskaras", custom_reply)
+        self.assertIn("Excluded core disciplines: `40 push-ups`, `5km run`", custom_reply)
+        self.assertIn("advance your 500-pt daily challenge", custom_reply)
+
 
     def test_cleanup_fixes_and_robustness(self):
         """Verifies no-fallback Gemini error handling, formatted history with grind tags, and retroactive sync."""

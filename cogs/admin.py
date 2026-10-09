@@ -439,9 +439,15 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             except Exception as e:
                 logger.debug(f"Could not generate test morning DM quote: {e}")
 
-            dm_msg = build_dm_morning_message(active_tasks, user_streak, today_str, quote=quote)
+            dm_msg = build_dm_morning_message(
+                active_tasks,
+                user_streak,
+                today_str,
+                quote=quote,
+                user_mention=interaction.user.mention
+            )
             try:
-                await interaction.user.send(content=dm_msg)
+                await interaction.user.send(content=dm_msg, allowed_mentions=discord.AllowedMentions(users=True))
                 await interaction.followup.send("✅ Dispatched Morning Briefing DM preview with personalized AI quote to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
@@ -455,9 +461,10 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 points=prog.get("total_points", 0),
                 max_points=prog.get("max_possible_points", 500),
                 streak=user_streak,
+                user_mention=interaction.user.mention,
             )
             try:
-                await interaction.user.send(content=dm_msg)
+                await interaction.user.send(content=dm_msg, allowed_mentions=discord.AllowedMentions(users=True))
                 await interaction.followup.send("✅ Dispatched Afternoon Check-in DM preview to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)
@@ -486,9 +493,10 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 streak=user_streak,
                 shields=shield_status.get("frost_shields", 0),
                 quote=quote,
+                user_mention=interaction.user.mention,
             )
             try:
-                await interaction.user.send(content=dm_msg)
+                await interaction.user.send(content=dm_msg, allowed_mentions=discord.AllowedMentions(users=True))
                 await interaction.followup.send("✅ Dispatched Evening Streak Alert DM preview to your inbox.", ephemeral=True)
             except discord.Forbidden:
                 await interaction.followup.send("❌ Could not send DM. Please allow direct messages from server members.", ephemeral=True)

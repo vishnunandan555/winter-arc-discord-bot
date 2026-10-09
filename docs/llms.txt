@@ -30,7 +30,7 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 
 ### 2. Dual AI Workout Intelligence
 - **Groq NLP (`/quick [text]`)**: Sub-second natural language parsing extracting reps and kilometers from conversational messages, with local regex fallback.
-- **Google Gemini Engine (`/grind [text]`)**: Cognitive friction & engineering practice evaluation awarding verified bonus points (+5 to +60 pts, 1x daily cap; casual/vague attempts get roasted with 5–15 effort points so the daily slot is never wasted).
+- **Google Gemini Engine (`/grind [text]`)**: Custom workouts (Surya Namaskaras, gym, skipping, yoga) and cognitive friction evaluation awarding verified bonus points (+5 to +50 pts, 1x daily cap; core checklist exercises excluded to prevent double-counting; casual/vague attempts get roasted with 5–15 effort points).
 
 ### 3. Tribal Governance & Council Trials
 - **Democratic Verification (`/accuse @member`)**: Any enrolled member can challenge questionable grind logs with an Honor Code verification modal.

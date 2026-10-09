@@ -703,12 +703,12 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="🧠 `/grind [text]` — Academic & Engineering Deep Work (Gemini AI)",
+            name="⚔️ `/grind [text]` — Custom Workouts & Deep Work (Gemini AI)",
             value=(
-                "Submit heavy mental disciplines (LeetCode, systems programming, thesis research, deep technical study).\n"
-                "• **Reward**: Up to **+60 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
-                "• **Example**: `/grind text: Solved 2 hard graph DP problems on LeetCode and debugged OS scheduler for 3 hours`\n"
-                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Buzzword bingo without code or friction is capped or roasted."
+                "Submit custom workouts (Surya Namaskaras, skipping, gym sets, bicep curls, yoga) or heavy cognitive deep work (DSA, systems code, technical study).\n"
+                "• **Reward**: Up to **+50 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
+                "• **Example**: `/grind text: Completed 15 Surya Namaskars, 3x12 bicep curls, and solved 2 graph DP problems`\n"
+                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
             ),
             inline=False
         )
@@ -886,7 +886,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
                 "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
                 "• 🏃 **Running**: 10 km *(1 pt / 100m / 10 pts per km)*\n"
-                "• 🧠 **Grind Bonus**: Up to +60 pts daily (`/grind`)"
+                "• ⚔️ **Grind Bonus**: Up to +50 pts daily (`/grind`)"
             ),
             inline=False
         )
@@ -1405,6 +1405,7 @@ def build_dm_morning_message(
     quote: Optional[str] = None,
     curr_phase: Optional[Dict[str, Any]] = None,
     phase_progress: Optional[Dict[str, Any]] = None,
+    user_mention: Optional[str] = None,
 ) -> str:
     """Builds clean personal text message for the 05:00 IST morning DM briefing."""
     if curr_phase and phase_progress:
@@ -1425,7 +1426,8 @@ def build_dm_morning_message(
 
     subtext = "-# Log sets with /log or /quick • Deep work with /grind • /reminders to adjust"
 
-    return f"{header}\n{streak_line}\n\n{quote_section}\n\n{tasks_block}\n\n{subtext}"
+    mention_prefix = f"{user_mention}\n" if user_mention else ""
+    return f"{mention_prefix}{header}\n{streak_line}\n\n{quote_section}\n\n{tasks_block}\n\n{subtext}"
 
 
 def build_dm_afternoon_message(
@@ -1433,27 +1435,29 @@ def build_dm_afternoon_message(
     points: int,
     max_points: int,
     streak: int,
+    user_mention: Optional[str] = None,
 ) -> str:
     """Builds clean personal text message for the 16:30 IST afternoon DM check-in."""
     pct = int(round((points / max_points * 100))) if max_points > 0 else 0
     header = "☀️ **Winter Arc — Afternoon Check-in (16:30 IST)**"
+    target = user_mention if user_mention else (user_name if user_name.startswith("<@") else f"**{user_name}**")
 
     if points >= 500:
         body = (
-            f"**{user_name}**, you've completely maxed out the board today! **500 / 500 pts** (⭐ Perfect Day).\n"
+            f"{target}, you've completely maxed out the board today! **500 / 500 pts** (⭐ Perfect Day).\n"
             f"Your **{streak}-day streak** is fully defended. Rest up and recover."
         )
     elif points >= MIN_STREAK_POINTS:
         remaining = max_points - points
         body = (
-            f"**{user_name}**, you're sitting at **{points} / {max_points} pts** ({pct}%).\n"
+            f"{target}, you're sitting at **{points} / {max_points} pts** ({pct}%).\n"
             f"🔥 **Streak is already secured for today ({streak} days)!**\n\n"
             f"You have **{remaining} points** remaining on the board if you want to push for a clean sweep."
         )
     else:
         needed = MIN_STREAK_POINTS - points
         body = (
-            f"**{user_name}**, you have logged **{points} / {max_points} pts** ({pct}%) so far today.\n"
+            f"{target}, you have logged **{points} / {max_points} pts** ({pct}%) so far today.\n"
             f"⚠️ You need **{needed} more points** before midnight to defend your **{streak}-day streak**.\n\n"
             f"Drop and knock out a quick set of push-ups or squats before your evening gets busy."
         )
@@ -1469,18 +1473,20 @@ def build_dm_evening_message(
     streak: int,
     shields: int,
     quote: Optional[str] = None,
+    user_mention: Optional[str] = None,
 ) -> str:
     """Builds clean personal text message for the 21:00 IST evening streak warning DM (3h before midnight)."""
     header = "🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**"
+    target = user_mention if user_mention else (user_name if user_name.startswith("<@") else f"**{user_name}**")
 
     if points >= 500:
         body = (
-            f"**{user_name}**, scores lock in at 00:00 IST.\n"
+            f"{target}, scores lock in at 00:00 IST.\n"
             f"You finished at **500 pts** (⭐ Perfect Day). Your **{streak}-day streak** will advance cleanly at midnight."
         )
     elif points >= MIN_STREAK_POINTS:
         body = (
-            f"**{user_name}**, scores lock in at 00:00 IST.\n"
+            f"{target}, scores lock in at 00:00 IST.\n"
             f"You logged **{points} pts** today. Your **{streak}-day streak** is safely secured for tomorrow!"
         )
     else:
@@ -1491,7 +1497,7 @@ def build_dm_evening_message(
             else "• Available Frost Shields: `0 / 2` ⚠️ **No shields left! Your streak will break if you don't hit 30 pts!**"
         )
         body = (
-            f"**{user_name}**, scores finalize at **00:00 IST**.\n"
+            f"{target}, scores finalize at **00:00 IST**.\n"
             f"You currently have **{points} / 30 points** needed for your streak ({needed} pts missing).\n\n"
             f"{shield_text}\n\n"
             f"Get your reps in now and log with `/log` before the board resets!"
@@ -1625,11 +1631,12 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
 
 
 def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_points: int) -> discord.Embed:
-    """Builds a clean, human confirmation card for /grind deep work entries."""
+    """Builds a clean, human confirmation card for /grind custom workout and deep work entries."""
     verdict = result.get("verdict", "REJECTED")
     pts = result.get("points", 0)
     learning = result.get("key_learning")
     has_focus = learning and learning != "None"
+    excluded = result.get("tracked_disciplines_excluded", [])
 
     if pts > 0:
         if verdict == "ROASTED":
@@ -1637,14 +1644,14 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
             color = 0xE67E22
             header_tag = f"• `{learning}`" if has_focus else "• Effort Points"
         else:
-            title = f"🧠 Deep Work Logged (+{pts} pts)"
+            title = f"⚔️ Grind Logged (+{pts} pts)"
             color = 0x00D2FF
-            header_tag = f"• `{learning}`" if has_focus else "• Deep Work"
+            header_tag = f"• `{learning}`" if has_focus else "• Custom Grind"
         pts_line = f"**+{pts} pts earned** • Today's Board: **{total_daily_points} pts**"
     else:
-        title = "⚪ Deep Work Log (0 pts)"
+        title = "⚪ Grind Log (0 pts)"
         color = 0xE67E22 if verdict == "ROASTED" else 0x95A5A6
-        header_tag = "• Deep Work"
+        header_tag = "• Grind"
         pts_line = f"**0 pts earned** • Today's Board: **{total_daily_points} pts**"
 
     commentary = result.get("commentary", "Session logged.")
@@ -1655,12 +1662,16 @@ def build_grind_embed(user: discord.Member, result: Dict[str, Any], total_daily_
         f"> {commentary}"
     )
 
+    if excluded:
+        excluded_str = ", ".join(f"`{e}`" for e in excluded)
+        desc += f"\n\nℹ️ *Excluded core disciplines: {excluded_str}. Log these with `/log` or `/quick` to advance your 500-pt daily challenge!*"
+
     embed = discord.Embed(
         title=title,
         description=desc,
         color=color
     )
-    embed.set_footer(text="Evaluated by Gemini AI • 1 deep work submission allowed per day")
+    embed.set_footer(text="Evaluated by Gemini AI • 1 grind submission allowed per day (max 50 pts)")
     return embed
 
 
@@ -1670,6 +1681,7 @@ def format_grind_reply(result: Dict[str, Any]) -> str:
     pts = int(result.get("points", 0))
     learning = result.get("key_learning")
     verdict = str(result.get("verdict", "")).upper()
+    excluded = result.get("tracked_disciplines_excluded", [])
 
     if pts > 0:
         if learning and learning.lower() != "none":
@@ -1677,8 +1689,17 @@ def format_grind_reply(result: Dict[str, Any]) -> str:
         elif verdict == "ROASTED":
             task_label = "Effort / Grind Attempt"
         else:
-            task_label = "Deep Work"
-        return f"{commentary}\n\n**Points Earned**: {pts} pts\n**Logged**: {task_label}"
+            task_label = "Custom Grind"
+        reply = f"{commentary}\n\n⚔️ **Points Earned**: {pts} pts\n📋 **Logged**: {task_label}"
+        if excluded:
+            excluded_str = ", ".join(f"`{e}`" for e in excluded)
+            reply += f"\n\nℹ️ *Excluded core disciplines: {excluded_str}. Log these with `/log` or `/quick` to advance your 500-pt daily challenge!*"
+        return reply
+
+    if excluded:
+        excluded_str = ", ".join(f"`{e}`" for e in excluded)
+        return f"{commentary}\n\nℹ️ *Excluded core disciplines: {excluded_str}. Log these with `/log` or `/quick` to advance your 500-pt daily challenge!*"
+
     return commentary
 
 

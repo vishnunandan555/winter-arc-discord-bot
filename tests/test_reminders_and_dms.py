@@ -160,6 +160,35 @@ class TestRemindersAndDMs(WinterArcTestCase):
         )
         self.assertIn("safely secured", evening_safe_msg)
 
+        # DMs with explicit user_mention pings
+        ping_morning = build_dm_morning_message(
+            tasks=db.get_active_tasks(db_path=self.test_db),
+            streak=3,
+            date_display="Today",
+            quote="Rise",
+            user_mention="<@770011>"
+        )
+        self.assertTrue(ping_morning.startswith("<@770011>\n"))
+
+        ping_afternoon = build_dm_afternoon_message(
+            user_name="Spartan",
+            points=20,
+            max_points=500,
+            streak=3,
+            user_mention="<@770011>"
+        )
+        self.assertIn("<@770011>, you have logged", ping_afternoon)
+
+        ping_evening = build_dm_evening_message(
+            user_name="Spartan",
+            points=20,
+            max_points=500,
+            streak=3,
+            shields=1,
+            user_mention="<@770011>"
+        )
+        self.assertIn("<@770011>, scores finalize", ping_evening)
+
     def test_reminders_view_and_interactive_toggles(self):
         """Verifies RemindersView button callbacks, UI states, and aliases."""
         self.assertIs(SettingsView, RemindersView)

@@ -460,7 +460,11 @@ class WinterArcScheduler:
                             color=0x00D2FF
                         )
                         shield_dm_embed.set_footer(text="Winter Arc • Automatic Midnight Streak Protection")
-                        await target_user.send(embed=shield_dm_embed)
+                        await target_user.send(
+                            content=target_user.mention,
+                            embed=shield_dm_embed,
+                            allowed_mentions=discord.AllowedMentions(users=True)
+                        )
                 except Exception as e:
                     logger.debug(f"Could not send auto-shield DM to user {user_id}: {e}")
 
@@ -738,8 +742,9 @@ class WinterArcScheduler:
                     quote=quote,
                     curr_phase=curr_phase,
                     phase_progress=phase_progress,
+                    user_mention=discord_user.mention,
                 )
-                await discord_user.send(content=msg)
+                await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 return True
         except discord.Forbidden:
             logger.debug(f"Cannot send morning DM to user {discord_id} (DMs closed).")
@@ -785,8 +790,9 @@ class WinterArcScheduler:
                     points=prog.get("total_points", 0),
                     max_points=prog.get("max_possible_points", 500),
                     streak=streak,
+                    user_mention=discord_user.mention,
                 )
-                await discord_user.send(content=msg)
+                await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 return True
         except discord.Forbidden:
             logger.debug(f"Cannot send afternoon DM to user {discord_id} (DMs closed).")
@@ -846,8 +852,9 @@ class WinterArcScheduler:
                     streak=streak,
                     shields=shield_status.get("frost_shields", 0),
                     quote=quote,
+                    user_mention=discord_user.mention,
                 )
-                await discord_user.send(content=msg)
+                await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 return True
         except discord.Forbidden:
             logger.debug(f"Cannot send evening DM to user {discord_id} (DMs closed).")

@@ -960,9 +960,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # AI Discipline & Quick-Logging Commands
     # ==========================================
 
-    @app_commands.command(name="grind", description="Log daily deep work, studying, or engineering practice.")
+    @app_commands.command(name="grind", description="Log custom workouts (Surya Namaskar, gym, etc.) or mental deep work (max 50 pts).")
     @app_commands.describe(
-        text="Describe the technical problem, hours spent, or conceptual breakthrough"
+        text="Describe your custom workout (skipping, curls, yoga) or deep work session (DSA, study)"
     )
     async def grind_cmd(self, interaction: discord.Interaction, text: str):
         logger.info(f"Slash command '/grind' invoked by {interaction.user}: '{text[:60]}...'")
@@ -993,9 +993,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
             return
 
-        if len(text.strip()) < 10:
+        if len(text.strip()) < 8:
             await interaction.response.send_message(
-                "❌ Too short. Describe the study session, technical problem, or engineering work you tackled.",
+                "❌ Too short. Describe the custom workout (e.g. '15 Surya Namaskars, 3x12 curls') or study session you tackled.",
                 ephemeral=True
             )
             return
@@ -1022,7 +1022,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             )
             return
 
-        logger.info(f"/grind evaluated for {interaction.user}: {evaluation.get('verdict')} (+{evaluation.get('points')} pts, tag: {evaluation.get('key_learning')})")
+        logger.info(f"/grind evaluated for {interaction.user}: {evaluation.get('verdict')} (+{evaluation.get('points')} pts, summary: {evaluation.get('key_learning')})")
 
         pts = int(evaluation.get("points", 0))
         # Keep the summoned log excerpt bounded so the Council message stays
@@ -1048,7 +1048,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.followup.send(reply_msg)
 
         if evaluation["verdict"] == "ACCEPTED":
-            await safe_react(interaction, "⚔️", "🧠")
+            await safe_react(interaction, "⚔️", "⚡")
         elif evaluation["verdict"] == "ROASTED":
             await safe_react(interaction, "🔥", "💀")
 
@@ -1107,7 +1107,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 user_id=interaction.user.id,
                 user_name=interaction.user.display_name,
                 command_name="grind",
-                extra_info=f"Deep work grind logged ({evaluation.get('verdict')}: +{evaluation.get('points')} pts - {evaluation.get('key_learning')})",
+                extra_info=f"Grind logged ({evaluation.get('verdict')}: +{evaluation.get('points')} pts - {evaluation.get('key_learning')})",
                 command_output=reply_msg
             )
         )
