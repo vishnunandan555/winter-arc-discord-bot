@@ -352,7 +352,32 @@ async def generate_reminder_motivation(
             return txt
         return random.choice(CURATED_STOIC_FALLBACKS)
     except Exception as e:
-        logger.warning(f"Could not generate Gemini reminder quote: {e}. Using curated fallback.", exc_info=True)
+        # Fallback to Groq if Gemini is region-restricted or experiencing temporary outage
+        try:
+            from ai.groq_service import get_groq_client
+            from config import GROQ_MODEL
+            groq_client = get_groq_client()
+            if groq_client:
+                logger.info(f"Attempting Groq fallback ({GROQ_MODEL}) for {reminder_type} reminder quote...")
+                completion = await groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You are Amarok, a blunt stoic discipline coach. Deliver exactly 1 to 2 short sentences (under 25 words). No clichés. Output only the plain quote text without markdown or prefixes."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=GROQ_MODEL,
+                    temperature=0.7,
+                    max_tokens=60,
+                )
+                g_txt = completion.choices[0].message.content.strip().strip('"').strip("'")
+                if ":" in g_txt and g_txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
+                    g_txt = g_txt.split(":", 1)[1].strip().strip('"').strip("'")
+                if g_txt and len(g_txt.split()) <= 35:
+                    logger.info(f"Groq {reminder_type} quote generated: '{g_txt}'")
+                    return g_txt
+        except Exception as groq_err:
+            logger.debug(f"Groq quote fallback also unavailable: {groq_err}")
+
+        logger.warning(f"Could not generate AI reminder quote: {e}. Using curated fallback.")
         return random.choice(CURATED_STOIC_FALLBACKS)
 
 
@@ -419,6 +444,29 @@ async def generate_personalized_morning_briefing(
             return txt
         return random.choice(CURATED_STOIC_FALLBACKS)
     except Exception as e:
+        try:
+            from ai.groq_service import get_groq_client
+            from config import GROQ_MODEL
+            groq_client = get_groq_client()
+            if groq_client:
+                logger.info("Attempting Groq fallback for personalized morning briefing...")
+                completion = await groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You are Amarok, a gritty discipline coach. Deliver exactly 1 to 2 short sentences (under 25 words). No clichés. Mention their momentum or recent work directly."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=GROQ_MODEL,
+                    temperature=0.7,
+                    max_tokens=60,
+                )
+                g_txt = completion.choices[0].message.content.strip().strip('"').strip("'")
+                if ":" in g_txt and g_txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
+                    g_txt = g_txt.split(":", 1)[1].strip().strip('"').strip("'")
+                if g_txt and len(g_txt.split()) <= 50:
+                    return g_txt
+        except Exception as groq_err:
+            logger.debug(f"Groq morning briefing fallback also failed: {groq_err}")
+
         logger.warning(f"Could not generate personalized morning briefing for {u_name}: {e}")
         return random.choice(CURATED_STOIC_FALLBACKS)
 
