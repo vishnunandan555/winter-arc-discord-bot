@@ -465,8 +465,9 @@ class WinterArcScheduler:
                             embed=shield_dm_embed,
                             allowed_mentions=discord.AllowedMentions(users=True)
                         )
+                        logger.info(f"Delivered midnight auto-shield alert DM to {target_user.display_name} ({user_id})")
                 except Exception as e:
-                    logger.debug(f"Could not send auto-shield DM to user {user_id}: {e}")
+                    logger.info(f"Could not deliver auto-shield DM to user {user_id}: {e}")
 
         # AI Daily Toast & Roast
         ai_recap = ""
@@ -754,9 +755,10 @@ class WinterArcScheduler:
                     user_mention=discord_user.mention,
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
+                logger.info(f"Delivered Morning Briefing DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.debug(f"Cannot send morning DM to user {discord_id} (DMs closed).")
+            logger.info(f"Cannot deliver morning DM to user {discord_id} (DMs closed).")
         except Exception as e:
             logger.warning(f"Error sending morning DM to user {discord_id}: {e}")
         return False
@@ -802,9 +804,10 @@ class WinterArcScheduler:
                     user_mention=discord_user.mention,
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
+                logger.info(f"Delivered Afternoon Check-in DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.debug(f"Cannot send afternoon DM to user {discord_id} (DMs closed).")
+            logger.info(f"Cannot deliver afternoon DM to user {discord_id} (DMs closed).")
         except Exception as e:
             logger.warning(f"Error sending afternoon DM to user {discord_id}: {e}")
         return False
@@ -864,9 +867,10 @@ class WinterArcScheduler:
                     user_mention=discord_user.mention,
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
+                logger.info(f"Delivered Evening Streak Warning DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.debug(f"Cannot send evening DM to user {discord_id} (DMs closed).")
+            logger.info(f"Cannot deliver evening DM to user {discord_id} (DMs closed).")
         except Exception as e:
             logger.warning(f"Error sending evening DM to user {discord_id}: {e}")
         return False

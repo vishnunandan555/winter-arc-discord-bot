@@ -366,6 +366,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     ])
     @app_commands.default_permissions(administrator=True)
     async def test_reminder(self, interaction: discord.Interaction, reminder_type: str):
+        logger.info(f"Admin command '/test_reminder' invoked by {interaction.user} (type: {reminder_type})")
         await interaction.response.defer(ephemeral=True)
         scheduler = getattr(self.bot, "scheduler", None)
         if not scheduler:

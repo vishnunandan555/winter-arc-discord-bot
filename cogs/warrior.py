@@ -588,6 +588,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     async def leaderboard(self, interaction: discord.Interaction, timeframe: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer()
         selected_tab = timeframe.value if timeframe else "weekly"
+        logger.info(f"Slash command '/leaderboard' invoked by {interaction.user} (timeframe: {selected_tab})")
 
         if selected_tab == "monthly":
             embed = build_monthly_leaderboard_embed()

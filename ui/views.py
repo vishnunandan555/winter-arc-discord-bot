@@ -76,6 +76,7 @@ class LeaderboardView(RobustView):
     async def tab_weekly_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "weekly"
         self._update_buttons()
+        logger.info(f"LeaderboardView switched to Weekly tab by {interaction.user}")
         embed = build_weekly_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -83,6 +84,7 @@ class LeaderboardView(RobustView):
     async def tab_monthly_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "monthly"
         self._update_buttons()
+        logger.info(f"LeaderboardView switched to Monthly tab by {interaction.user}")
         embed = build_monthly_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -90,6 +92,7 @@ class LeaderboardView(RobustView):
     async def tab_overall_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_tab = "overall"
         self._update_buttons()
+        logger.info(f"LeaderboardView switched to All-Time tab by {interaction.user}")
         embed = build_overall_leaderboard_embed()
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -135,6 +138,7 @@ class RemindersView(RobustView):
             return
         new_state = not self.settings.get("dm_reminders", False)
         self.settings = db.update_user_dm_settings(self.user_id, dm_reminders=new_state)
+        logger.info(f"User {interaction.user} ({self.user_id}) toggled master reminders to {new_state}")
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
@@ -145,6 +149,7 @@ class RemindersView(RobustView):
             return
         new_state = not self.settings.get("dm_morning", True)
         self.settings = db.update_user_dm_settings(self.user_id, dm_morning=new_state)
+        logger.info(f"User {interaction.user} ({self.user_id}) toggled morning reminders to {new_state}")
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
@@ -155,6 +160,7 @@ class RemindersView(RobustView):
             return
         new_state = not self.settings.get("dm_afternoon", True)
         self.settings = db.update_user_dm_settings(self.user_id, dm_afternoon=new_state)
+        logger.info(f"User {interaction.user} ({self.user_id}) toggled afternoon reminders to {new_state}")
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
@@ -165,6 +171,7 @@ class RemindersView(RobustView):
             return
         new_state = not self.settings.get("dm_evening", True)
         self.settings = db.update_user_dm_settings(self.user_id, dm_evening=new_state)
+        logger.info(f"User {interaction.user} ({self.user_id}) toggled evening reminders to {new_state}")
         self._sync_buttons()
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
@@ -632,6 +639,7 @@ class CouncilVotingView(RobustView):
         self.legit_votes.discard(user_id)
         self.capping_votes.add(user_id)
         self._sync_labels()
+        logger.info(f"Council vote: {interaction.user} voted Guilty on {self.accused.display_name}")
 
         await interaction.response.edit_message(view=self)
         await interaction.followup.send("🗳️ Vote recorded: **Guilty** 🔨", ephemeral=True)
@@ -649,6 +657,7 @@ class CouncilVotingView(RobustView):
         self.capping_votes.discard(user_id)
         self.legit_votes.add(user_id)
         self._sync_labels()
+        logger.info(f"Council vote: {interaction.user} voted Innocent on {self.accused.display_name}")
 
         await interaction.response.edit_message(view=self)
         await interaction.followup.send("🗳️ Vote recorded: **Innocent** 🛡️", ephemeral=True)
@@ -678,6 +687,7 @@ class CouncilVotingView(RobustView):
             # Accusation confirmed: zero out points for the challenged date
             target_date = self.grind_entry.get("date")
             db.cap_user_grind(self.accused.id, date_str=target_date)
+            logger.info(f"Council trial resolved for {self.accused.display_name} ({self.accused.id}): {capping_count} Guilty vs {legit_count} Innocent -> Cap confirmed ({points} pts stripped)")
             gif = random.choice(CAP_CONFIRMED_GIFS)
             embed = discord.Embed(
                 title="⚖️ Council Verdict: CAP CONFIRMED (GUILTY)",
@@ -696,6 +706,7 @@ class CouncilVotingView(RobustView):
 
         elif legit_count > capping_count:
             # Accusation dismissed: points stand
+            logger.info(f"Council trial resolved for {self.accused.display_name} ({self.accused.id}): {legit_count} Innocent vs {capping_count} Guilty -> Legit verified ({points} pts stand)")
             gif = random.choice(LEGIT_VERIFIED_GIFS)
             embed = discord.Embed(
                 title="⚖️ Council Verdict: GRIND LEGIT (NOT GUILTY)",
@@ -715,6 +726,7 @@ class CouncilVotingView(RobustView):
 
         else:
             # Tie or 0:0 inconclusive
+            logger.info(f"Council trial resolved for {self.accused.display_name} ({self.accused.id}): Tie ({capping_count} - {legit_count}) -> Trial dismissed ({points} pts stand)")
             gif = "https://media.tenor.com/nnujmeraF1QAAAAC/hmm-thinking.gif"
             embed = discord.Embed(
                 title="⚖️ Council Review Dismissed: TIE / INCONCLUSIVE",
@@ -791,6 +803,7 @@ class AccuseConfirmView(RobustView):
             return
 
         await interaction.response.edit_message(content="⚔️ **The Council has been summoned.** Voting is now active in the channel.", view=self)
+        logger.info(f"Accuse confirmation: {self.challenger} confirmed Council summon against {self.target.display_name} ({self.target.id})")
 
         log_text = self.grind_entry.get("raw_input", "")
         # Discord message content is capped at 4000 chars; keep the excerpt bounded.
@@ -841,6 +854,7 @@ class AccuseConfirmView(RobustView):
     async def cancel_summon(self, interaction: discord.Interaction, button: discord.ui.Button):
         for child in self.children:
             child.disabled = True
+        logger.info(f"Accuse confirmation: {self.challenger} canceled Council summon against {self.target.display_name}")
         await interaction.response.edit_message(content="🛡️ **Stand down confirmed.** The Council was not summoned.", view=self)
 
 
