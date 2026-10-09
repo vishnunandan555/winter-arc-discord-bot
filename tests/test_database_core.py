@@ -1,6 +1,9 @@
 """
 tests/test_database_core.py - Core Database Schema, Settings, Auth, and Timezone Tests
 """
+import os
+import shutil
+import sqlite3
 from datetime import date, datetime
 import database as db
 from config import BOT_TZ
@@ -117,3 +120,70 @@ class TestDatabaseTimezoneConsistency(WinterArcTestCase):
         stats = db.get_user_stats(user_id, self.test_db)
         self.assertIn("current_streak", stats)
         self.assertIn("lifetime_points", stats)
+
+
+class TestDatabaseMigrationsAndBackups(WinterArcTestCase):
+    """Verifies schema migration idempotency, version audits, column safety, and point-in-time online backups."""
+
+    def test_schema_migrations_table_and_version_audit(self):
+        """Verifies schema_migrations table tracks discrete migration versions."""
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT version, description FROM schema_migrations ORDER BY id ASC;")
+            rows = cursor.fetchall()
+            versions = [r["version"] for r in rows]
+            self.assertIn("v1.0.0", versions)
+            self.assertIn("v1.1.0", versions)
+            self.assertIn("v1.2.0", versions)
+            self.assertIn("v1.3.0", versions)
+
+    def test_database_migration_idempotency_and_column_check(self):
+        """Verifies calling init_db repeatedly is safe and _ensure_column_exists handles missing columns cleanly."""
+        # Repeat initialization multiple times
+        db.init_db(self.test_db)
+        db.init_db(self.test_db)
+
+        # Verify column helper
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            # Already existing column returns False
+            added_again = db._ensure_column_exists(cursor, "users", "frost_shields", "INTEGER DEFAULT 0")
+            self.assertFalse(added_again)
+
+            # Newly added custom column returns True and adds it
+            added_new = db._ensure_column_exists(cursor, "users", "custom_test_col", "TEXT DEFAULT 'active'")
+            self.assertTrue(added_new)
+            conn.commit()
+
+            cursor.execute("PRAGMA table_info(users);")
+            col_names = {r["name"] for r in cursor.fetchall()}
+            self.assertIn("custom_test_col", col_names)
+
+    def test_database_online_backup_consistency(self):
+        """Verifies point-in-time online backup generation and data fidelity without locking."""
+        user_id = 998877
+        db.enroll_user(user_id, "BackupHero", self.test_db)
+        db.log_activity(user_id, "BackupHero", "Push-ups", 50, db_path=self.test_db)
+
+        backup_dir = os.path.join(os.path.dirname(self.test_db), "test_migration_backups")
+        backup_file = db.backup_database(self.test_db, backup_dir=backup_dir)
+
+        try:
+            self.assertTrue(os.path.exists(backup_file))
+            self.assertGreater(os.path.getsize(backup_file), 0)
+
+            # Query the backup file directly
+            with sqlite3.connect(backup_file) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM users WHERE discord_id = ?", (user_id,))
+                user_row = cursor.fetchone()
+                self.assertIsNotNone(user_row)
+                self.assertEqual(user_row["username"], "BackupHero")
+
+                cursor.execute("SELECT COUNT(*) AS cnt FROM tasks WHERE active = 1;")
+                task_cnt = cursor.fetchone()["cnt"]
+                self.assertEqual(task_cnt, 5)
+        finally:
+            shutil.rmtree(backup_dir, ignore_errors=True)
+

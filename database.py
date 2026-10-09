@@ -68,8 +68,23 @@ def get_connection(db_path: str = DB_PATH):
             logger.debug(f"Error closing SQLite connection for '{db_path}': {e}")
 
 
+def _ensure_column_exists(cursor: sqlite3.Cursor, table_name: str, col_name: str, col_def: str) -> bool:
+    """
+    Safely verifies whether a column exists in table_name, executing ALTER TABLE if missing.
+    Returns True if the column was added as a migration, False if it already existed.
+    """
+    cursor.execute(f"PRAGMA table_info({table_name});")
+    existing_cols = {str(row["name"]).lower() for row in cursor.fetchall()}
+    if col_name.lower() not in existing_cols:
+        logger.info(f"Database migration: Adding missing column '{col_name}' ({col_def}) to '{table_name}'...")
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def};")
+        logger.info(f"Database migration: Column '{col_name}' successfully added to '{table_name}'.")
+        return True
+    return False
+
+
 def init_db(db_path: str = DB_PATH):
-    """Initializes schema, settings, and seeds default tasks."""
+    """Initializes schema, settings, and seeds default tasks with automated safe migrations."""
     with get_connection(db_path) as conn:
         try:
             conn.execute("PRAGMA journal_mode = WAL;")
@@ -79,6 +94,23 @@ def init_db(db_path: str = DB_PATH):
             logger.warning(f"Error applying WAL PRAGMAs during init_db on '{db_path}': {e}")
 
         cursor = conn.cursor()
+
+        # 0. Schema migrations audit table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version TEXT UNIQUE NOT NULL,
+                description TEXT NOT NULL,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+
+        def record_migration(version: str, desc: str):
+            cursor.execute("""
+                INSERT INTO schema_migrations (version, description)
+                VALUES (?, ?)
+                ON CONFLICT(version) DO NOTHING;
+            """, (version, desc))
 
         # 1. Server settings table (persists dedicated channel and ping role)
         cursor.execute("""
@@ -167,17 +199,11 @@ def init_db(db_path: str = DB_PATH):
             ("dm_evening", "BOOLEAN DEFAULT 1"),
         ]
         for col_name, col_def in user_columns:
-            try:
-                cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def};")
-            except sqlite3.OperationalError:
-                pass  # Column already exists
+            _ensure_column_exists(cursor, "users", col_name, col_def)
 
-        try:
-            cursor.execute("ALTER TABLE daily_summaries ADD COLUMN is_shielded BOOLEAN DEFAULT 0;")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
+        _ensure_column_exists(cursor, "daily_summaries", "is_shielded", "BOOLEAN DEFAULT 0")
 
-        # 7. Grind logs table (daily academic / mental friction logs evaluated by Gemini)
+        # 7. Grind logs table (daily custom workouts & deep work friction logs evaluated by Gemini)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS grind_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -201,10 +227,7 @@ def init_db(db_path: str = DB_PATH):
             ("commentary", "TEXT"),
         ]
         for col_name, col_def in grind_columns:
-            try:
-                cursor.execute(f"ALTER TABLE grind_logs ADD COLUMN {col_name} {col_def};")
-            except sqlite3.OperationalError:
-                pass  # Column already exists
+            _ensure_column_exists(cursor, "grind_logs", col_name, col_def)
 
         # 8. Bot State table (persists scheduler triggers and operational state across restarts)
         cursor.execute("""
@@ -236,7 +259,33 @@ def init_db(db_path: str = DB_PATH):
                     active = 1;
             """, task)
 
+        record_migration("v1.0.0", "Core tables: server_settings, users, tasks, daily_logs, daily_summaries")
+        record_migration("v1.1.0", "Streak defense: shield_logs, frost_shields, dm_settings")
+        record_migration("v1.2.0", "AI Grind: grind_logs with custom physical workouts and deep work")
+        record_migration("v1.3.0", "Bot state and governance indices")
+
         conn.commit()
+        logger.info(f"Database schema initialized and all migrations verified successfully at '{db_path}'.")
+
+
+def backup_database(db_path: str = DB_PATH, backup_dir: str = "backups") -> str:
+    """
+    Creates a point-in-time consistent snapshot backup of the SQLite database using SQLite's online backup API.
+    Thread-safe and non-blocking for active readers and writers.
+    """
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = datetime.now(BOT_TZ).strftime("%Y%m%d_%H%M%S")
+    dest_filename = f"winter_arc_backup_{timestamp}.db"
+    dest_path = os.path.join(backup_dir, dest_filename)
+
+    logger.info(f"Starting online database backup from '{db_path}' to '{dest_path}'...")
+    with get_connection(db_path) as src_conn:
+        with sqlite3.connect(dest_path) as dst_conn:
+            src_conn.backup(dst_conn)
+
+    size_bytes = os.path.getsize(dest_path)
+    logger.info(f"Database backup complete: '{dest_path}' ({size_bytes:,} bytes).")
+    return dest_path
 
 
 # ==========================================
@@ -329,7 +378,9 @@ def enroll_user(discord_id: int, username: str, db_path: Optional[str] = None) -
         conn.commit()
 
         cursor.execute("SELECT * FROM users WHERE discord_id = ?", (discord_id,))
-        return dict(cursor.fetchone())
+        row = dict(cursor.fetchone())
+        logger.info(f"User enrolled in Winter Arc: '{username}' (Discord ID: {discord_id}) in '{db_path}'")
+        return row
 
 
 def unenroll_user(discord_id: int, db_path: Optional[str] = None) -> bool:
@@ -338,7 +389,10 @@ def unenroll_user(discord_id: int, db_path: Optional[str] = None) -> bool:
         cursor = conn.cursor()
         cursor.execute("UPDATE users SET enrolled = 0 WHERE discord_id = ?", (discord_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"User unenrolled from Winter Arc: Discord ID {discord_id} in '{db_path}'")
+        return success
 
 
 def is_user_enrolled(discord_id: int, db_path: Optional[str] = None) -> bool:
@@ -576,6 +630,8 @@ def log_activity(discord_id: int, username: str, task_name: str, amount: float, 
         streak = calculate_streak(discord_id, log_date, db_path)
         shield_awarded = check_and_award_shield(discord_id, streak, db_path)
 
+    logger.info(f"Activity logged: user '{username}' ({discord_id}) -> {task['name']} +{amount} {task['unit']} (+{pts_delta} pts, day total: {daily_progress['total_points']}/{daily_progress['max_possible_points']} pts)")
+
     return {
         "discord_id": discord_id,
         "username": username,
@@ -666,6 +722,8 @@ def set_activity(discord_id: int, username: str, task_name: str, target_amount: 
             finalize_daily_summaries(target_date_str=log_date, db_path=db_path)
         except Exception:
             pass
+
+    logger.info(f"Activity override: user '{username}' ({discord_id}) -> {task['name']} set to {target_amount} {task['unit']} (day total: {daily_progress['total_points']}/{daily_progress['max_possible_points']} pts)")
 
     return {
         "user_id": user["id"],
@@ -1447,6 +1505,8 @@ def activate_frost_shield(discord_id: int, target_date: Optional[str] = None, re
         cursor.execute("UPDATE daily_summaries SET is_shielded = 1 WHERE user_id = ? AND date = ?;", (user["id"], target_date_str))
         conn.commit()
 
+    logger.info(f"Streak shield activated: user '{user['username']}' ({discord_id}) for {target_date_str} (remaining: {shields - 1}, reason='{reason}')")
+
     return {
         "success": True,
         "target_date": target_date_str,
@@ -1491,6 +1551,8 @@ def check_and_award_shield(discord_id: int, streak: int, db_path: Optional[str] 
                 WHERE id = ?;
             """, (new_shields, milestone, user["id"]))
             conn.commit()
+            if new_shields > current_shields:
+                logger.info(f"Frost shield milestone awarded: user ID {discord_id} reached milestone streak of {streak} days (inventory: {new_shields}/2).")
         return new_shields > current_shields
 
     return False
@@ -1665,7 +1727,9 @@ def record_grind_entry(
         conn.commit()
 
         cursor.execute("SELECT * FROM grind_logs WHERE id = last_insert_rowid();")
-        return dict(cursor.fetchone())
+        entry = dict(cursor.fetchone())
+        logger.info(f"Grind entry recorded: user '{user['username']}' ({discord_id}) on {date_str} -> verdict={verdict}, pts={points}, focus='{key_learning}'")
+        return entry
 
 
 # Alias for backward compatibility / tests
@@ -1719,6 +1783,7 @@ def cap_user_grind(discord_id: int, date_str: Optional[str] = None, reason: str 
         """, (old_points, user["id"], target_date))
 
         conn.commit()
+        logger.warning(f"Grind stripped/capped: user '{user['username']}' ({discord_id}) on {target_date} -> old_points={old_points}, reason='{reason}'")
         return {
             "grind_id": row["id"],
             "old_points": old_points,
