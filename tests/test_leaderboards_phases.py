@@ -112,7 +112,7 @@ class TestLeaderboardRankings(WinterArcTestCase):
         self.assertEqual(u2_entry["total_points"], 500)
 
     def test_leaderboard_slash_command_choices_and_interactive_view(self):
-        """Verifies /leaderboard timeframe choices (daily, weekly, monthly, overall) and 4-button view navigation."""
+        """Verifies /leaderboard timeframe choices (weekly, monthly, overall) and 3-button view navigation."""
         from cogs.warrior import WarriorCog
         from ui.views import LeaderboardView
         from discord import app_commands
@@ -122,7 +122,7 @@ class TestLeaderboardRankings(WinterArcTestCase):
 
         async def run_choices_test():
             for choice_val, expected_title, expected_tab in [
-                (None, "Daily Standings", "daily"),
+                (None, "Weekly Standings", "weekly"),
                 ("weekly", "Weekly Standings", "weekly"),
                 ("monthly", "Standings", "monthly"),
                 ("overall", "Overall Standings", "overall"),
@@ -137,17 +137,40 @@ class TestLeaderboardRankings(WinterArcTestCase):
                 view = call_kwargs["view"]
 
                 self.assertIn(expected_title, embed.title)
-                self.assertIn("Standings Sections", embed.description)
+                self.assertNotIn("Standings Sections", embed.description)
                 self.assertIsInstance(view, LeaderboardView)
                 self.assertEqual(view.current_tab, expected_tab)
 
-                # Verify 4 buttons exist with emojis
+                # Verify 3 buttons exist with emojis (Daily removed)
                 buttons = [c for c in view.children if hasattr(c, "label")]
-                self.assertEqual(len(buttons), 4)
-                self.assertEqual([b.label for b in buttons], ["Daily", "Weekly", "Monthly", "All-Time"])
-                self.assertEqual([str(b.emoji) for b in buttons], ["📅", "📆", "🗓️", "🌐"])
+                self.assertEqual(len(buttons), 3)
+                self.assertEqual([b.label for b in buttons], ["Weekly", "Monthly", "All-Time"])
+                self.assertEqual([str(b.emoji) for b in buttons], ["📆", "🗓️", "🌐"])
 
         asyncio.run(run_choices_test())
+
+    def test_weekly_leaderboard_sunday_to_saturday_bounds(self):
+        """Verifies that weekly leaderboard week bounds start on Sunday and end on Saturday."""
+        from datetime import date, timedelta
+        from ui.embeds import build_weekly_leaderboard_embed
+        import database as db
+
+        # Test Sunday-to-Saturday logic
+        today = date(2026, 10, 9)  # Friday
+        days_since_sunday = (today.weekday() + 1) % 7
+        start_of_week = today - timedelta(days=days_since_sunday)
+        end_of_week = start_of_week + timedelta(days=6)
+
+        # Sunday Oct 4 to Saturday Oct 10
+        self.assertEqual(start_of_week.strftime("%A"), "Sunday")
+        self.assertEqual(end_of_week.strftime("%A"), "Saturday")
+        self.assertEqual(start_of_week.isoformat(), "2026-10-04")
+        self.assertEqual(end_of_week.isoformat(), "2026-10-10")
+
+        embed = build_weekly_leaderboard_embed(start_date="2026-10-04", end_date="2026-10-10")
+        self.assertIn("Oct 04 – Oct 10, 2026", embed.description)
+        self.assertNotIn("Standings Sections", embed.description)
+        self.assertIn("Sun–Sat", embed.footer.text)
 
 
 class TestWinterArcPhases(WinterArcTestCase):

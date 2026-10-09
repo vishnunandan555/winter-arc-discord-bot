@@ -574,14 +574,15 @@ class TestInteractiveViews(WinterArcTestCase):
 
         view = LeaderboardView()
         self.assertEqual(view.timeout, 600)
+        self.assertEqual(view.current_tab, "weekly")
         custom_ids = [child.custom_id for child in view.children if hasattr(child, "custom_id")]
-        self.assertIn("tab_daily", custom_ids)
+        self.assertNotIn("tab_daily", custom_ids)
         self.assertIn("tab_weekly", custom_ids)
         self.assertIn("tab_monthly", custom_ids)
         self.assertIn("tab_overall", custom_ids)
 
         labels = [child.label for child in view.children if hasattr(child, "label")]
-        self.assertEqual(labels, ["Daily", "Weekly", "Monthly", "All-Time"])
+        self.assertEqual(labels, ["Weekly", "Monthly", "All-Time"])
 
         weekly_lb = db.get_weekly_leaderboard(db_path=self.test_db)
         self.assertIsInstance(weekly_lb, list)

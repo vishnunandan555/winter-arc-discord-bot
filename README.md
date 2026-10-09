@@ -135,7 +135,7 @@ The bot registers **25 native slash commands** designed with Discord autocomplet
 | :--- | :--- | :--- |
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, or parse workout text with AI. |
 | **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, 3-phase full habit calendar, daily progress card, task guide, and past logs. |
-| **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Daily/weekly/monthly leaderboards, rank cards, server records, and phase summaries. |
+| **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
 | **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences, manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`), `/test_reminder`, `/nuke` | Channel binding, role ping, multi-target DMs, discipline customization, broadcast preview, and factory reset. |

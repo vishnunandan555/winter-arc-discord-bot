@@ -1044,21 +1044,23 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
     return results
 
 
-def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: Optional[str] = None, db_path: str = DB_PATH) -> List[Dict[str, Any]]:
-    """Computes weekly standings for all enrolled users for a specific week (Monday to Sunday)."""
+def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: Optional[str] = None, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Computes weekly standings for all enrolled users for a specific week (Sunday to Saturday)."""
+    actual_path = db_path or DB_PATH
     today = get_today_date()
     if not start_date_str or not end_date_str:
-        start_of_week = today - timedelta(days=today.weekday())
+        days_since_sunday = (today.weekday() + 1) % 7
+        start_of_week = today - timedelta(days=days_since_sunday)
         end_of_week = start_of_week + timedelta(days=6)
         start_date_str = start_of_week.isoformat()
         end_date_str = end_of_week.isoformat()
 
     today_str = today.isoformat()
-    users = get_enrolled_users(db_path)
+    users = get_enrolled_users(actual_path)
     if not users:
         return []
 
-    with get_connection(db_path) as conn:
+    with get_connection(actual_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
@@ -1074,7 +1076,7 @@ def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: O
 
     today_standings = {}
     if start_date_str <= today_str <= end_date_str:
-        today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, db_path)}
+        today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, actual_path)}
 
     weekly_stats = []
     for u in users:

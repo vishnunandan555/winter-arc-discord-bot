@@ -26,13 +26,7 @@ def format_num(val: Any) -> Any:
         return val
 
 
-LEADERBOARD_NAV_GUIDE = (
-    "\n\n**🔘 Standings Sections** *(Use buttons below or `/leaderboard [timeframe]`)*\n"
-    "• **📅 Daily** — Today's live sprint (resets at 00:00 IST)\n"
-    "• **📆 Weekly** — Monday to Sunday weekly standings\n"
-    "• **🗓️ Monthly** — Active Phase / Monthly cumulative points\n"
-    "• **🌐 All-Time** — Master leaderboard across the entire campaign"
-)
+LEADERBOARD_NAV_GUIDE = ""
 
 
 def build_daily_leaderboard_embed() -> discord.Embed:
@@ -65,7 +59,6 @@ def build_daily_leaderboard_embed() -> discord.Embed:
         description=(
             f"📅 **{date_display}**\n\n"
             + "\n".join(lines)
-            + LEADERBOARD_NAV_GUIDE
         ),
         color=0xF1C40F
     )
@@ -77,10 +70,11 @@ def build_daily_leaderboard_embed() -> discord.Embed:
 
 
 def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: Optional[str] = None) -> discord.Embed:
-    """Builds the weekly standings leaderboard for a specific calendar week (max top 10)."""
+    """Builds the weekly standings leaderboard for a specific calendar week (max top 10, Sunday to Saturday)."""
     now = datetime.now(BOT_TZ)
     today = now.date()
-    start_of_week = today - timedelta(days=today.weekday())
+    days_since_sunday = (today.weekday() + 1) % 7
+    start_of_week = today - timedelta(days=days_since_sunday)
     end_of_week = start_of_week + timedelta(days=6)
     s_date = start_date or start_of_week.isoformat()
     e_date = end_date or end_of_week.isoformat()
@@ -109,11 +103,10 @@ def build_weekly_leaderboard_embed(start_date: Optional[str] = None, end_date: O
         description=(
             f"📅 **Week of {date_display}**\n\n"
             + "\n".join(lines)
-            + LEADERBOARD_NAV_GUIDE
         ),
         color=0x2ECC71
     )
-    footer_text = "Updated live • Ranked by weekly points (Mon–Sun)"
+    footer_text = "Updated live • Ranked by weekly points (Sun–Sat)"
     if len(data) > 10:
         footer_text = f"Showing top 10 of {len(data)} participants • {footer_text}"
     embed.set_footer(text=footer_text)
@@ -148,7 +141,6 @@ def build_overall_leaderboard_embed() -> discord.Embed:
         description=(
             "🌐 **All-Time Leaderboard**\n\n"
             + "\n".join(lines)
-            + LEADERBOARD_NAV_GUIDE
         ),
         color=0x3498DB
     )
@@ -200,7 +192,7 @@ def build_monthly_leaderboard_embed(year: Optional[int] = None, month: Optional[
 
     embed = discord.Embed(
         title=title_text,
-        description=f"{phase_header}\n\n" + "\n".join(lines) + LEADERBOARD_NAV_GUIDE,
+        description=f"{phase_header}\n\n" + "\n".join(lines),
         color=embed_color
     )
     footer_text = "Updated live • Ranked by monthly points"
@@ -768,7 +760,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🏆 Standings, Benchmarks & Analytics",
             value=(
-                "• `/leaderboard` — Interactive podium view featuring **📅 Daily**, **📆 Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
+                "• `/leaderboard` — Interactive podium view featuring **📆 Weekly (Sun–Sat)**, **🗓️ Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
                 "• `/stats [phase]` — **Server Records & Benchmarks**! Explore server-wide PRs, longest streaks, single-day peak maxers, most Perfect Days, and community volume with interactive buttons for Overall, Phase 1, Phase 2, and Phase 3.\n"
                 "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active phases and overall campaign with training volume breakdown.\n"
                 "• `/history [days]` — View point breakdown and completion rates over the past 7, 14, or 30 days."

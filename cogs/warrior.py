@@ -577,27 +577,24 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     # Competition & History Commands
     # ==========================================
 
-    @app_commands.command(name="leaderboard", description="View daily, monthly, and overall standings.")
-    @app_commands.describe(timeframe="Select leaderboard timeframe to view directly (default: Daily)")
+    @app_commands.command(name="leaderboard", description="View weekly, monthly, and overall standings.")
+    @app_commands.describe(timeframe="Select leaderboard timeframe to view directly (default: Weekly)")
     @app_commands.choices(timeframe=[
-        app_commands.Choice(name="📅 Daily (Today's live standings)", value="daily"),
-        app_commands.Choice(name="📆 Weekly (Mon–Sun week standings)", value="weekly"),
+        app_commands.Choice(name="📆 Weekly (Sun–Sat week standings)", value="weekly"),
         app_commands.Choice(name="🗓️ Monthly (Current phase standings)", value="monthly"),
         app_commands.Choice(name="🌐 All-Time (Overall campaign podium)", value="overall"),
     ])
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def leaderboard(self, interaction: discord.Interaction, timeframe: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer()
-        selected_tab = timeframe.value if timeframe else "daily"
+        selected_tab = timeframe.value if timeframe else "weekly"
 
-        if selected_tab == "weekly":
-            embed = build_weekly_leaderboard_embed()
-        elif selected_tab == "monthly":
+        if selected_tab == "monthly":
             embed = build_monthly_leaderboard_embed()
         elif selected_tab == "overall":
             embed = build_overall_leaderboard_embed()
         else:
-            embed = build_daily_leaderboard_embed()
+            embed = build_weekly_leaderboard_embed()
 
         view = LeaderboardView(current_tab=selected_tab)
         await interaction.followup.send(embed=embed, view=view)
