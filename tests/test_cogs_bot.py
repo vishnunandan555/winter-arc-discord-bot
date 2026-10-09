@@ -40,6 +40,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
             subcmd_names = {sc.name for sc in admin_cmd.commands}
             self.assertIn("sync", subcmd_names)
             self.assertIn("grind", subcmd_names)
+            self.assertIn("backup", subcmd_names)
 
         asyncio.run(verify_bot_cogs())
 
@@ -303,4 +304,27 @@ class TestErrorHandlingAndRobustLogging(WinterArcTestCase):
         g2 = get_next_nuke_gif()
         g3 = get_next_nuke_gif()
         self.assertEqual(len({g1, g2, g3}), 3)
+
+    def test_admin_backup_command(self):
+        """Verifies /admin backup creates a consistent database snapshot and delivers discord.File attachment."""
+        from cogs.admin import AdminCog
+
+        cog = AdminCog(bot=MagicMock())
+        inter = self.create_mock_interaction(user_id=123456)
+        inter.followup = MagicMock()
+        inter.followup.send = AsyncMock()
+
+        async def run_backup():
+            await cog.admin_backup.callback(cog, inter)
+            inter.response.defer.assert_called_once_with(ephemeral=True)
+            inter.followup.send.assert_called_once()
+            call_kwargs = inter.followup.send.call_args[1]
+            self.assertIn("embed", call_kwargs)
+            self.assertIn("file", call_kwargs)
+            file_obj = call_kwargs["file"]
+            self.assertIsInstance(file_obj, discord.File)
+            self.assertTrue(file_obj.filename.startswith("winter_arc_backup_"))
+            self.assertTrue(file_obj.filename.endswith(".db"))
+
+        asyncio.run(run_backup())
 

@@ -183,6 +183,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="leave_arc", description="Unenroll from the Winter Arc challenge.")
     async def leave_arc(self, interaction: discord.Interaction):
+        logger.info(f"Slash command '/leave_arc' invoked by {interaction.user} (ID: {interaction.user.id})")
         if not db.is_user_enrolled(interaction.user.id):
             await interaction.response.send_message("You are not currently enrolled in Winter Arc.", ephemeral=True)
             return
@@ -216,6 +217,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="ping", description="Check bot status and gateway latency.")
     async def ping(self, interaction: discord.Interaction):
         latency_ms = round(self.bot.latency * 1000)
+        logger.info(f"Slash command '/ping' invoked by {interaction.user} ({latency_ms}ms)")
         embed = discord.Embed(
             title="🏓 Pong!",
             description=f"Winter Arc is operational.\n\n• **Gateway Latency**: `{latency_ms} ms`\n• **Timezone**: `{BOT_TZ}`",
@@ -225,6 +227,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="help", description="View commands, challenge rules, and AI logging manual.")
     async def help_cmd(self, interaction: discord.Interaction):
+        logger.info(f"Slash command '/help' invoked by {interaction.user}")
         embed = build_help_embed(category="overview")
         view = HelpView()
         await interaction.response.send_message(embed=embed, view=view)
@@ -296,6 +299,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.describe(member="Optional: View another member's tasks & disciplines")
     async def tasks_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target_user = member or interaction.user
+        logger.info(f"Slash command '/tasks' invoked by {interaction.user} (target: {target_user.display_name})")
 
         if target_user.id == interaction.user.id:
             if not await require_enrolled(interaction):
@@ -506,6 +510,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.describe(member="Optional: View another member's profile and rank card")
     async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target_user = member or interaction.user
+        logger.info(f"Slash command '/profile' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
             if not await require_enrolled(interaction):
                 return
@@ -553,6 +558,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="ranks", description="View the 12-tier discipline progression hierarchy and requirements.")
     async def ranks(self, interaction: discord.Interaction):
+        logger.info(f"Slash command '/ranks' invoked by {interaction.user}")
         lifetime_points = db.get_user_lifetime_points(interaction.user.id)
         embed = build_ranks_embed(lifetime_points)
         await interaction.response.send_message(embed=embed)
@@ -633,6 +639,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.response.defer()
 
         chosen_val = phase.value if phase else "overall"
+        logger.info(f"Slash command '/stats' invoked by {interaction.user} (phase: {chosen_val})")
         phase_id = None
         if chosen_val.startswith("phase_"):
             try:
@@ -672,6 +679,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         await interaction.response.defer()
         days_count = max(1, min(days or 7, 90))
+        logger.info(f"Slash command '/history' invoked by {interaction.user} (days: {days_count})")
         hist = db.get_user_history(interaction.user.id, days=days_count)
         embed = build_history_embed(interaction.user, hist)
         await interaction.followup.send(embed=embed)
@@ -724,6 +732,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.response.defer()
 
         selected_phase = phase.value if phase else None
+        logger.info(f"Slash command '/recap' invoked by {interaction.user} (target: {target.display_name}, phase: {selected_phase or 'current'})")
         if selected_phase == "overall":
             stats = db.get_user_overall_recap(target.id)
             embed = build_recap_embed(target, stats, is_overall=True)
@@ -771,6 +780,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         member: Optional[discord.Member] = None
     ):
         target_user = member or interaction.user
+        logger.info(f"Slash command '/streak' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
             if not await require_enrolled(interaction):
                 return
@@ -817,6 +827,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         member: Optional[discord.Member] = None
     ):
         target_user = member or interaction.user
+        logger.info(f"Slash command '/calendar' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
             if not await require_enrolled(interaction):
                 return
@@ -864,6 +875,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @shield_group.command(name="status", description="View Streak Shield inventory, protection status, and next unlock.")
     async def shield_status_cmd(self, interaction: discord.Interaction):
+        logger.info(f"Slash command '/shield status' invoked by {interaction.user}")
         if not await require_enrolled(interaction):
             return
 
@@ -902,6 +914,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         target_date: Optional[app_commands.Choice[str]] = None,
         reason: Optional[str] = None
     ):
+        logger.info(f"Slash command '/shield use' invoked by {interaction.user}")
         if not await require_enrolled(interaction):
             return
 
@@ -942,6 +955,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await self._handle_reminders_cmd(interaction, dms=dms)
 
     async def _handle_reminders_cmd(self, interaction: discord.Interaction, dms: Optional[bool] = None):
+        logger.info(f"Slash command '/reminders' invoked by {interaction.user} (quick toggle: {dms})")
         if not await require_enrolled(interaction):
             return
 

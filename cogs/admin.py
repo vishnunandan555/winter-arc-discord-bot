@@ -84,6 +84,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             return
 
         db.set_server_channel(interaction.guild.id, channel.id)
+        logger.info(f"Admin command '/admin set_channel' executed by {interaction.user} -> #{channel.name} ({channel.id})")
         embed = discord.Embed(
             title="✅ Dedicated Channel Configured",
             description=(
@@ -105,6 +106,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             return
 
         db.set_server_role(interaction.guild.id, role.id)
+        logger.info(f"Admin command '/admin set_role' executed by {interaction.user} -> @{role.name} ({role.id})")
         embed = discord.Embed(
             title="✅ Ping Role Configured",
             description=(
@@ -121,6 +123,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
             return
 
+        logger.info(f"Admin command '/admin overview' executed by {interaction.user} in '{interaction.guild.name}'")
         settings = db.get_server_settings(interaction.guild.id)
         channel_id = settings.get("channel_id", 0)
         role_id = settings.get("role_id", 0)
@@ -181,6 +184,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
 
         try:
             task = db.add_task(name=name, target=target, unit=unit, max_points=max_points, description=description)
+            logger.info(f"Admin command '/admin task_add' executed by {interaction.user}: '{task['name']}' ({task['target']} {task['unit']}, max {task['max_points']} pts)")
         except ValueError as e:
             await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
             return
@@ -206,12 +210,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         try:
             task = db.toggle_task(target_name)
             status_str = "Enabled 🟢" if task["active"] else "Disabled 🔴"
+            logger.info(f"Admin command '/admin task_toggle' executed by {interaction.user}: '{task['name']}' -> {'Enabled' if task['active'] else 'Disabled'}")
             await interaction.response.send_message(f"Task **{task['name']}** is now **{status_str}**.")
         except ValueError as e:
             await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
 
     @admin_group.command(name="tasks_list", description="List all challenge disciplines.")
     async def admin_tasks_list(self, interaction: discord.Interaction):
+        logger.info(f"Admin command '/admin tasks_list' executed by {interaction.user}")
         all_tasks = db.get_all_tasks()
         lines = []
         for t in all_tasks:
@@ -247,6 +253,8 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         if not interaction.guild:
             await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
             return
+
+        logger.info(f"Admin command '/admin grind {what.value}' invoked by {interaction.user} on {member} ({member.id})")
 
         if member.bot:
             await interaction.response.send_message("❌ Bots cannot be placed on grind probation.", ephemeral=True)
@@ -324,6 +332,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             self.bot.tree.clear_commands(guild=interaction.guild)
             await self.bot.tree.sync(guild=interaction.guild)
             synced = await self.bot.tree.sync()
+            logger.info(f"Admin command '/admin sync' executed by {interaction.user} in '{interaction.guild.name}' ({len(synced)} global commands synchronized)")
             await interaction.followup.send(
                 f"✅ **Command Sync & Deduplication Complete!**\n\n"
                 f"• Cleaned all guild duplicates from **{interaction.guild.name}**\n"
@@ -335,6 +344,41 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         except Exception as e:
             logger.error(f"Failed to sync slash commands via /admin sync: {e}", exc_info=e)
             await interaction.followup.send(f"❌ Failed to sync slash commands: {e}", ephemeral=True)
+
+    @admin_group.command(name="backup", description="Create an online point-in-time database snapshot and download the .db file.")
+    async def admin_backup(self, interaction: discord.Interaction):
+        """Creates an online, WAL-safe SQLite database backup and delivers it to the admin."""
+        logger.info(f"Admin command '/admin backup' initiated by {interaction.user} (ID: {interaction.user.id}) in '{getattr(interaction.guild, 'name', 'DM')}'")
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            backup_path = db.backup_database()
+            file_size_bytes = os.path.getsize(backup_path)
+            file_size_kb = file_size_bytes / 1024
+            filename = os.path.basename(backup_path)
+
+            file = discord.File(backup_path, filename=filename)
+
+            embed = discord.Embed(
+                title="🛡️ Database Backup Complete",
+                description=(
+                    "A point-in-time consistent snapshot of the Winter Arc database has been generated using SQLite's online backup engine.\n\n"
+                    "The backup is attached below for immediate off-site storage."
+                ),
+                color=0x2ECC71,
+                timestamp=datetime.now(timezone.utc),
+            )
+            embed.add_field(name="📦 Backup File", value=f"`{filename}`", inline=True)
+            embed.add_field(name="📊 Size", value=f"`{file_size_kb:.1f} KB` ({file_size_bytes:,} bytes)", inline=True)
+            embed.add_field(name="🔒 Integrity", value="`WAL-Consistent (Online)`", inline=True)
+            embed.add_field(name="📂 Server Storage", value="`backups/` directory", inline=False)
+            embed.set_footer(text="Keep off-site backups safe • Amarok Data Protection")
+
+            await interaction.followup.send(embed=embed, file=file, ephemeral=True)
+            logger.info(f"Admin backup successful: '{filename}' ({file_size_bytes:,} bytes) delivered to {interaction.user}")
+        except Exception as e:
+            logger.error(f"Failed to create database backup for {interaction.user}: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ Failed to generate database backup: `{e}`", ephemeral=True)
 
     # ==========================================
     # Diagnostic & Testing Command
@@ -512,11 +556,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             return
 
         if interaction.user.id != interaction.guild.owner_id:
+            logger.warning(f"Unauthorized /nuke attempt rejected: {interaction.user} (ID: {interaction.user.id}) is not the Server Owner.")
             await interaction.response.send_message(
                 "🚫 **Permission Denied**: Only the **Server Owner** can execute the `/nuke` command.",
                 ephemeral=True
             )
             return
+
+        logger.info(f"Critical command '/nuke' prompted by Server Owner {interaction.user} in #{interaction.channel.name}")
 
         bot_perms = interaction.channel.permissions_for(interaction.guild.me)
         if not bot_perms.manage_messages:
@@ -544,6 +591,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     @admin_group.command(name="health", description="Inspect server memory, database footprint, and host resources.")
     async def admin_health(self, interaction: discord.Interaction):
         """Displays real-time memory usage (RSS), database file sizes, and allows manual GC compaction."""
+        logger.info(f"Admin command '/admin health' invoked by {interaction.user} (ID: {interaction.user.id})")
         metrics = get_system_health_metrics(self.bot)
         embed = build_health_embed(metrics)
         view = HealthView(self.bot)
