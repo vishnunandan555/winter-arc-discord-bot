@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-94%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-95%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -106,7 +106,7 @@ python bot.py
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **94 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **95 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -138,7 +138,7 @@ The bot registers **25 native slash commands** designed with Discord autocomplet
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
 | **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences, manual, and latency check. |
-| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`), `/test_reminder`, `/nuke` | Channel binding, role ping, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
+| **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`, `backup`, `health`), `/test_reminder`, `/nuke` | Channel binding, role ping, database snapshots, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
 👉 **[Search & Filter All Commands Interactively on the Website »](https://winter-arc-discord-bot.vercel.app/#commands)**

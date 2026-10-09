@@ -808,10 +808,11 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             color=0x2ECC71
         )
         embed.add_field(
-            name="🔔 `/settings` — Personal Direct Messages",
+            name="🔔 `/reminders` & `/settings` — Personal Direct Messages",
             value=(
-                "Configure automated private DM alerts sent directly to your inbox:\n"
+                "Configure automated private DM alerts sent directly to your inbox with 1-click toggles:\n"
                 "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets, motivation quote, and clean slate.\n"
+                "• ☀️ **Afternoon Standings DM (16:30 IST)**: Mid-day pulse check and active pack standings.\n"
                 "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you are below 30 points.\n"
                 "*(Requires Discord privacy settings to allow DMs from server members)*"
             ),
@@ -832,7 +833,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
     elif category == "admin":
         embed = discord.Embed(
             title="👑 Server Administration & Maintenance",
-            description="Server controls for administrators to configure broadcast channels, roles, disciplines, and monitor system health.",
+            description="Server controls for administrators to configure broadcast channels, roles, disciplines, backups, and system health.",
             color=0xE67E22
         )
         embed.add_field(
@@ -855,11 +856,15 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="🖥️ System Diagnostics & Testing",
+            name="🖥️ System Diagnostics, Backups & Maintenance",
             value=(
+                "• `/admin backup` — Create a WAL-safe SQLite database backup snapshot and download it directly as an attached `.db` file.\n"
+                "• `/admin sync [guild_only] [clean]` — Synchronize application commands globally or guild-specific with zero duplicate risk.\n"
                 "• `/admin health` — Live RSS RAM monitor, SQLite file sizes, uptime, and one-click **🧹 Collect GC & Free RAM** button.\n"
+                "• `/admin dm [member] [message]` — Send administrative DM notifications to enrolled members.\n"
                 "• `/admin finalize_day` — Manually trigger midnight point locks, streak rolls, and daily summaries.\n"
-                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, Sunday, DM briefings, or reactive Groq observations (`groq_nudge`)."
+                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, Sunday, DM briefings, or reactive Groq observations (`groq_nudge`).\n"
+                "• `/nuke` — Emergency factory database reset with double confirmation modal."
             ),
             inline=False
         )
@@ -919,8 +924,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
                 "• **Governance**: `/accuse`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
-                "• **Accountability**: `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
-                "• **Admin**: `/admin set_channel` • `/admin set_role` • `/admin overview` • `/admin health` • `/test_reminder`"
+                "• **Accountability**: `/reminders` • `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
+                "• **Admin**: `/admin backup` • `/admin sync` • `/admin health` • `/admin set_channel` • `/admin set_role` • `/admin overview` • `/test_reminder`"
             ),
             inline=False
         )

@@ -100,13 +100,13 @@ winter-arc-bot/
 ├── cogs/
 │   ├── __init__.py
 │   ├── warrior.py            # User-facing slash commands, /accuse, and /reminders
-│   └── admin.py              # Administrator commands, /admin grind, /nuke
+│   └── admin.py              # Administrator commands, /admin grind, /admin backup, /nuke
 ├── dm_templates.py           # Centralized DM announcement & invitation templates
-├── tests/                    # Modular domain test suite (94 tests across 10 modules)
+├── tests/                    # Modular domain test suite (95 tests across 10 modules)
 ├── scheduler.py              # Automated background APScheduler loop with silent broadcasts
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test discovery runner (94 tests)
+├── test_engine.py            # Automated test discovery runner (95 tests)
 ├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
 ├── Dockerfile                # Production container specification
 ├── docker-compose.yml        # Multi-platform container configuration
