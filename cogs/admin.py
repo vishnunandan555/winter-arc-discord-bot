@@ -640,7 +640,11 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                     continue
                 try:
                     embed = build_message_from_template(message, member.display_name, channel_id, extra_text=extra_note)
-                    await member.send(embed=embed)
+                    await member.send(
+                        content=member.mention,
+                        embed=embed,
+                        allowed_mentions=discord.AllowedMentions(users=True)
+                    )
                     sent_count += 1
                     logger.info(f"Delivered DM to {member.display_name} ({member.id})")
                 except discord.Forbidden:
@@ -715,7 +719,11 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         for target_member in resolved_members.values():
             try:
                 embed = build_message_from_template(message, target_member.display_name, channel_id, extra_text=extra_note)
-                await target_member.send(embed=embed)
+                await target_member.send(
+                    content=target_member.mention,
+                    embed=embed,
+                    allowed_mentions=discord.AllowedMentions(users=True)
+                )
                 sent_count += 1
                 logger.info(f"Delivered DM to {target_member.display_name} ({target_member.id})")
             except discord.Forbidden:

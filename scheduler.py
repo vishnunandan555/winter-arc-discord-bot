@@ -627,8 +627,17 @@ class WinterArcScheduler:
     async def broadcast_sunday_state_of_the_pack(self, target_channel: discord.TextChannel = None, role_ping: str = "") -> discord.Embed:
         """Broadcasts the weekly Sunday State of the Pack address to dedicated channels."""
         now = get_now_ist()
-        end_date = now.date().isoformat()
-        start_date = (now.date() - timedelta(days=6)).isoformat()
+        if now.weekday() == 6:
+            # On Sunday, recap the completed week (previous Sunday through yesterday Saturday)
+            start_date = (now.date() - timedelta(days=7)).isoformat()
+            end_date = (now.date() - timedelta(days=1)).isoformat()
+        else:
+            # If tested mid-week (e.g. /test_reminder), use current Sun-Sat week window
+            days_since_sunday = (now.date().weekday() + 1) % 7
+            start_of_week = now.date() - timedelta(days=days_since_sunday)
+            end_of_week = start_of_week + timedelta(days=6)
+            start_date = start_of_week.isoformat()
+            end_date = end_of_week.isoformat()
 
         weekly_grinds = db.get_weekly_grind_highlights(start_date, end_date, db_path=self.db_path)
         weekly_lb = db.get_weekly_leaderboard(start_date, end_date, db_path=self.db_path)

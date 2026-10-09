@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-10-09T18:36:15.607900+05:30",
+    "generated_at": "2026-10-09T18:48:43.123958+05:30",
     "date_display": "Friday, October 09, 2026",
     "today_str": "2026-10-09",
     "timezone": "Asia/Kolkata (IST)",
@@ -21,9 +21,19 @@
       "description": "Midday pack progress update."
     },
     {
+      "time": "21:00 IST",
+      "name": "Evening Streak Warning",
+      "description": "Urgent alert for warriors below 30 points."
+    },
+    {
       "time": "00:00 IST",
       "name": "Midnight Finalization",
       "description": "Scores locked in & podium broadcast."
+    },
+    {
+      "time": "Sun 10:00 IST",
+      "name": "Weekly State of the Pack",
+      "description": "Weekly volume recap & podium celebration."
     }
   ],
   "disciplines": [
@@ -87,6 +97,29 @@
       "max_points": 500,
       "completion_rate": 0.0,
       "perfect_day": false
+    }
+  ],
+  "weekly_standings": [
+    {
+      "rank": 1,
+      "username": "ssstrang3rrr",
+      "total_points": 0,
+      "perfect_days": 0,
+      "recorded_days": 1
+    },
+    {
+      "rank": 2,
+      "username": "flugel198",
+      "total_points": 0,
+      "perfect_days": 0,
+      "recorded_days": 1
+    },
+    {
+      "rank": 3,
+      "username": "darkmatter3625",
+      "total_points": 0,
+      "perfect_days": 0,
+      "recorded_days": 1
     }
   ],
   "overall_standings": [

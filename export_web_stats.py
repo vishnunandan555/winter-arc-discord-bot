@@ -44,6 +44,18 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
             "perfect_day": bool(row["perfect_day"]),
         })
 
+    # 2b. Weekly Standings (Sun to Sat)
+    weekly_raw = db.get_weekly_leaderboard(db_path=db_path)
+    weekly_standings = []
+    for idx, row in enumerate(weekly_raw):
+        weekly_standings.append({
+            "rank": idx + 1,
+            "username": row["username"],
+            "total_points": row["total_points"],
+            "perfect_days": row.get("perfect_days", 0),
+            "recorded_days": row.get("recorded_days", 0),
+        })
+
     # 3. Overall Standings with Level Info
     overall_raw = db.get_overall_leaderboard(db_path)
     overall_standings = []
@@ -133,10 +145,13 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
         "schedule": [
             {"time": "05:00 IST", "name": "Morning Kickoff", "description": "Daily motivation & discipline targets announced."},
             {"time": "16:30 IST", "name": "Afternoon Check-in", "description": "Midday pack progress update."},
+            {"time": "21:00 IST", "name": "Evening Streak Warning", "description": "Urgent alert for warriors below 30 points."},
             {"time": "00:00 IST", "name": "Midnight Finalization", "description": "Scores locked in & podium broadcast."},
+            {"time": "Sun 10:00 IST", "name": "Weekly State of the Pack", "description": "Weekly volume recap & podium celebration."},
         ],
         "disciplines": disciplines,
         "daily_standings": daily_standings,
+        "weekly_standings": weekly_standings,
         "overall_standings": overall_standings,
         "ranks": ranks_data,
         "academic_highlights": academic_highlights,

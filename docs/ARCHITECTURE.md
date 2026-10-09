@@ -28,7 +28,7 @@ Technical design specification, component separation, database schema, and scori
 │  • /profile, /ranks          ││  • /admin grind (probation) │
 │  • /leaderboard, /stats      ││  • /nuke (Owner 2FA Purge)  │
 │  • /history, /recap, /quick  ││  • /test_reminder           │
-│  • /reminders, /settings     ││                             │
+│  • /grind, /reminders        ││                             │
 │  • /accuse (Council trial)   ││                             │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │

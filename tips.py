@@ -28,10 +28,10 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/quick`)**: Why `/quick`? Post-workout friction kills consistency. `/quick` extracts reps, sets, and distances from everyday shorthand in under a second.",
     "💡 **Tip (`/quick`)**: Pro Tip: `/quick` understands natural abbreviations and mixed formatting like `45 push ups, 20 pull-ups, 5.5k run` all in a single command!",
 
-    # 🧠 /grind — Academic & Deep Work Friction
-    "💡 **Tip (`/grind`)**: How to use: Submit your hardest mental challenge of the day with `/grind [text]` to earn **+10 to +60 bonus points** toward today's score!",
-    "💡 **Tip (`/grind`)**: Why `/grind`? Winter Arc isn't just about physical strength—it rewards intellectual discipline, tough engineering problems, and deep focused study.",
-    "💡 **Tip (`/grind`)**: Pro Tip: `/grind` is evaluated by Gemini AI. Casual reading and passive videos get roasted with 0 pts, while intense deep work earns top marks.",
+    # ⚔️ /grind — Custom Workouts & Deep Work
+    "💡 **Tip (`/grind`)**: How to use: Submit custom workouts (Surya Namaskar, gym, skipping, yoga) or deep work with `/grind [text]` to earn **+5 to +50 bonus points** toward today's score!",
+    "💡 **Tip (`/grind`)**: Why `/grind`? Winter Arc rewards body and mind—earning points for custom workouts outside the 5 core tasks and tough intellectual focus.",
+    "💡 **Tip (`/grind`)**: Pro Tip: Core checklist tasks (pushups, squats, pullups, situps, running) are excluded from `/grind` to prevent double-counting. Log those with `/quick` or `/log`!",
 
     # 📅 /streak — Habit Calendar Matrix & Consistency
     "💡 **Tip (`/streak`)**: How to use: Run `/streak` to view your personal habit grid, current streak count, peak streak record, and shield inventory.",
@@ -74,10 +74,13 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/ranks`)**: Why `/ranks`? Calibrated for the 90-day challenge (~133 pts/day average to reach Apex), giving you achievable milestones every single week.",
     "💡 **Tip (`/ranks`)**: Pro Tip: Each rank tier has its own signature icon and prestige color. Reaching Titan or Apex cements your legacy on the server wall of fame!",
 
-    # 🏆 /leaderboard — Daily, Weekly, Monthly & All-Time Podiums
-    "💡 **Tip (`/leaderboard`)**: How to use: See who's leading the pack with `/leaderboard`! Use the interactive buttons to switch between Daily, Weekly, Monthly, and All-Time standings.",
+    # 🏆 /leaderboard — Weekly, Monthly & All-Time Podiums
+    "💡 **Tip (`/leaderboard`)**: How to use: See who's leading the pack with `/leaderboard`! Use the interactive buttons to switch between Weekly, Monthly, and All-Time standings.",
     "💡 **Tip (`/leaderboard`)**: Why `/leaderboard`? Friendly tribal competition pushes everyone to eliminate excuses and hit higher standards.",
-    "💡 **Tip (`/leaderboard`)**: Pro Tip: The Weekly podium resets every Monday, giving every member a fresh shot at glory no matter when they enrolled!",
+    "💡 **Tip (`/leaderboard`)**: Pro Tip: The Weekly podium runs Sun–Sat and resets every Sunday, giving every member a fresh shot at glory no matter when they enrolled!",
+
+    # ⚖️ /accuse — Community Governance & Council Trials
+    "💡 **Tip (`/accuse`)**: How to use: Suspect an exaggerated or illegitimate workout log? Run `/accuse [member]` to confirm your challenge and summon the Council to vote on stripping the points!",
 
     # 📈 /stats — Server Records & Community Volume
     "💡 **Tip (`/stats`)**: How to use: Explore server-wide records, all-time longest streaks, single-day peak maxers, and community volume across all phases with `/stats`.",
@@ -89,10 +92,10 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/recap`)**: Why `/recap`? Each official Winter Arc phase has distinct psychological challenges; `/recap` permanently archives your achievements across each phase.",
     "💡 **Tip (`/recap`)**: Pro Tip: Run `/recap` at the end of Phase 1 (Foundation) or Phase 2 (Intensity) to see your total reps accumulated across the month!",
 
-    # 🔔 /settings — Personal DM Reminders
-    "💡 **Tip (`/settings`)**: How to use: Never miss a streak deadline! Toggle private morning kickoff (05:00 IST) and evening streak alert (21:00 IST) DMs with `/settings`.",
-    "💡 **Tip (`/settings`)**: Why `/settings`? Direct message alerts keep you accountable without relying on noisy public channel pings.",
-    "💡 **Tip (`/settings`)**: Pro Tip: The 21:00 IST evening alert fires only if your streak is in jeopardy, giving you 3 hours to log 30 points before midnight.",
+    # 🔔 /reminders & /settings — Personal DM Reminders
+    "💡 **Tip (`/reminders`)**: How to use: Never miss a streak deadline! Toggle private morning kickoff (05:00 IST), afternoon check-in (16:30 IST), and evening streak alert (21:00 IST) DMs with `/reminders` or `/settings`.",
+    "💡 **Tip (`/reminders`)**: Why `/reminders`? Direct message alerts keep you accountable with personalized AI briefings and reminders without public server noise.",
+    "💡 **Tip (`/reminders`)**: Pro Tip: The 21:00 IST evening alert fires only if your streak is in jeopardy, giving you 3 hours and showing your Streak Shield status before midnight rollover.",
 
     # ⚔️ /enroll & /leave_arc — Challenge Membership
     "💡 **Tip (`/enroll`)**: How to use: New to the challenge? Run `/enroll` to join the pack, receive your server challenge role, and start tracking points on the leaderboard.",
