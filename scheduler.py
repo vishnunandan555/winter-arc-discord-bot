@@ -437,38 +437,6 @@ class WinterArcScheduler:
         leaderboard = db.finalize_daily_summaries(yesterday, db_path=self.db_path)
         embed = build_podium_embed(yesterday, leaderboard)
 
-        # Notify users whose streak was preserved by an automated Streak Shield
-        for entry in leaderboard:
-            if entry.get("auto_shield_applied"):
-                user_id = entry["discord_id"]
-                try:
-                    target_user = self.bot.get_user(user_id)
-                    if not target_user:
-                        target_user = await self.bot.fetch_user(user_id)
-                    if target_user:
-                        streak = entry.get("current_streak", 0)
-                        shields_left = entry.get("shields_left", 0)
-                        shield_dm_embed = discord.Embed(
-                            title="🛡️ Streak Shield Automatically Deployed!",
-                            description=(
-                                f"**{target_user.display_name}**, you did not log your 30 points for **{yesterday}**.\n\n"
-                                f"An available **Streak Shield** was automatically deployed during midnight checking to protect your streak!\n\n"
-                                f"🔥 **Active Streak**: **{streak} days**\n"
-                                f"🛡️ **Remaining Shields**: **{shields_left} / 2**\n\n"
-                                f"{'⚠️ **0 shields left!** Log at least 30 points today to prevent your streak from breaking.' if shields_left == 0 else 'Keep grinding today to stay consistent and rebuild your shields at your next 7-day milestone.'}"
-                            ),
-                            color=0x00D2FF
-                        )
-                        shield_dm_embed.set_footer(text="Winter Arc • Automatic Midnight Streak Protection")
-                        await target_user.send(
-                            content=target_user.mention,
-                            embed=shield_dm_embed,
-                            allowed_mentions=discord.AllowedMentions(users=True)
-                        )
-                        logger.info(f"Delivered midnight auto-shield alert DM to {target_user.display_name} ({user_id})")
-                except Exception as e:
-                    logger.info(f"Could not deliver auto-shield DM to user {user_id}: {e}")
-
         # AI Daily Toast & Roast
         ai_recap = ""
         try:
@@ -512,11 +480,13 @@ class WinterArcScheduler:
                 else:
                     alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
                 individual_alerts.append(alert)
+                logger.info(f"Midnight channel alert: Shield auto-applied for user {u_id} (streak: {streak}, {shields_left} shields left)")
 
             elif entry.get("streak_broken"):
                 broken_streak = entry.get("broken_streak_count", 0)
                 alert = f"💔 <@{u_id}> You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
                 individual_alerts.append(alert)
+                logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
 
         if target_channel:
             msg = build_midnight_finalization_message(
