@@ -432,6 +432,33 @@ class TestRemindersAndDMs(WinterArcTestCase):
         self.assertIn("⚔️ **Phase 2: THE HUNT** officially begins today.", conclusion_msg)
         self.assertIn("First Frost was about becoming the person capable of facing winter.", conclusion_msg)
         self.assertIn("<@&999111>", conclusion_msg)
-        self.assertIn("-# Phase 1 archived • Discipline compounds • Winter Arc", conclusion_msg)
+        self.assertTrue(conclusion_msg.endswith("-# Phase 1 archived • Discipline compounds • Winter Arc"))
+
+    def test_sunday_state_of_the_pack_date_window(self):
+        """Verifies that Sunday broadcast recaps the completed Sun-Sat week and dispatches correctly."""
+        bot = MagicMock()
+        mock_guild = MagicMock()
+        mock_channel = MagicMock()
+        mock_channel.send = AsyncMock()
+        mock_guild.text_channels = [mock_channel]
+        bot.guilds = [mock_guild]
+
+        sched = WinterArcScheduler(bot, db_path=self.test_db)
+
+        # Mock datetime on a Sunday: Oct 11, 2026 is Sunday
+        sunday_dt = datetime(2026, 10, 11, 10, 0, tzinfo=BOT_TZ)
+
+        async def run_sunday_test():
+            with patch("scheduler.get_now_ist", return_value=sunday_dt):
+                with patch("scheduler.gemini_service.generate_weekly_state_of_the_pack", new=AsyncMock(return_value="Solid week.")):
+                    await sched.broadcast_sunday_state_of_the_pack(target_channel=mock_channel, role_ping="<@&999111>")
+
+            mock_channel.send.assert_called()
+            sent_content = mock_channel.send.call_args[1].get("content") or mock_channel.send.call_args[0][0]
+            self.assertIn("### Winter Arc | Weekly Recap", sent_content)
+            self.assertIn("<@&999111>", sent_content)
+
+        asyncio.run(run_sunday_test())
+
 
 

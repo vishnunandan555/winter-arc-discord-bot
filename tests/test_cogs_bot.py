@@ -191,6 +191,8 @@ class TestErrorHandlingAndRobustLogging(WinterArcTestCase):
             mock_m1.send.assert_called_once()
             call_embed = mock_m1.send.call_args[1]["embed"]
             self.assertIn("Hi **Spartan**", call_embed.description)
+            self.assertEqual(mock_m1.send.call_args[1].get("content"), mock_m1.mention)
+            self.assertTrue(mock_m1.send.call_args[1].get("allowed_mentions").users)
             mock_inter.followup.send.assert_called()
 
             # Target multiple members at once
