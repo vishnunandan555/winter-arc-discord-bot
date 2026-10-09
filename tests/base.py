@@ -93,8 +93,16 @@ class WinterArcTestCase(unittest.TestCase):
             inter.command = None
 
         inter.response = MagicMock()
-        inter.response.defer = AsyncMock()
-        inter.response.send_message = AsyncMock()
+        inter.response.is_done = MagicMock(return_value=False)
+
+        async def _mock_defer(*args, **kwargs):
+            inter.response.is_done.return_value = True
+
+        async def _mock_send_message(*args, **kwargs):
+            inter.response.is_done.return_value = True
+
+        inter.response.defer = AsyncMock(side_effect=_mock_defer)
+        inter.response.send_message = AsyncMock(side_effect=_mock_send_message)
         inter.response.edit_message = AsyncMock()
         inter.followup = MagicMock()
         inter.followup.send = AsyncMock()

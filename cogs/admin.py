@@ -31,6 +31,7 @@ from helpers import (
     max_points_autocomplete,
     dm_target_autocomplete,
     dm_template_autocomplete,
+    invalidate_tasks_cache,
 )
 
 logger = logging.getLogger("winter_arc.cogs.admin")
@@ -79,8 +80,9 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     @admin_group.command(name="set_channel", description="Set the dedicated channel for scheduled announcements.")
     @app_commands.describe(channel="Select the dedicated Winter Arc text channel")
     async def admin_set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+            await interaction.followup.send("This command must be run within a server.", ephemeral=True)
             return
 
         db.set_server_channel(interaction.guild.id, channel.id)
@@ -96,13 +98,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             ),
             color=0x2ECC71
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="set_role", description="Set the Winter Arc role to ping during announcements.")
     @app_commands.describe(role="Select the role to ping (e.g. @Winter Arc)")
     async def admin_set_role(self, interaction: discord.Interaction, role: discord.Role):
+        await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+            await interaction.followup.send("This command must be run within a server.", ephemeral=True)
             return
 
         db.set_server_role(interaction.guild.id, role.id)
@@ -115,12 +118,13 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             ),
             color=0x2ECC71
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="overview", description="View server configuration, enrolled members, and disciplines.")
     async def admin_overview(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
-            await interaction.response.send_message("This command must be run within a server.", ephemeral=True)
+            await interaction.followup.send("This command must be run within a server.", ephemeral=True)
             return
 
         logger.info(f"Admin command '/admin overview' executed by {interaction.user} in '{interaction.guild.name}'")
@@ -162,7 +166,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             color=0x34495E
         )
         embed.set_footer(text="Admin: /admin set_channel • /admin set_role • /admin task_add")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="task_add", description="Add a new challenge discipline to the database.")
     @app_commands.describe(
@@ -178,15 +182,17 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         max_points=max_points_autocomplete
     )
     async def admin_task_add(self, interaction: discord.Interaction, name: str, target: float, unit: str, max_points: int, description: str = ""):
+        await interaction.response.defer(ephemeral=True)
         if target <= 0 or max_points <= 0:
-            await interaction.response.send_message("❌ Target and max_points must be greater than 0.", ephemeral=True)
+            await interaction.followup.send("❌ Target and max_points must be greater than 0.", ephemeral=True)
             return
 
         try:
             task = db.add_task(name=name, target=target, unit=unit, max_points=max_points, description=description)
+            invalidate_tasks_cache()
             logger.info(f"Admin command '/admin task_add' executed by {interaction.user}: '{task['name']}' ({task['target']} {task['unit']}, max {task['max_points']} pts)")
         except ValueError as e:
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -199,24 +205,27 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             ),
             color=0x2ECC71
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="task_toggle", description="Enable or disable an existing challenge task.")
     @app_commands.describe(name="Task name to enable/disable")
     @app_commands.autocomplete(name=all_tasks_autocomplete)
     async def admin_task_toggle(self, interaction: discord.Interaction, name: str):
+        await interaction.response.defer(ephemeral=True)
         task_obj = db.get_task_by_name(name)
         target_name = task_obj["name"] if task_obj else name
         try:
             task = db.toggle_task(target_name)
+            invalidate_tasks_cache()
             status_str = "Enabled 🟢" if task["active"] else "Disabled 🔴"
             logger.info(f"Admin command '/admin task_toggle' executed by {interaction.user}: '{task['name']}' -> {'Enabled' if task['active'] else 'Disabled'}")
-            await interaction.response.send_message(f"Task **{task['name']}** is now **{status_str}**.")
+            await interaction.followup.send(f"Task **{task['name']}** is now **{status_str}**.")
         except ValueError as e:
-            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ {str(e)}", ephemeral=True)
 
     @admin_group.command(name="tasks_list", description="List all challenge disciplines.")
     async def admin_tasks_list(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         logger.info(f"Admin command '/admin tasks_list' executed by {interaction.user}")
         all_tasks = db.get_all_tasks()
         lines = []
@@ -229,7 +238,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             description="\n".join(lines) if lines else "_No tasks registered._",
             color=0x3498DB
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="grind", description="Manage a member's /grind access and disciplinary status.")
     @app_commands.describe(
@@ -592,10 +601,11 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     async def admin_health(self, interaction: discord.Interaction):
         """Displays real-time memory usage (RSS), database file sizes, and allows manual GC compaction."""
         logger.info(f"Admin command '/admin health' invoked by {interaction.user} (ID: {interaction.user.id})")
+        await interaction.response.defer(ephemeral=True)
         metrics = get_system_health_metrics(self.bot)
         embed = build_health_embed(metrics)
         view = HealthView(self.bot)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @admin_group.command(name="dm", description="Privately send a template or announcement to a member or the entire server.")
     @app_commands.describe(

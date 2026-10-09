@@ -25,6 +25,22 @@ EXTENSIONS = [
 ]
 
 
+class AutocompleteNotFoundFilter(logging.Filter):
+    """Suppresses benign Discord 10062 Unknown interaction errors caused by superseded keystrokes during rapid autocomplete typing."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and len(record.exc_info) > 1 and record.exc_info[1]:
+            exc = record.exc_info[1]
+            if isinstance(exc, discord.errors.NotFound) and getattr(exc, "code", None) == 10062:
+                return False
+        msg = record.getMessage()
+        if "Ignoring exception in autocomplete" in msg and "10062" in msg:
+            return False
+        return True
+
+
+logging.getLogger("discord.app_commands.tree").addFilter(AutocompleteNotFoundFilter())
+
+
 class WinterArcBot(commands.Bot):
     """Core bot client with automatic cog discovery and scheduler management."""
 

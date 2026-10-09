@@ -129,6 +129,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="enroll", description="Enroll in the Winter Arc challenge.")
     async def enroll(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         logger.info(f"Slash command '/enroll' invoked by {interaction.user} (ID: {interaction.user.id})")
         is_already = db.is_user_enrolled(interaction.user.id)
         db.enroll_user(interaction.user.id, interaction.user.name)
@@ -175,7 +176,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             color=0x2ECC71
         )
         embed.set_footer(text="Day resets at 00:00 IST • Daily standard: 500 points")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
         await safe_react(interaction, "🐺", "⚔️")
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
@@ -183,9 +184,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="leave_arc", description="Unenroll from the Winter Arc challenge.")
     async def leave_arc(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         logger.info(f"Slash command '/leave_arc' invoked by {interaction.user} (ID: {interaction.user.id})")
         if not db.is_user_enrolled(interaction.user.id):
-            await interaction.response.send_message("You are not currently enrolled in Winter Arc.", ephemeral=True)
+            await interaction.followup.send("You are not currently enrolled in Winter Arc.", ephemeral=True)
             return
 
         db.unenroll_user(interaction.user.id)
@@ -205,7 +207,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             color=0x7F8C8D
         )
         embed.set_footer(text="Winter Arc")
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
         )
@@ -223,14 +225,21 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             description=f"Winter Arc is operational.\n\n• **Gateway Latency**: `{latency_ms} ms`\n• **Timezone**: `{BOT_TZ}`",
             color=0x2ECC71
         )
-        await interaction.response.send_message(embed=embed)
+        try:
+            await interaction.response.send_message(embed=embed)
+        except discord.NotFound:
+            pass
 
     @app_commands.command(name="help", description="View commands, challenge rules, and AI logging manual.")
     async def help_cmd(self, interaction: discord.Interaction):
         logger.info(f"Slash command '/help' invoked by {interaction.user}")
         embed = build_help_embed(category="overview")
         view = HelpView()
-        await interaction.response.send_message(embed=embed, view=view)
+        try:
+            await interaction.response.send_message(embed=embed, view=view)
+        except discord.NotFound:
+            logger.debug("Interaction for /help expired or was cancelled by Discord.")
+            return
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
         )
@@ -242,6 +251,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="today", description="View today's progress, points, and streak.")
     @app_commands.describe(member="Optional: View another member's progress")
     async def today(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer()
         target_user = member or interaction.user
         logger.info(f"Slash command '/today' invoked by {interaction.user} (target: {target_user.display_name})")
 
@@ -250,10 +260,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
         else:
             if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                await interaction.followup.send(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
-
-        await interaction.response.defer()
 
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
@@ -298,6 +306,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="tasks", description="View all daily disciplines with progress bars, targets, and exercise descriptions.")
     @app_commands.describe(member="Optional: View another member's tasks & disciplines")
     async def tasks_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer()
         target_user = member or interaction.user
         logger.info(f"Slash command '/tasks' invoked by {interaction.user} (target: {target_user.display_name})")
 
@@ -306,10 +315,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
         else:
             if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                await interaction.followup.send(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
-
-        await interaction.response.defer()
 
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
@@ -358,16 +365,17 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     )
     @app_commands.autocomplete(task=task_autocomplete, amount=log_amount_autocomplete)
     async def log_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
+        await interaction.response.defer()
         logger.info(f"Slash command '/log' invoked by {interaction.user}: {task} +{amount}")
         if not await require_enrolled(interaction):
             return
 
         if amount <= 0:
-            await interaction.response.send_message("❌ Amount must be greater than 0.", ephemeral=True)
+            await interaction.followup.send("❌ Amount must be greater than 0.", ephemeral=True)
             return
         task_obj = db.get_task_by_name(task)
         if not task_obj:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Task '{task}' not found. Available tasks: Push-ups, Pull-ups, Squats, Sit-ups, Running.",
                 ephemeral=True
             )
@@ -379,14 +387,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         if amount > max_allowed:
             unit_display = "km" if "run" in task_key else "reps"
             logger.warning(f"/log rejected for {interaction.user}: {amount} {unit_display} for {task_canonical} exceeds limit {max_allowed}")
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ **Unrealistic Volume Rejected**: `{format_num(amount)} {unit_display}` in a single go exceeds the realistic single-set limit (max `{format_num(max_allowed)} {unit_display}`). "
                 f"Log your completed sets individually as you finish them.",
                 ephemeral=True
             )
             return
-
-        await interaction.response.defer()
 
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         old_points = db.get_user_lifetime_points(interaction.user.id)
@@ -444,28 +450,27 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     )
     @app_commands.autocomplete(task=task_autocomplete, amount=set_amount_autocomplete)
     async def set_activity_cmd(self, interaction: discord.Interaction, task: str, amount: float):
+        await interaction.response.defer()
         logger.info(f"Slash command '/set' invoked by {interaction.user}: {task} set to {amount}")
         if not await require_enrolled(interaction):
             return
 
         if amount < 0:
-            await interaction.response.send_message("❌ Amount cannot be negative.", ephemeral=True)
+            await interaction.followup.send("❌ Amount cannot be negative.", ephemeral=True)
             return
         if amount > 5000:
-            await interaction.response.send_message("❌ Amount exceeds reasonable single entry limit (5,000).", ephemeral=True)
+            await interaction.followup.send("❌ Amount exceeds reasonable single entry limit (5,000).", ephemeral=True)
             return
 
         task_obj = db.get_task_by_name(task)
         if not task_obj:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ Task '{task}' not found. Available tasks: Push-ups, Pull-ups, Squats, Sit-ups, Running.",
                 ephemeral=True
             )
             return
 
         task_canonical = task_obj["name"]
-        await interaction.response.defer()
-
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
         old_points = db.get_user_lifetime_points(interaction.user.id)
 
@@ -509,6 +514,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.command(name="profile", description="View member profile, rank, and 12-level progression.")
     @app_commands.describe(member="Optional: View another member's profile and rank card")
     async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer()
         target_user = member or interaction.user
         logger.info(f"Slash command '/profile' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
@@ -516,10 +522,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
         else:
             if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
+                await interaction.followup.send(f"❌ {target_user.display_name} is not enrolled.", ephemeral=True)
                 return
-
-        await interaction.response.defer()
 
         user = db.get_user_by_discord_id(target_user.id)
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
@@ -558,10 +562,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
     @app_commands.command(name="ranks", description="View the 12-tier discipline progression hierarchy and requirements.")
     async def ranks(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         logger.info(f"Slash command '/ranks' invoked by {interaction.user}")
         lifetime_points = db.get_user_lifetime_points(interaction.user.id)
         embed = build_ranks_embed(lifetime_points)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         cmd_out = format_embed_as_text(embed)
 
@@ -633,10 +638,9 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     ])
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def stats(self, interaction: discord.Interaction, phase: Optional[app_commands.Choice[str]] = None):
+        await interaction.response.defer()
         if not await require_enrolled(interaction):
             return
-
-        await interaction.response.defer()
 
         chosen_val = phase.value if phase else "overall"
         logger.info(f"Slash command '/stats' invoked by {interaction.user} (phase: {chosen_val})")
@@ -674,10 +678,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     @app_commands.autocomplete(days=history_days_autocomplete)
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def history(self, interaction: discord.Interaction, days: Optional[int] = 7):
+        await interaction.response.defer()
         if not await require_enrolled(interaction):
             return
 
-        await interaction.response.defer()
         days_count = max(1, min(days or 7, 90))
         logger.info(f"Slash command '/history' invoked by {interaction.user} (days: {days_count})")
         hist = db.get_user_history(interaction.user.id, days=days_count)
@@ -719,6 +723,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         user: Optional[discord.Member] = None,
         phase: Optional[app_commands.Choice[str]] = None
     ):
+        await interaction.response.defer()
         target = user or interaction.user
         if not await require_enrolled(interaction):
             return
@@ -726,7 +731,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         target_record = db.get_user_by_discord_id(target.id)
         if not target_record or not target_record.get("enrolled"):
             name = "You are" if target.id == interaction.user.id else f"{target.display_name} is"
-            await interaction.response.send_message(f"🚫 {name} not enrolled in the Winter Arc.", ephemeral=True)
+            await interaction.followup.send(f"🚫 {name} not enrolled in the Winter Arc.", ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -779,6 +784,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         interaction: discord.Interaction,
         member: Optional[discord.Member] = None
     ):
+        await interaction.response.defer()
         target_user = member or interaction.user
         logger.info(f"Slash command '/streak' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
@@ -786,10 +792,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
         else:
             if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                await interaction.followup.send(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
-
-        await interaction.response.defer()
 
         consistency_data = db.get_user_monthly_consistency(target_user.id)
         embed = build_streak_consistency_embed(target_user, consistency_data)
@@ -826,6 +830,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         interaction: discord.Interaction,
         member: Optional[discord.Member] = None
     ):
+        await interaction.response.defer()
         target_user = member or interaction.user
         logger.info(f"Slash command '/calendar' invoked by {interaction.user} (target: {target_user.display_name})")
         if target_user.id == interaction.user.id:
@@ -833,10 +838,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
                 return
         else:
             if not db.is_user_enrolled(target_user.id):
-                await interaction.response.send_message(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
+                await interaction.followup.send(f"❌ {target_user.display_name} is not enrolled in Winter Arc.", ephemeral=True)
                 return
-
-        await interaction.response.defer()
 
         calendar_data = db.get_user_full_campaign_calendar(target_user.id)
         embed = build_full_calendar_embed(target_user, calendar_data)

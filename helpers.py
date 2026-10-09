@@ -61,6 +61,38 @@ def format_num(val: Any) -> Any:
         return val
 
 
+import time as time_mod
+
+_cached_active_tasks: List[Dict[str, Any]] = []
+_cached_all_tasks: List[Dict[str, Any]] = []
+_tasks_cache_time: float = 0.0
+TASKS_CACHE_TTL: float = 30.0  # 30 seconds in-memory cache to guarantee sub-millisecond autocomplete
+
+
+def invalidate_tasks_cache() -> None:
+    """Invalidates the in-memory tasks cache so fresh DB records are loaded on next query."""
+    global _tasks_cache_time
+    _tasks_cache_time = 0.0
+
+
+def _get_cached_active_tasks() -> List[Dict[str, Any]]:
+    global _cached_active_tasks, _tasks_cache_time
+    now = time_mod.time()
+    if not _cached_active_tasks or (now - _tasks_cache_time) > TASKS_CACHE_TTL:
+        _cached_active_tasks = db.get_active_tasks()
+        _tasks_cache_time = now
+    return _cached_active_tasks
+
+
+def _get_cached_all_tasks() -> List[Dict[str, Any]]:
+    global _cached_all_tasks, _tasks_cache_time
+    now = time_mod.time()
+    if not _cached_all_tasks or (now - _tasks_cache_time) > TASKS_CACHE_TTL:
+        _cached_all_tasks = db.get_all_tasks()
+        _tasks_cache_time = now
+    return _cached_all_tasks
+
+
 async def require_enrolled(interaction: discord.Interaction) -> bool:
     """Verifies that the user is enrolled in Winter Arc before allowing command execution."""
     if not db.is_user_enrolled(interaction.user.id):
@@ -72,15 +104,21 @@ async def require_enrolled(interaction: discord.Interaction) -> bool:
             ),
             color=0xE74C3C
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        try:
+            if hasattr(interaction.response, "is_done") and interaction.response.is_done():
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.debug(f"Could not send enrollment notice: {e}")
         return False
     return True
 
 
 async def task_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    """Provides autocomplete choices for active challenge tasks with discipline icons and targets."""
+    """Provides ultra-fast autocomplete choices for active challenge tasks with discipline icons and targets."""
     icons = {"push-ups": "💪", "pull-ups": "🧗", "squats": "🦵", "sit-ups": "🧘", "running": "🏃"}
-    tasks = db.get_active_tasks()
+    tasks = _get_cached_active_tasks()
     choices = []
     curr_clean = re.sub(r'[^a-z0-9]', '', (current or "").lower())
     for t in tasks:
@@ -96,8 +134,8 @@ async def task_autocomplete(interaction: discord.Interaction, current: str) -> L
 
 
 async def all_tasks_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    """Provides autocomplete for all tasks (active & disabled) so admins can toggle them on/off."""
-    tasks = db.get_all_tasks()
+    """Provides ultra-fast autocomplete for all tasks (active & disabled) so admins can toggle them on/off."""
+    tasks = _get_cached_all_tasks()
     choices = []
     curr_clean = re.sub(r'[^a-z0-9]', '', (current or "").lower())
     for t in tasks:

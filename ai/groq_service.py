@@ -8,6 +8,7 @@ and strict active-task validation.
 import json
 import re
 import time
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 from config import GROQ_API_KEY, GROQ_MODEL, MAX_SINGLE_SET_LIMITS
@@ -157,15 +158,18 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
     try:
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for workout parsing: '{raw_text}'...")
         start_t = time.time()
-        chat_completion = await client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": raw_text},
-            ],
-            model=GROQ_MODEL,
-            response_format={"type": "json_object"},
-            temperature=0.1,
-            max_tokens=300,
+        chat_completion = await asyncio.wait_for(
+            client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": raw_text},
+                ],
+                model=GROQ_MODEL,
+                response_format={"type": "json_object"},
+                temperature=0.1,
+                max_tokens=300,
+            ),
+            timeout=7.0
         )
         latency = time.time() - start_t
         content = chat_completion.choices[0].message.content
@@ -292,14 +296,17 @@ async def generate_reactive_nudge(
     try:
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for reactive observation: {user_name} on /{command_name}...")
         start_t = time.time()
-        chat_completion = await client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model=GROQ_MODEL,
-            temperature=0.8,
-            max_tokens=80,
+        chat_completion = await asyncio.wait_for(
+            client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0.8,
+                max_tokens=80,
+            ),
+            timeout=4.0
         )
         latency = time.time() - start_t
 
