@@ -228,7 +228,7 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
         h_embed = build_history_embed(mock_user, hist)
         expected_date_str = past_d.strftime("%a, %b %d")
         self.assertIn(expected_date_str, h_embed.description)
-        self.assertIn("↳ 🧠 *+30 pts grind (Graph Dynamic Programming)*", h_embed.description)
+        self.assertIn("↳ ⚔️ *+30 pts grind (Graph Dynamic Programming)*", h_embed.description)
         self.assertNotIn("Winter Arc • Consistency Beats Motivation", h_embed.footer.text)
 
         # 3. Retroactive set_activity re-finalizes daily_summaries

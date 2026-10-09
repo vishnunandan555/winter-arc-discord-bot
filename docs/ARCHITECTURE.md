@@ -186,10 +186,10 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `id` | INTEGER PRIMARY KEY | Grind entry ID |
 | `user_id` | INTEGER FK | Foreign key $\rightarrow$ `users(id)` |
 | `date` | TEXT | ISO format date (`YYYY-MM-DD`, 1 per day limit) |
-| `raw_input` | TEXT | Raw submitted reflection / study log |
+| `raw_input` | TEXT | Raw submitted custom workout / study log |
 | `verdict` | TEXT | `ACCEPTED`, `ROASTED`, `CAPPED`, or `REVOKED` |
-| `points_awarded` | INTEGER | Points earned (+5 to +60, or 0 if capped) |
-| `key_learning` | TEXT | Extracted technical focus / tag |
+| `points_awarded` | INTEGER | Points earned (+5 to +50, or 0 if capped) |
+| `key_learning` | TEXT | Extracted custom workout summary or deep work focus |
 | `commentary` | TEXT | Amarok's gritty evaluation / roast |
 
 ### `shield_logs`

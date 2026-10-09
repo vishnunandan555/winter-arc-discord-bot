@@ -107,7 +107,7 @@ def export_stats_to_json(output_path: str = "docs/stats.json", db_path: str = DB
             "color": hex(r["color"]),
         })
 
-    # 6. Academic / Mental Grind Highlights
+    # 6. Custom Workout & Deep Work Grind Highlights
     academic_highlights = []
     try:
         with db.get_connection(db_path) as conn:
