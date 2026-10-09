@@ -1422,7 +1422,7 @@ def build_dm_morning_message(
         task_lines.append(f"• **{t['name']}**: `{tgt} {t['unit']}` *({t.get('max_points', 100)} pts)*")
     tasks_block = "**Today's Challenge (500 pts max):**\n" + "\n".join(task_lines)
 
-    subtext = "-# Log sets with /log or /quick • Deep work with /grind • /reminders to adjust"
+    subtext = "-# Log sets with /log or /quick • Disable anytime using /reminders"
 
     mention_prefix = f"{user_mention}\n" if user_mention else ""
     return f"{mention_prefix}{header}\n{streak_line}\n\n{quote_section}\n\n{tasks_block}\n\n{subtext}"
@@ -1460,7 +1460,7 @@ def build_dm_afternoon_message(
             f"Drop and knock out a quick set of push-ups or squats before your evening gets busy."
         )
 
-    subtext = "-# Log sets with /log or /quick • 30 pts/day minimum • /reminders to adjust"
+    subtext = "-# Log sets with /log or /quick • Disable anytime using /reminders"
     return f"{header}\n\n{body}\n\n{subtext}"
 
 
@@ -1502,7 +1502,7 @@ def build_dm_evening_message(
         )
 
     quote_section = f"\n\n> {quote.strip()}" if quote else ""
-    subtext = "-# Log sets with /log • Rollover at 00:00 IST • /reminders to adjust"
+    subtext = "-# Log sets with /log • Rollover at 00:00 IST • Disable anytime using /reminders"
 
     return f"{header}\n\n{body}{quote_section}\n\n{subtext}"
 
@@ -1541,7 +1541,7 @@ def build_dm_afternoon_embed(user: discord.User, points: int, max_points: int, s
         description=desc,
         color=color
     )
-    embed.set_footer(text="Day resets at 00:00 IST • /reminders to configure")
+    embed.set_footer(text="Disable this notification anytime using /reminders • Day resets at 00:00 IST")
     return embed
 
 
@@ -1568,7 +1568,7 @@ def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_displa
         description=desc,
         color=0x00D2FF
     )
-    embed.set_footer(text="Log reps in server with /log • Day resets at 00:00 IST")
+    embed.set_footer(text="Disable this notification anytime using /reminders • Day resets at 00:00 IST")
     return embed
 
 
@@ -1624,7 +1624,7 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
         description=desc,
         color=color
     )
-    embed.set_footer(text="Midnight rollover occurs at 00:00 IST")
+    embed.set_footer(text="Disable this notification anytime using /reminders • Rollover at 00:00 IST")
     return embed
 
 
