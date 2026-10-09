@@ -191,14 +191,18 @@ class WinterArcBot(commands.Bot):
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
         logger.info("=" * 60)
 
-        # Purge guild-scoped command copies to eliminate duplicate slash commands in Discord UI
+        # Check and purge leftover guild-scoped commands only if any actually exist
         for g in self.guilds:
             try:
-                self.tree.clear_commands(guild=g)
-                await self.tree.sync(guild=g)
-                logger.info(f"🧹 Purged guild-scoped command duplicates from '{g.name}'.")
+                existing_guild_cmds = await self.tree.fetch_commands(guild=g)
+                if existing_guild_cmds:
+                    self.tree.clear_commands(guild=g)
+                    await self.tree.sync(guild=g)
+                    logger.info(f"🧹 Purged {len(existing_guild_cmds)} legacy guild-scoped command duplicate(s) from '{g.name}'.")
+                else:
+                    logger.debug(f"Guild '{g.name}' has 0 guild-scoped commands; skipping redundant purge.")
             except Exception as e:
-                logger.warning(f"Could not purge guild commands for {g.name}: {e}")
+                logger.warning(f"Could not check/purge guild commands for {g.name}: {e}")
 
         await self.change_presence(
             activity=discord.Activity(
