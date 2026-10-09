@@ -313,35 +313,25 @@ class AdminCog(commands.Cog, name="Admin Commands"):
                 ephemeral=True
             )
 
-    @admin_group.command(name="sync", description="Synchronize and deduplicate slash commands.")
-    @app_commands.describe(clean="Clear guild-scoped duplicate commands and rely on global commands (default: True)")
-    async def admin_sync(self, interaction: discord.Interaction, clean: bool = True):
+    @admin_group.command(name="sync", description="Synchronize and deduplicate slash commands globally.")
+    async def admin_sync(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
             await interaction.followup.send("❌ This command must be run within a server.", ephemeral=True)
             return
 
         try:
-            if clean:
-                self.bot.tree.clear_commands(guild=interaction.guild)
-                await self.bot.tree.sync(guild=interaction.guild)
-                synced = await self.bot.tree.sync()
-                await interaction.followup.send(
-                    f"🧹 **Deduplication Complete!**\n"
-                    f"Purged guild-level duplicates from **{interaction.guild.name}**.\n"
-                    f"Synchronized **{len(synced)}** clean global commands.\n"
-                    f"*(Tip: Press `Ctrl + R` in Discord to refresh your client UI.)*",
-                    ephemeral=True
-                )
-            else:
-                self.bot.tree.copy_global_to(guild=interaction.guild)
-                synced = await self.bot.tree.sync(guild=interaction.guild)
-                await self.bot.tree.sync()
-                await interaction.followup.send(
-                    f"✅ **Guild Slash Command Sync Complete!**\n"
-                    f"Synchronized **{len(synced)}** slash commands directly to **{interaction.guild.name}**.",
-                    ephemeral=True
-                )
+            self.bot.tree.clear_commands(guild=interaction.guild)
+            await self.bot.tree.sync(guild=interaction.guild)
+            synced = await self.bot.tree.sync()
+            await interaction.followup.send(
+                f"✅ **Command Sync & Deduplication Complete!**\n\n"
+                f"• Cleaned all guild duplicates from **{interaction.guild.name}**\n"
+                f"• Synchronized **{len(synced)}** clean global commands\n"
+                f"• Commands work in both this server and in private DMs\n\n"
+                f"*(If your Discord UI hasn't updated yet, press `Ctrl + R` on desktop or restart your mobile app.)*",
+                ephemeral=True
+            )
         except Exception as e:
             logger.error(f"Failed to sync slash commands via /admin sync: {e}", exc_info=e)
             await interaction.followup.send(f"❌ Failed to sync slash commands: {e}", ephemeral=True)
