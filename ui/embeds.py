@@ -1374,18 +1374,16 @@ def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -
 
 def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> discord.Embed:
     """Builds the interactive private DM notification settings embed."""
-    master_icon = "🟢 Enabled" if settings.get("dm_reminders") else "🔴 Disabled"
     morning_icon = "🟢 On" if settings.get("dm_morning") else "⚪ Off"
     afternoon_icon = "🟢 On" if settings.get("dm_afternoon") else "⚪ Off"
     evening_icon = "🟢 On" if settings.get("dm_evening") else "⚪ Off"
 
     desc = (
         f"**{user.display_name}** • Personal Accountability Reminders\n\n"
-        f"**Master DM Switch**: {master_icon}\n"
         f"• 🌅 **Morning Kickoff (05:00 IST)**: {morning_icon}\n"
         f"• ☀️ **Afternoon Check-in (16:30 IST)**: {afternoon_icon}\n"
         f"• 🌙 **Evening Streak Warning (21:00 IST)**: {evening_icon}\n\n"
-        "_Toggle individual reminders using the buttons below._\n"
+        "_Click the buttons below to toggle any reminder on or off._\n"
         "_Note: Ensure your Discord privacy settings allow Direct Messages from server members._"
     )
 

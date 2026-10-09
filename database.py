@@ -1597,6 +1597,21 @@ def update_user_dm_settings(
     if not user:
         raise ValueError("User not found in Winter Arc database.")
 
+    if dm_reminders is False:
+        if dm_morning is None:
+            dm_morning = False
+        if dm_afternoon is None:
+            dm_afternoon = False
+        if dm_evening is None:
+            dm_evening = False
+    elif dm_reminders is True:
+        if dm_morning is None:
+            dm_morning = True
+        if dm_afternoon is None:
+            dm_afternoon = True
+        if dm_evening is None:
+            dm_evening = True
+
     updates = []
     params = []
     if dm_reminders is not None:
@@ -1626,18 +1641,20 @@ def update_user_dm_settings(
 
 
 def get_opted_in_dm_users(category: str = "all", db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Fetches users who have enabled DMs, optionally filtered by category (morning/afternoon/evening)."""
+    """Fetches users who have enabled DMs, filtered by category (morning/afternoon/evening)."""
     if db_path is None:
         db_path = DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
-        query = "SELECT * FROM users WHERE enrolled = 1 AND dm_reminders = 1"
+        query = "SELECT * FROM users WHERE enrolled = 1"
         if category == "morning":
             query += " AND dm_morning = 1"
         elif category == "afternoon":
             query += " AND dm_afternoon = 1"
         elif category == "evening":
             query += " AND dm_evening = 1"
+        else:
+            query += " AND (dm_morning = 1 OR dm_afternoon = 1 OR dm_evening = 1)"
         query += " ORDER BY id ASC;"
         cursor.execute(query)
         return [dict(r) for r in cursor.fetchall()]

@@ -196,12 +196,13 @@ class TestRemindersAndDMs(WinterArcTestCase):
         settings = db.get_user_dm_settings(self.user_id, db_path=self.test_db)
         view = RemindersView(user_id=self.user_id, settings=settings)
 
-        # Verify initial buttons: Master, Morning, Afternoon, Evening
+        # Verify initial buttons: Morning, Afternoon, Evening
         btn_ids = [c.custom_id for c in view.children]
-        self.assertIn("toggle_master", btn_ids)
+        self.assertNotIn("toggle_master", btn_ids)
         self.assertIn("toggle_morning", btn_ids)
         self.assertIn("toggle_afternoon", btn_ids)
         self.assertIn("toggle_evening", btn_ids)
+        self.assertEqual(len(btn_ids), 3)
 
         # Toggle Afternoon off via button callback
         inter = self.create_mock_interaction(user_id=self.user_id)

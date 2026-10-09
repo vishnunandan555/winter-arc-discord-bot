@@ -107,24 +107,20 @@ class RemindersView(RobustView):
         self._sync_buttons()
 
     def _sync_buttons(self):
-        master = self.settings.get("dm_reminders", False)
         for child in self.children:
             if isinstance(child, discord.ui.Button):
-                if child.custom_id == "toggle_master":
-                    child.label = "🔔 Master Switch: Enabled" if master else "🔕 Master Switch: Disabled"
-                    child.style = discord.ButtonStyle.success if master else discord.ButtonStyle.secondary
-                elif child.custom_id == "toggle_morning":
-                    child.disabled = not master
-                    child.label = "🌅 Morning: On" if self.settings.get("dm_morning") else "🌅 Morning: Off"
-                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_morning") and master else discord.ButtonStyle.secondary
+                if child.custom_id == "toggle_morning":
+                    on = bool(self.settings.get("dm_morning"))
+                    child.label = "🌅 Morning: On" if on else "🌅 Morning: Off"
+                    child.style = discord.ButtonStyle.success if on else discord.ButtonStyle.secondary
                 elif child.custom_id == "toggle_afternoon":
-                    child.disabled = not master
-                    child.label = "☀️ Afternoon: On" if self.settings.get("dm_afternoon") else "☀️ Afternoon: Off"
-                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_afternoon") and master else discord.ButtonStyle.secondary
+                    on = bool(self.settings.get("dm_afternoon"))
+                    child.label = "☀️ Afternoon: On" if on else "☀️ Afternoon: Off"
+                    child.style = discord.ButtonStyle.success if on else discord.ButtonStyle.secondary
                 elif child.custom_id == "toggle_evening":
-                    child.disabled = not master
-                    child.label = "🌙 Evening: On" if self.settings.get("dm_evening") else "🌙 Evening: Off"
-                    child.style = discord.ButtonStyle.primary if self.settings.get("dm_evening") and master else discord.ButtonStyle.secondary
+                    on = bool(self.settings.get("dm_evening"))
+                    child.label = "🌙 Evening: On" if on else "🌙 Evening: Off"
+                    child.style = discord.ButtonStyle.success if on else discord.ButtonStyle.secondary
 
     async def _guard_user(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
@@ -132,18 +128,7 @@ class RemindersView(RobustView):
             return False
         return True
 
-    @discord.ui.button(label="🔔 Master Switch", style=discord.ButtonStyle.secondary, custom_id="toggle_master", row=0)
-    async def toggle_master_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not await self._guard_user(interaction):
-            return
-        new_state = not self.settings.get("dm_reminders", False)
-        self.settings = db.update_user_dm_settings(self.user_id, dm_reminders=new_state)
-        logger.info(f"User {interaction.user} ({self.user_id}) toggled master reminders to {new_state}")
-        self._sync_buttons()
-        embed = build_settings_embed(interaction.user, self.settings)
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="🌅 Morning: On", style=discord.ButtonStyle.secondary, custom_id="toggle_morning", row=1)
+    @discord.ui.button(label="🌅 Morning: On", style=discord.ButtonStyle.success, custom_id="toggle_morning", row=0)
     async def toggle_morning_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
@@ -154,7 +139,7 @@ class RemindersView(RobustView):
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="☀️ Afternoon: On", style=discord.ButtonStyle.secondary, custom_id="toggle_afternoon", row=1)
+    @discord.ui.button(label="☀️ Afternoon: On", style=discord.ButtonStyle.success, custom_id="toggle_afternoon", row=0)
     async def toggle_afternoon_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
@@ -165,7 +150,7 @@ class RemindersView(RobustView):
         embed = build_settings_embed(interaction.user, self.settings)
         await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(label="🌙 Evening: On", style=discord.ButtonStyle.secondary, custom_id="toggle_evening", row=1)
+    @discord.ui.button(label="🌙 Evening: On", style=discord.ButtonStyle.success, custom_id="toggle_evening", row=0)
     async def toggle_evening_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self._guard_user(interaction):
             return
