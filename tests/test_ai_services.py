@@ -110,6 +110,22 @@ class TestGeminiGrindService(WinterArcTestCase):
             self.assertEqual(res_inj["verdict"], "REJECTED")
             self.assertEqual(res_inj["points"], 0)
 
+        # Test empty key_learning and empty commentary fallbacks + roasted floor
+        mock_response.text = json.dumps({
+            "verdict": "ROASTED",
+            "points": 0,
+            "key_learning": "   ",
+            "tracked_disciplines_excluded": ["10 pushups"],
+            "commentary": ""
+        })
+        with patch("ai.gemini_service.get_gemini_client", return_value=mock_client):
+            res_edge = asyncio.run(evaluate_grind("did 5 curls"))
+            self.assertEqual(res_edge["verdict"], "ROASTED")
+            self.assertEqual(res_edge["points"], 10)  # Guaranteed token points floor
+            self.assertEqual(res_edge["key_learning"], "Effort")
+            self.assertEqual(res_edge["commentary"], "Grind logged.")
+            self.assertEqual(res_edge["tracked_disciplines_excluded"], ["10 pushups"])
+
 
 class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
     """Verifies natural language parsing for /quick, regex fallbacks, volume threshold flags, and reactive coach nudges."""

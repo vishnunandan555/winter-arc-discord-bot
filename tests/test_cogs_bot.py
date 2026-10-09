@@ -14,10 +14,10 @@ from tests.base import WinterArcTestCase
 
 
 class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
-    """Verifies bot lifecycle, extension loading, 21 slash commands tree registration, and system health metrics."""
+    """Verifies bot lifecycle, extension loading, 25 slash commands tree registration, and system health metrics."""
 
     def test_all_extensions_and_slash_commands_load(self):
-        """Verify cogs.admin and cogs.warrior load cleanly and register all 21 slash commands."""
+        """Verify cogs.admin and cogs.warrior load cleanly and register all 25 slash commands."""
         from bot import WinterArcBot
 
         async def verify_bot_cogs():

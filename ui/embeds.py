@@ -233,8 +233,8 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     points_breakdown = ""
     if grind_pts > 0 or progress.get("grind_entry"):
         entry = progress.get("grind_entry") or {}
-        learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
-        grind_section = f"\n\n**🧠 Grind Bonus**: +{grind_pts} pts *({learning})*"
+        learning = entry.get("key_learning", "Custom Grind") if isinstance(entry, dict) else "Custom Grind"
+        grind_section = f"\n\n**⚔️ Grind Bonus**: +{grind_pts} pts *({learning})*"
         phys_pts = progress.get("physical_points", total_pts - grind_pts)
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
@@ -297,8 +297,8 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
     points_breakdown = ""
     if grind_pts > 0 or progress.get("grind_entry"):
         entry = progress.get("grind_entry") or {}
-        learning = entry.get("key_learning", "Deep Work") if isinstance(entry, dict) else "Deep Work"
-        grind_section = f"\n\n**🧠 Grind Bonus**: +{grind_pts} pts *({learning})*"
+        learning = entry.get("key_learning", "Custom Grind") if isinstance(entry, dict) else "Custom Grind"
+        grind_section = f"\n\n**⚔️ Grind Bonus**: +{grind_pts} pts *({learning})*"
         phys_pts = progress.get("physical_points", total_pts - grind_pts)
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
@@ -497,8 +497,8 @@ def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> dis
         grind_note = ""
         g = d.get("grind_entry")
         if g and g.get("points_awarded", 0) > 0:
-            tag = g.get("key_learning") or "Deep Focus"
-            grind_note = f"\n  ↳ 🧠 *+{g['points_awarded']} pts grind ({tag})*"
+            tag = g.get("key_learning") or "Custom Grind"
+            grind_note = f"\n  ↳ ⚔️ *+{g['points_awarded']} pts grind ({tag})*"
 
         lines.append(f"• **{date_display}** — **{d['points']} pts** ({pct}%){star}{grind_note}")
 
@@ -1887,7 +1887,7 @@ def build_recap_embed(
             f"⭐ **Perfect Days**: **{perfect} days**\n"
             f"📅 **Active Days**: **{active} days**\n"
             f"🛡️ **Total Shields Consumed**: **{shields}**\n"
-            f"🧠 **Deep Work Grinds**: **{grind_count} sessions** *(+{grind_pts:,} pts)*\n\n"
+            f"⚔️ **Grind Sessions**: **{grind_count} sessions** *(+{grind_pts:,} pts)*\n\n"
             f"**Training Volume**\n"
             + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged yet._")
         )
@@ -1933,7 +1933,7 @@ def build_recap_embed(
         f"⭐ **Perfect Days**: **{perfect} days**\n"
         f"📅 **Active Days**: **{active} / {p_total_days} days**\n"
         f"🛡️ **Streak Shields Used**: **{shields}**\n"
-        f"🧠 **Deep Work Sessions**: **{grind_count} logs** *(+{grind_pts:,} pts)*\n\n"
+        f"⚔️ **Grind Sessions**: **{grind_count} logs** *(+{grind_pts:,} pts)*\n\n"
         f"**Training Volume**\n"
         + ("\n".join(vol_lines) if vol_lines else "_No exercise volume logged in this phase._")
     )
@@ -2125,9 +2125,9 @@ def build_server_records_embed(records: Dict[str, Any], phase_id: Optional[int] 
     mg = records.get("most_grinded")
     if mg and mg.get("sessions", 0) > 0:
         u_str = f"<@{mg['discord_id']}>" if mg.get("discord_id") else f"**{mg.get('username')}**"
-        achievements_lines.append(f"🧠 **Most Grinded Member**: **{mg['sessions']} sessions** *(+{mg['points']:,} pts)* — {u_str}")
+        achievements_lines.append(f"⚔️ **Most Grinded Member**: **{mg['sessions']} sessions** *(+{mg['points']:,} pts)* — {u_str}")
     else:
-        achievements_lines.append("🧠 **Most Grinded Member**: _None yet_")
+        achievements_lines.append("⚔️ **Most Grinded Member**: _None yet_")
 
     # Single Day Peaks
     peak_lines = []
@@ -2152,7 +2152,7 @@ def build_server_records_embed(records: Dict[str, Any], phase_id: Optional[int] 
         f"💎 **Total Points**: **{st.get('total_points', 0):,} pts**",
         f"👥 **Active Contributors**: **{st.get('active_contributors', 0)} members**",
         f"⭐ **Total Perfect Days**: **{st.get('total_perfect_days', 0)} perfect days**",
-        f"🧠 **Deep Work Sessions**: **{st.get('deep_work_sessions', 0)} logs** *(+{st.get('deep_work_points', 0):,} pts)*",
+        f"⚔️ **Grind Sessions**: **{st.get('deep_work_sessions', 0)} logs** *(+{st.get('deep_work_points', 0):,} pts)*",
     ]
 
     vol_lines = []

@@ -151,12 +151,21 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         excluded_clean = [str(x).strip() for x in excluded if str(x).strip()]
 
         logger.info(f"Gemini /grind evaluation completed: {verdict} ({points} pts, summary: {data.get('key_learning', 'None')}, excluded: {excluded_clean})")
+        learning_candidate = str(data.get("key_learning") or "").strip()
+        if not learning_candidate or learning_candidate.lower() == "none":
+            learning_candidate = "Effort" if verdict == "ROASTED" else "Custom Grind"
+        learning_candidate = learning_candidate[:100]
+
+        commentary_str = str(data.get("commentary") or "Grind logged.").strip()
+        if not commentary_str:
+            commentary_str = "Grind logged."
+
         return {
             "verdict": verdict,
             "points": points,
-            "key_learning": str(data.get("key_learning", "Effort" if verdict == "ROASTED" else "Custom Grind"))[:100],
+            "key_learning": learning_candidate,
             "tracked_disciplines_excluded": excluded_clean,
-            "commentary": str(data.get("commentary", "Grind logged.")),
+            "commentary": commentary_str,
         }
     except Exception as e:
         logger.error(f"Error calling Gemini for /grind evaluation: {e}")
