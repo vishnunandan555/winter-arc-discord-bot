@@ -89,9 +89,13 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         cmd = interaction.command.name if interaction.command else "unknown"
         orig = getattr(error, "original", error)
-        if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
-            logger.warning(
-                f"Warrior command '/{cmd}' interaction expired or was cancelled by Discord (404 Unknown interaction). User: {interaction.user} (ID: {interaction.user.id})"
+        if (
+            isinstance(orig, (discord.errors.NotFound, discord.errors.InteractionResponded))
+            or (isinstance(orig, discord.errors.HTTPException) and getattr(orig, "code", None) in (10062, 40060))
+            or interaction.is_expired()
+        ):
+            logger.debug(
+                f"Warrior command '/{cmd}' interaction expired or was cancelled by Discord ({orig}). User: {interaction.user} (ID: {interaction.user.id})"
             )
             return
 
@@ -227,7 +231,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         )
         try:
             await interaction.response.send_message(embed=embed)
-        except discord.NotFound:
+        except (discord.NotFound, discord.HTTPException):
             pass
 
     @app_commands.command(name="help", description="View commands, challenge rules, and AI logging manual.")
@@ -237,7 +241,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         view = HelpView()
         try:
             await interaction.response.send_message(embed=embed, view=view)
-        except discord.NotFound:
+        except (discord.NotFound, discord.HTTPException):
             logger.debug("Interaction for /help expired or was cancelled by Discord.")
             return
         asyncio.create_task(
@@ -969,7 +973,11 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         embed = build_settings_embed(interaction.user, settings)
         view = SettingsView(interaction.user.id, settings)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        try:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        except (discord.NotFound, discord.HTTPException):
+            logger.debug("Interaction for /reminders expired or was cancelled by Discord.")
+            return
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
         )

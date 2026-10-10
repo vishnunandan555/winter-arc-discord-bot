@@ -36,10 +36,14 @@ class RobustView(discord.ui.View):
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item[Any]) -> None:
         orig = getattr(error, "original", error)
-        if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
+        if (
+            isinstance(orig, (discord.errors.NotFound, discord.errors.InteractionResponded))
+            or (isinstance(orig, discord.errors.HTTPException) and getattr(orig, "code", None) in (10062, 40060))
+            or interaction.is_expired()
+        ):
             logger.debug(
                 f"Interaction for view '{self.__class__.__name__}' item '{getattr(item, 'custom_id', item.__class__.__name__)}' "
-                f"expired or was cancelled by Discord (404 Unknown interaction). User: {interaction.user}"
+                f"expired or was cancelled by Discord ({orig}). User: {interaction.user}"
             )
             return
 
@@ -196,7 +200,7 @@ class HelpView(RobustView):
         embed = build_help_embed(category=chosen)
         try:
             await interaction.response.edit_message(embed=embed, view=self)
-        except discord.NotFound:
+        except (discord.NotFound, discord.HTTPException):
             logger.debug(f"HelpView select interaction for '{chosen}' expired or was cancelled by Discord.")
 
 

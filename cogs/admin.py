@@ -46,8 +46,12 @@ class AdminCog(commands.Cog, name="Admin Commands"):
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         cmd = interaction.command.name if interaction.command else "unknown"
         orig = getattr(error, "original", error)
-        if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
-            logger.warning(f"Admin command '/admin {cmd}' interaction expired or cancelled by Discord. User: {interaction.user}")
+        if (
+            isinstance(orig, (discord.errors.NotFound, discord.errors.InteractionResponded))
+            or (isinstance(orig, discord.errors.HTTPException) and getattr(orig, "code", None) in (10062, 40060))
+            or interaction.is_expired()
+        ):
+            logger.debug(f"Admin command '/admin {cmd}' interaction expired or cancelled by Discord ({orig}). User: {interaction.user}")
             return
 
         if isinstance(error, app_commands.MissingPermissions):

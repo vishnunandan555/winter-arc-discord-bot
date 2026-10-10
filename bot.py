@@ -163,9 +163,13 @@ class WinterArcBot(commands.Bot):
                 return
 
             orig = getattr(error, "original", error)
-            if (isinstance(orig, discord.errors.NotFound) and getattr(orig, "code", None) == 10062) or interaction.is_expired():
-                logger.warning(
-                    f"Interaction for '/{cmd_name}' expired or was cancelled by Discord (404 Unknown interaction). User: {user_info} in '{guild_name}' #{channel_name}"
+            if (
+                isinstance(orig, (discord.errors.NotFound, discord.errors.InteractionResponded))
+                or (isinstance(orig, discord.errors.HTTPException) and getattr(orig, "code", None) in (10062, 40060))
+                or interaction.is_expired()
+            ):
+                logger.debug(
+                    f"Interaction for '/{cmd_name}' expired or was cancelled by Discord ({orig}). User: {user_info} in '{guild_name}' #{channel_name}"
                 )
                 return
 
