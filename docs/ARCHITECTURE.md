@@ -274,3 +274,67 @@ User Command (/quick, /grind, DM briefing, toasts/roasts)
    - Free or low-cost cloud hosting providers (e.g., Wispbyte, Pterodactyl, Oracle Cloud, shared VPS) frequently share IP blocks restricted by Google Generative AI (`400 FAILED_PRECONDITION: User location is not supported for the API use`).
    - When detected, the bot trips a 1-hour fast circuit breaker (`mark_gemini_geo_blocked`). Subsequent calls instantly bypass Google's network round-trip and route directly to Groq in sub-second time without latency penalties.
 
+---
+
+## 7. Modular Productivity Addon: Todo & Smart Reminders (`todo.db`)
+
+To keep productivity distraction-free and protect the fitness progression integrity, the **Todo & Smart Reminders Addon** is architected with strict decoupling from the core Winter Arc framework.
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│               Slash Command Group: /todo                    │
+│   • /todo add [task] [when] [remind_me] [until] [dm] [prio] │
+│   • /todo list [filter: active | trash]                     │
+│   • /todo done [id]   • /todo silence [id]                  │
+│   • /todo delete [id] • /todo restore [id]                  │
+│   • /todo edit [id]   • /todo assign [member] [task]        │
+│   • /todo dnd [start] [end] [enable]                        │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+               ▼                              ▼
+┌──────────────────────────────┐┌─────────────────────────────┐
+│   Schedule Parser            ││   Interactive Components    │
+│   (todo_parser.py)           ││   (ui/todo_views.py)        │
+│ • One-time timestamps        ││ • 15-item Paginated View    │
+│ • "every 2 hours" intervals  ││ • Dynamic Quick Actions     │
+│ • Windowed recurrence        ││ • Assignment Accept/Decline │
+│ • "3 times a day" cadence    ││ • Reminder alert Snooze/Done│
+└──────────────┬───────────────┘└─────────────┬───────────────┘
+               │                              │
+               ▼                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│               Background Ticker (todo_reminders.py)         │
+│   • Runs every 30 seconds                                   │
+│   • Cross-midnight DND quiet hours suppression              │
+│   • Advances interval recurrences & daily windows           │
+│   • Auto-purges trashed tasks older than 7 days             │
+└──────────────┬──────────────────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│             Dedicated Database Layer (todo_db.py)           │
+│   • Completely isolated SQLite database: todo.db            │
+│   • Zero coupling with winter_arc.db                        │
+│   • Relative user task numbering (#1..#N)                   │
+│   • 7-day trash archive (T1..TN) with automatic purging     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Tenets
+1. **Zero Contamination**:
+   - `todo.db` is completely physically separate from `winter_arc.db`. No tables, foreign keys, or queries overlap.
+   - Neutral aesthetic: Clean, distraction-free embeds without wolves, rankings, or frost metaphors.
+2. **Relative User-Facing Task Numbering**:
+   - Users interact exclusively with relative sequential numbers (`#1, #2, #3...`). Internal database autoincrement primary keys are abstracted away.
+   - Trashed items use relative trash codes (`T1, T2...`).
+3. **Smart Natural-Language Schedules**:
+   - Handles one-time dates & times, interval recurrence (`every 2 hours`), windowed recurrence (`every hour after 6 PM`), and multi-daily cadences (`3 times a day`, `5 times a day`).
+   - The `until` boundary parameter is strictly optional, allowing indefinite recurring habits until explicitly checked off.
+4. **Quiet Hours (DND)**:
+   - Users can configure daily quiet hours (e.g., `22:00` to `06:00`).
+   - Reminders triggered during quiet hours are quietly postponed by 30 minutes without spamming or waking the user.
+5. **Interactive Lifecycle**:
+   - Direct inline buttons (`[ ✅ Mark Done ]`, `[ 🔕 Silence ]`, `[ ⏰ Snooze 30m ]`) on reminder alerts.
+   - Delegated task assignment (`/todo assign`) with bilateral accept/decline confirmations.
+
+

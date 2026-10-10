@@ -22,6 +22,7 @@ from scheduler import WinterArcScheduler
 EXTENSIONS = [
     "cogs.warrior",
     "cogs.admin",
+    "cogs.todo",
 ]
 
 

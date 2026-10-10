@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-98%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-115%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -140,6 +140,7 @@ The bot registers **25 native slash commands** designed with Discord autocomplet
 | **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
+| **Productivity Addon** | `/todo` (`add`, `list`, `done`, `silence`, `delete`, `restore`, `edit`, `assign`, `dnd`, `clear`) | Clean distraction-free personal & team task management, smart recurring reminders, 15-item paginated viewer, 7-day trash retention, and cross-midnight DND quiet hours (completely isolated in `todo.db`). |
 | **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences (active by default), master interactive manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`, `backup`, `health`), `/test_reminder`, `/nuke` | Channel binding, role ping, database snapshots, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
@@ -184,9 +185,9 @@ python create_deploy_zip.py
 ```text
 winter-arc-discord-bot/
 ├── ai/                      # Groq & Gemini AI service integrations
-├── cogs/                    # Discord command extensions (warrior & admin cogs)
+├── cogs/                    # Discord command extensions (warrior, admin, and todo cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (98 test cases across 10 modules)
+├── tests/                   # Modular domain test suite (115 test cases across 11 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site
@@ -194,7 +195,10 @@ winter-arc-discord-bot/
 │   └── ARCHITECTURE.md      # Deep technical architecture breakdown
 ├── bot.py                   # Discord bot client & lifecycle events
 ├── config.py                # Environment variables & constants
-├── database.py              # SQLite database schema, migrations & queries
+├── database.py              # SQLite database schema, migrations & queries (winter_arc.db)
+├── todo_db.py               # Standalone SQLite database engine for Todo addon (todo.db)
+├── todo_parser.py           # Schedule & natural language reminder parser
+├── todo_reminders.py        # Background reminder dispatcher & maintenance ticker
 ├── dm_templates.py          # Centralized private DM announcement & invitation templates
 ├── helpers.py               # Autocomplete providers & date helpers
 ├── levels.py                # 12-tier discipline calculation & thresholds

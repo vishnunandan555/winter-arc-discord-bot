@@ -28,8 +28,9 @@ DEFAULT_CHANNEL_ID = int(os.getenv("WINTER_ARC_CHANNEL_ID", os.getenv("DAILY_RES
 # Security 2FA Hash for /nuke (SHA-256 of lowercase answer)
 NUKE_SECURITY_HASH = os.getenv("NUKE_SECURITY_HASH", "ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2561")
 
-# Database path
+# Database paths
 DB_PATH = os.getenv("WINTER_ARC_DB", "winter_arc.db")
+TODO_DB_PATH = os.getenv("TODO_DB", "todo.db")
 
 # Minimum points required in a day to maintain or advance an active streak (Fixed: 30)
 MIN_STREAK_POINTS = 30
