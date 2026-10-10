@@ -251,6 +251,8 @@ class WinterArcScheduler:
         allowed_mentions: Optional[discord.AllowedMentions] = None
     ):
         """Sends content to a text channel, safely splitting into chunks under 2000 chars if necessary."""
+        if allowed_mentions is None:
+            allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
         if len(content) <= 2000:
             await channel.send(content=content, allowed_mentions=allowed_mentions)
             return
@@ -292,7 +294,7 @@ class WinterArcScheduler:
 
         curr_phase = get_current_phase()
         phase_progress = get_phase_progress(curr_phase) if curr_phase else None
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
         if target_channel:
             msg = build_morning_kickoff_message(
@@ -346,7 +348,7 @@ class WinterArcScheduler:
             except Exception as e:
                 logger.debug(f"Could not generate AI afternoon quote: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
         if target_channel:
             msg = build_afternoon_checkin_message(
@@ -403,7 +405,7 @@ class WinterArcScheduler:
             override_quote=override_quote,
         )
 
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
         if target_channel:
             msg = build_evening_checkin_message(
@@ -463,7 +465,7 @@ class WinterArcScheduler:
         except Exception as e:
             logger.warning(f"Could not auto-export web stats: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
         # Build individual channel alert messages for shields used and broken streaks
         individual_alerts = []
@@ -472,19 +474,20 @@ class WinterArcScheduler:
             if not u_id:
                 continue
 
+            uname = entry.get("username", "Warrior")
             if entry.get("auto_shield_applied"):
                 streak = entry.get("current_streak", 0)
                 shields_left = entry.get("shields_left", 0)
                 if shields_left == 1:
-                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
+                    alert = f"🛡️ **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
                 else:
-                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
+                    alert = f"🛡️ **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Shield auto-applied for user {u_id} (streak: {streak}, {shields_left} shields left)")
 
             elif entry.get("streak_broken"):
                 broken_streak = entry.get("broken_streak_count", 0)
-                alert = f"💔 <@{u_id}> You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
+                alert = f"💔 **{uname}** You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
 
@@ -565,7 +568,7 @@ class WinterArcScheduler:
             logger.warning(f"Could not generate Gemini phase ceremony speech: {e}")
             ceremony_speech = ""
 
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
         msg = build_phase_conclusion_message(
             phase_dict=phase_dict,
             phase_lb=phase_lb,
@@ -664,7 +667,7 @@ class WinterArcScheduler:
             ai_speech = "Week 1 is in the books. Execution continues tomorrow at 00:00 IST."
 
         embed = build_weekly_state_of_the_pack_embed(weekly_volume, top_warriors, ai_speech)
-        allowed_mentions = discord.AllowedMentions(users=True, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
         if target_channel:
             msg = build_weekly_recap_message(

@@ -493,20 +493,23 @@ class TestStreakShields(WinterArcTestCase):
             send_calls = [call.kwargs.get("content") or (call.args[0] if call.args else "") for call in mock_channel.send.call_args_list]
 
             # Find Case 1 alert for User A (1 shield left)
-            msg_a = next((m for m in send_calls if f"<@{user_a}>" in str(m) and "Streak Shield" in str(m)), None)
+            msg_a = next((m for m in send_calls if "**WarriorA**" in str(m) and "Streak Shield" in str(m)), None)
             self.assertIsNotNone(msg_a)
+            self.assertNotIn(f"<@{user_a}>", msg_a)
             self.assertIn("Your Streak Shield just saved your", msg_a)
             self.assertIn("You have **1 shield left**. Lock in today!", msg_a)
 
             # Find Case 2 alert for User B (last shield)
-            msg_b = next((m for m in send_calls if f"<@{user_b}>" in str(m) and "Streak Shield" in str(m)), None)
+            msg_b = next((m for m in send_calls if "**WarriorB**" in str(m) and "Streak Shield" in str(m)), None)
             self.assertIsNotNone(msg_b)
+            self.assertNotIn(f"<@{user_b}>", msg_b)
             self.assertIn("Your Streak Shield just saved your", msg_b)
             self.assertIn("That was your **last shield**! Make sure to log today or your streak breaks!", msg_b)
 
             # Find Case 3 alert for User C (streak broken)
-            msg_c = next((m for m in send_calls if f"<@{user_c}>" in str(m) and "broken" in str(m)), None)
+            msg_c = next((m for m in send_calls if "**WarriorC**" in str(m) and "broken" in str(m)), None)
             self.assertIsNotNone(msg_c)
+            self.assertNotIn(f"<@{user_c}>", msg_c)
             self.assertIn("You missed yesterday and had no Streak Shields left.", msg_c)
             self.assertIn("has broken! Start fresh and rebuild today!", msg_c)
 

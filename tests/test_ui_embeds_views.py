@@ -351,9 +351,9 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         expected_msg = (
             "@Coldfornt [WinterArc] 3 hours left until midnight rollover. ⏳\n"
             "If you haven't hit your 30 points yet, get your reps or run logged before midnight to keep your streak alive.\n\n"
-            "- <@1001> — 0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight.\n"
-            "- <@1002> — 50 pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight.\n"
-            "- <@1003> — 500 pts, completely maxed out the board early. Rest up for tomorrow.\n\n"
+            "- **STRANGER** — 0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight.\n"
+            "- **Vikram** — 50 pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight.\n"
+            "- **Alex** — 500 pts, completely maxed out the board early. Rest up for tomorrow.\n\n"
             "> \"Waste no more time arguing what a good man should be. Be one.\" — Marcus Aurelius\n\n"
             "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
         )
@@ -508,7 +508,8 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             role_ping="@Coldfornt"
         )
         self.assertIn("@Coldfornt [WinterArc] Afternoon Check-in ⏳", afternoon_msg)
-        self.assertIn("- <@1001> —", afternoon_msg)
+        self.assertIn("- **Vikram** —", afternoon_msg)
+        self.assertNotIn("<@1001>", afternoon_msg)
         self.assertIn("> Stay disciplined.", afternoon_msg)
         self.assertIn("-# Log with /log", afternoon_msg)
 
@@ -524,8 +525,9 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             role_ping="@Coldfornt"
         )
         self.assertIn("@Coldfornt [WinterArc] Day Finalized", midnight_msg)
-        self.assertIn("🥇 <@1001> — **120 pts** (24%)", midnight_msg)
-        self.assertIn("🥈 <@1002> — **500 pts** (100%) ⭐", midnight_msg)
+        self.assertIn("🥇 **Vikram** — **120 pts** (24%)", midnight_msg)
+        self.assertIn("🥈 **Alex** — **500 pts** (100%) ⭐", midnight_msg)
+        self.assertNotIn("<@1001>", midnight_msg)
         self.assertIn("Great daily effort from the group.", midnight_msg)
         self.assertIn("🔥 **Perfect Days**: **1** member(s) hit 100%.", midnight_msg)
 
@@ -552,11 +554,12 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         )
         self.assertIn("### Winter Arc | Weekly Recap", recap_msg)
         self.assertIn("**Weekly Top 5**", recap_msg)
-        self.assertIn("🥇 <@1001> — **3,200 pts**", recap_msg)
-        self.assertIn("🥈 <@1002> — **2,800 pts**", recap_msg)
-        self.assertIn("🥉 <@1003> — **2,100 pts**", recap_msg)
-        self.assertIn("4️⃣ <@1004> — **1,800 pts**", recap_msg)
-        self.assertIn("5️⃣ <@1005> — **1,500 pts**", recap_msg)
+        self.assertIn("🥇 **Vikram** — **3,200 pts**", recap_msg)
+        self.assertIn("🥈 **Alex** — **2,800 pts**", recap_msg)
+        self.assertIn("🥉 **Sam** — **2,100 pts**", recap_msg)
+        self.assertIn("4️⃣ **Devin** — **1,800 pts**", recap_msg)
+        self.assertIn("5️⃣ **Arjun** — **1,500 pts**", recap_msg)
+        self.assertNotIn("<@1001>", recap_msg)
         self.assertIn("**Weekly Workout Volume**", recap_msg)
         self.assertIn("• Push-ups: `1,500` reps", recap_msg)
         self.assertIn("• Running: `42.5` km", recap_msg)
@@ -583,11 +586,12 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         )
         self.assertIn("### Winter Arc | Phase 1 Concluded • FIRST FROST", phase_msg)
         self.assertIn("**Phase 1 Top Standings**", phase_msg)
-        self.assertIn("🥇 <@1001> — **14,200 pts** *(28-day streak)*", phase_msg)
-        self.assertIn("🥈 <@1002> — **12,850 pts** *(25-day streak)*", phase_msg)
-        self.assertIn("🥉 <@1003> — **9,400 pts** *(19-day streak)*", phase_msg)
-        self.assertIn("4️⃣ <@1004> — **8,100 pts** *(15-day streak)*", phase_msg)
-        self.assertIn("5️⃣ <@1005> — **7,500 pts** *(12-day streak)*", phase_msg)
+        self.assertIn("🥇 **Vikram** — **14,200 pts** *(28-day streak)*", phase_msg)
+        self.assertIn("🥈 **Alex** — **12,850 pts** *(25-day streak)*", phase_msg)
+        self.assertIn("🥉 **Devin** — **9,400 pts** *(19-day streak)*", phase_msg)
+        self.assertIn("4️⃣ **Sam** — **8,100 pts** *(15-day streak)*", phase_msg)
+        self.assertIn("5️⃣ **Arjun** — **7,500 pts** *(12-day streak)*", phase_msg)
+        self.assertNotIn("<@1001>", phase_msg)
         self.assertIn("**Winter Arc Phase 1 Stats:**", phase_msg)
         self.assertIn("• Active Warriors: `5`", phase_msg)
         self.assertIn("• Total Points Logged: `52,050 pts`", phase_msg)

@@ -1001,7 +1001,7 @@ def build_afternoon_checkin_message(
 
     for m in sorted_users:
         star = " ⭐" if m["perfect_day"] else ""
-        member_lines.append(f"- <@{m['discord_id']}> — **{m['points']} / {m['max_points']} pts** ({m['pct']}%){star}")
+        member_lines.append(f"- **{m['username']}** — **{m['points']} / {m['max_points']} pts** ({m['pct']}%){star}")
 
     members_section = "\n".join(member_lines) if member_lines else "- _No enrolled members yet._"
 
@@ -1117,6 +1117,7 @@ def build_evening_checkin_message(
         for w in sorted_warriors:
             d_id = int(w["discord_id"])
             pts = w.get("points", 0)
+            username = w.get("username", "Warrior")
             callout = (callouts or {}).get(d_id)
             if not callout:
                 if pts == 0:
@@ -1128,7 +1129,7 @@ def build_evening_checkin_message(
                     callout = f"{pts} pts, completely maxed out the board early. Rest up for tomorrow."
                 else:
                     callout = f"{pts} pts, streak is safe! Solid execution, but see if you can squeeze in another set before midnight."
-            lines.append(f"- <@{d_id}> — {callout}")
+            lines.append(f"- **{username}** — {callout}")
         warriors_section = "\n".join(lines)
 
     quote = (stoic_quote or '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius').strip()
@@ -1222,9 +1223,8 @@ def build_midnight_finalization_message(
         if entry["perfect_day"]:
             perfect_count += 1
         pct = int(round(entry.get("completion_rate", 0) * 100))
-        d_id = entry.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{entry['username']}**"
-        podium_lines.append(f"{rank_badge} {user_mention} — **{pts} pts** ({pct}%){perfect_star}")
+        username = entry.get("username", "Warrior")
+        podium_lines.append(f"{rank_badge} **{username}** — **{pts} pts** ({pct}%){perfect_star}")
 
     board_section = "\n".join(podium_lines) if podium_lines else "_No activity logged for this day._"
     clean_sweeps = f"\n\n🔥 **Perfect Days**: **{perfect_count}** member(s) hit 100%." if perfect_count > 0 else ""
@@ -1785,10 +1785,9 @@ def build_weekly_recap_message(
     badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     for idx, w in enumerate(top_warriors[:5]):
         badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
-        d_id = w.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{w.get('username', 'Warrior')}**"
+        username = w.get("username", "Warrior")
         pts = w.get("points", w.get("total_points", 0))
-        podium_lines.append(f"{badge} {user_mention} — **{pts:,} pts**")
+        podium_lines.append(f"{badge} **{username}** — **{pts:,} pts**")
 
     podium_block = "**Weekly Top 5**\n" + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
 
@@ -2013,12 +2012,11 @@ def build_phase_conclusion_message(
     top_5 = phase_lb[:5]
     for idx, u in enumerate(top_5):
         badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
-        d_id = u.get("discord_id")
-        user_mention = f"<@{d_id}>" if d_id else f"**{u.get('username', 'Warrior')}**"
+        username = u.get("username", "Warrior")
         streak = u.get("streak", 0)
         streak_str = f" *({streak}-day streak)*"
         pts = u.get("total_points", u.get("points", 0))
-        top_lines.append(f"{badge} {user_mention} — **{pts:,} pts**{streak_str}")
+        top_lines.append(f"{badge} **{username}** — **{pts:,} pts**{streak_str}")
 
     standings_block = f"**Phase {p_num} Top Standings**\n" + ("\n".join(top_lines) if top_lines else "_No participants recorded._")
 

@@ -419,8 +419,9 @@ class TestRemindersAndDMs(WinterArcTestCase):
         self.assertIn("### Winter Arc | Weekly Recap", recap_msg)
         self.assertIn("> Discipline is the only currency here", recap_msg)
         self.assertIn("**Weekly Top 5**", recap_msg)
-        self.assertIn("<@111> — **1,500 pts**", recap_msg)
-        self.assertIn("<@555> — **800 pts**", recap_msg)
+        self.assertIn("**Spartan** — **1,500 pts**", recap_msg)
+        self.assertIn("**Scout** — **800 pts**", recap_msg)
+        self.assertNotIn("<@111>", recap_msg)
         self.assertNotIn("<@666>", recap_msg)  # Only top 5
         self.assertIn("**Weekly Workout Volume**", recap_msg)
         self.assertIn("`1,420` reps", recap_msg)
@@ -451,7 +452,8 @@ class TestRemindersAndDMs(WinterArcTestCase):
         self.assertIn("### Winter Arc | Phase 1 Concluded • First Frost", conclusion_msg)
         self.assertIn("> First Frost has separated the committed", conclusion_msg)
         self.assertIn("**Phase 1 Top Standings**", conclusion_msg)
-        self.assertIn("<@111> — **15,000 pts** *(31-day streak)*", conclusion_msg)
+        self.assertIn("**Spartan** — **15,000 pts** *(31-day streak)*", conclusion_msg)
+        self.assertNotIn("<@111>", conclusion_msg)
         self.assertNotIn("<@666>", conclusion_msg)  # Only top 5
         self.assertIn("**Winter Arc Phase 1 Stats:**", conclusion_msg)
         self.assertNotIn("Community", conclusion_msg)  # Word Community removed
