@@ -791,6 +791,24 @@
             </div>
           </div>
 
+          <!-- Pillar 7: Standalone Productivity Addon: /todo & Smart Reminders -->
+          <div class="showcase-card">
+            <div class="card-icon-wrap">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+            </div>
+            <h3 class="showcase-title">Modular Todo &amp; Smart Reminders</h3>
+            <p class="showcase-desc">
+              Distraction-free personal &amp; team task management strictly isolated in its own dedicated <code>todo.db</code>. Features relative task numbering (#1..#N), 7-day auto-purged trash (T1..TN), natural language recurrence, team delegation, and cross-midnight DND quiet hours.
+            </p>
+            <div class="code-snippet-preview">
+              <code>/todo add task:"Push project commit" when:"tomorrow 5pm" remind_me:"every 2 hours"</code>
+              <code>/todo dnd start_time:"22:00" end_time:"06:00" enable:True</code>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -1267,6 +1285,7 @@
             <button class="filter-btn" data-category="warrior">Warrior</button>
             <button class="filter-btn" data-category="ai">AI Engines</button>
             <button class="filter-btn" data-category="shield">Streak Shield</button>
+            <button class="filter-btn" data-category="todo">Todo Addon</button>
             <button class="filter-btn" data-category="admin">Admin</button>
           </div>
         </div>
@@ -1667,6 +1686,131 @@
             <div class="cmd-desc">Preview morning kickoff, afternoon pulse, evening warning, or midnight broadcast layouts.</div>
             <div class="cmd-tags">
               <span class="tag-cat tag-admin">Admin</span>
+            </div>
+          </div>
+
+          <!-- Todo Addon Commands -->
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo add [task] [when] [remind_me] [until] [dm] [priority]</span>
+              <button class="copy-cmd-btn" data-copy="/todo add " title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Create a new task with smart recurring natural-language reminders, indefinite habit schedules, and private DM or channel delivery.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">task: required</span>
+              <span class="tag-param">when: optional</span>
+              <span class="tag-param">remind_me: optional</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo list [filter: active|trash]</span>
+              <button class="copy-cmd-btn" data-copy="/todo list" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Inspect tasks with 15-item pagination (◀️/▶️), dynamic relative numbering (#1..#N), trash archive toggle, and quick inline action menus.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">filter: optional</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo done [id]</span>
+              <button class="copy-cmd-btn" data-copy="/todo done id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Mark a task complete by its relative ID (e.g. 1) and automatically move it to the 7-day trash archive. Remaining tasks dynamically re-number.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo silence [id]</span>
+              <button class="copy-cmd-btn" data-copy="/todo silence id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Disable future reminder alerts for an active task without deleting it or altering its place in your queue.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo delete [id]</span>
+              <button class="copy-cmd-btn" data-copy="/todo delete id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Remove an active task and move it to the 7-day auto-pruning trash archive with relative trash code (T1, T2...).</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo restore [id]</span>
+              <button class="copy-cmd-btn" data-copy="/todo restore id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Restore a task from the 7-day trash archive back into your active queue by its trash code (e.g. T1 or 1).</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo edit [id] [description] [clear_reminders]</span>
+              <button class="copy-cmd-btn" data-copy="/todo edit id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Update a task's description or clear its attached reminder schedule while preserving active queue ordering.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo assign [member] [task] [when] [remind_me]</span>
+              <button class="copy-cmd-btn" data-copy="/todo assign " title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Delegate a task to a peer with channel notification and private DM prompt featuring interactive [ Accept ] and [ Decline ] buttons.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">member: required</span>
+              <span class="tag-param">task: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo dnd [start_time] [end_time] [enable]</span>
+              <button class="copy-cmd-btn" data-copy="/todo dnd" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Configure cross-midnight Do Not Disturb quiet hours (e.g. 22:00 to 06:00). Due reminders are postponed by 30 minutes without waking you.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">start_time: optional</span>
+              <span class="tag-param">end_time: optional</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo clear [which: active|trash|all]</span>
+              <button class="copy-cmd-btn" data-copy="/todo clear which:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Safely purge active tasks, empty the 7-day trash archive, or wipe all todo data with confirmation.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">which: required</span>
             </div>
           </div>
 
@@ -2432,7 +2576,7 @@ docker compose logs -f</code></pre>
             </summary>
             <div class="faq-answer">
               <p>
-                Real life includes legitimate rest, travel, and illness. For every 7 consecutive active days (at least 30 points per day), members earn 1 Streak Shield (inventory capped at 3). Running <code>/shield use [target] [reason]</code> protects your streak during a recovery day without resetting your progress to zero.
+                Real life includes legitimate rest, travel, and illness. For every 7 consecutive active days (at least 30 points per day), members earn 1 Streak Shield (inventory capped at 2). Running <code>/shield use [target] [reason]</code> protects your streak during a recovery day without resetting your progress to zero.
               </p>
             </div>
           </details>
@@ -2464,6 +2608,26 @@ docker compose logs -f</code></pre>
               <p>
                 Yes, 100% free under the permissive MIT License. There are zero subscription paywalls, no paid tiers, and no advertisements. You maintain full data sovereignty over your private SQLite database (<code>winter_arc.db</code>).
               </p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">
+              <span class="faq-q-text">What is the Todo &amp; Smart Reminders Addon and how does it work?</span>
+              <span class="faq-icon" aria-hidden="true">&plus;</span>
+            </summary>
+            <div class="faq-answer">
+              <p>
+                The Todo Addon is a completely isolated, distraction-free productivity suite built directly into the bot:
+              </p>
+              <ul>
+                <li><strong>Dedicated Database:</strong> Operates entirely within <code>todo.db</code>, keeping your personal/server tasks strictly separated from <code>winter_arc.db</code>.</li>
+                <li><strong>Relative Numbering (#1..#N):</strong> Tasks are presented sequentially without confusing database IDs. Completing or deleting a task dynamically re-indexes the active list.</li>
+                <li><strong>7-Day Auto-Purged Trash:</strong> Completed or removed items move to a temporary trash archive (<code>T1..TN</code>) and are automatically pruned after 7 days.</li>
+                <li><strong>Smart Schedules &amp; Optional Endpoints:</strong> Supports one-time dates (<em>"tomorrow 5pm"</em>), recurring intervals (<em>"every 2 hours"</em>), windowed schedules (<em>"every hour after 6 PM"</em>), and multi-daily cadences (<em>"3 times a day"</em>) with optional <code>until</code> parameters for indefinite habit tracking.</li>
+                <li><strong>Do Not Disturb (DND):</strong> Configure quiet hours (e.g. <code>22:00</code> to <code>06:00</code>) to quietly postpone reminders by 30 minutes without spamming your DMs.</li>
+                <li><strong>Team Delegation:</strong> Use <code>/todo assign @member [task]</code> with interactive <em>[ Accept ]</em> and <em>[ Decline ]</em> buttons via channel and DM.</li>
+              </ul>
             </div>
           </details>
 

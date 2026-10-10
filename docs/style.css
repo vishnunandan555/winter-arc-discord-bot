@@ -1769,6 +1769,11 @@ code {
   color: #00E5FF;
 }
 
+.tag-todo {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+}
+
 .tag-admin {
   background: rgba(241, 196, 15, 0.15);
   color: #F1C40F;

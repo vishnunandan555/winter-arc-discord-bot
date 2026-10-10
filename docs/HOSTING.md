@@ -45,7 +45,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
    - Since `.gitignore` intentionally excludes `.env` and `*.db` for security, open **File Manager** in the panel.
    - Create a `.env` file with your `DISCORD_TOKEN`, `APPLICATION_ID`, etc.
    - **Tip for Cloud Containers**: Cloud container IPs (like Wispbyte / Pterodactyl nodes) may be blocked by Google Gemini's regional policies (`400 User location is not supported`). Providing a free `GROQ_API_KEY` (optionally with `GROQ_MODEL=llama-3.3-70b-versatile`) enables the bot's automatic circuit breaker to failover all AI tasks to Groq with zero downtime.
-   - *Note: Live SQLite databases (`winter_arc.db`) are ignored by Git, so pulling updates will never overwrite user progress or streaks.*
+    - *Note: Live SQLite databases (`winter_arc.db` and `todo.db`) are ignored by Git, so pulling updates will never overwrite user progress, streaks, or active todos.*
 5. **Verify Startup & Start**:
    - In the **Startup** tab, ensure **Startup Command** is `python bot.py`.
    - Click **Start** on the console. Dependencies install automatically from `requirements.txt` and the bot launches.
@@ -75,7 +75,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 
 5. **Verify Startup & Start**:
    - In **Startup**, set **Startup Command** to `python bot.py`.
-   - Click **Start** on the console. The bot initializes `winter_arc.db` automatically and goes online.
+   - Click **Start** on the console. The bot initializes `winter_arc.db` & `todo.db` automatically and goes online.
 
 ---
 

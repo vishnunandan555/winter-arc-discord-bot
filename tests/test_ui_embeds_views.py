@@ -658,8 +658,17 @@ class TestInteractiveViews(WinterArcTestCase):
         cheat_sheet = [v for k, v in field_map.items() if "Command Directory Cheat Sheet" in k][0]
         for cmd in ["/quick", "/log", "/set", "/grind", "/today", "/tasks", "/streak", "/profile", "/ranks",
                     "/leaderboard", "/stats", "/history", "/recap", "/shield status", "/shield use",
-                    "/settings", "/enroll", "/leave_arc", "/ping", "/admin"]:
+                    "/todo", "/settings", "/enroll", "/leave_arc", "/ping", "/admin"]:
             self.assertIn(cmd, cheat_sheet)
+
+        todo_embed = build_help_embed("todo")
+        self.assertEmbedTitleContains(todo_embed, "Todo & Smart Reminders Addon")
+        self.assertIn("todo.db", todo_embed.description)
+        todo_field_map = {f.name: f.value for f in todo_embed.fields}
+        self.assertTrue(any("/todo add" in k for k in todo_field_map))
+        self.assertTrue(any("/todo list" in k for k in todo_field_map))
+        self.assertTrue(any("/todo assign" in k for k in todo_field_map))
+        self.assertTrue(any("/todo dnd" in k for k in todo_field_map))
 
         logging_embed = build_help_embed("logging")
         self.assertEmbedTitleContains(logging_embed, "Workout & AI Logging Engine")
@@ -702,7 +711,7 @@ class TestInteractiveViews(WinterArcTestCase):
         asyncio.run(run_help_cmd_test())
 
         view = HelpView()
-        categories = ["overview", "logging", "progress", "shields", "settings", "admin"]
+        categories = ["overview", "logging", "progress", "shields", "todo", "settings", "admin"]
 
         async def test_view_categories():
             for cat in categories:
@@ -743,6 +752,11 @@ class TestInteractiveViews(WinterArcTestCase):
                     self.assertIn("30 points", all_text)
                     self.assertIn("7-day streak milestone", all_text)
                     self.assertIn("/shield use", all_text)
+                elif cat == "todo":
+                    self.assertIn("/todo add", all_text)
+                    self.assertIn("/todo list", all_text)
+                    self.assertIn("/todo dnd", all_text)
+                    self.assertIn("todo.db", all_text)
                 elif cat == "settings":
                     self.assertIn("/settings", all_text)
                     self.assertIn("05:00 IST", all_text)

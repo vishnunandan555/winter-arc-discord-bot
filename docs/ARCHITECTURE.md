@@ -96,17 +96,22 @@ winter-arc-bot/
 │   ├── __init__.py
 │   ├── formatters.py         # Visual progress bar & rank badge formatters
 │   ├── embeds.py             # Single-card spacious Discord embeds & Amarok voice
-│   └── views.py              # Interactive views (CouncilVotingView, AccuseConfirmView, etc.)
+│   ├── views.py              # Interactive views (CouncilVotingView, AccuseConfirmView, etc.)
+│   └── todo_views.py         # Interactive 15-item Todo views, alerts, and assignment cards
 ├── cogs/
 │   ├── __init__.py
 │   ├── warrior.py            # User-facing slash commands, /accuse, and /reminders
-│   └── admin.py              # Administrator commands, /admin grind, /admin backup, /nuke
+│   ├── admin.py              # Administrator commands, /admin grind, /admin backup, /nuke
+│   └── todo.py               # Standalone /todo command group implementation
+├── todo_db.py                # Dedicated SQLite engine for Todo addon (todo.db)
+├── todo_parser.py            # Natural language schedule & recurrence parser
+├── todo_reminders.py         # Background reminder dispatcher & maintenance ticker
 ├── dm_templates.py           # Centralized DM announcement & invitation templates
-├── tests/                    # Modular domain test suite (98 tests across 10 modules)
+├── tests/                    # Modular domain test suite (115 tests across 11 modules)
 ├── scheduler.py              # Automated background APScheduler loop with silent broadcasts
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test discovery runner (98 tests)
+├── test_engine.py            # Automated test discovery runner (115 tests)
 ├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
 ├── Dockerfile                # Production container specification
 ├── docker-compose.yml        # Multi-platform container configuration

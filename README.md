@@ -103,13 +103,13 @@ GROQ_MODEL=llama-3.3-70b-versatile
 python bot.py
 ```
 
-*The bot will connect to Discord, initialize `winter_arc.db`, and sync all 25 slash commands automatically.*
+*The bot will connect to Discord, initialize `winter_arc.db` & `todo.db`, and sync all slash commands automatically.*
 
 ---
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **98 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **115 comprehensive test cases** organized into 11 domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -119,6 +119,7 @@ python test_engine.py
 python -m unittest discover tests
 
 # Or run individual domain test modules
+python -m unittest tests/test_todo_system.py
 python -m unittest tests/test_reminders_and_dms.py
 python -m unittest tests/test_call_cap_and_governance.py
 python -m unittest tests/test_streaks_shields.py
@@ -132,7 +133,7 @@ python -m unittest tests/test_cogs_bot.py
 
 ## 📋 Slash Command Overview
 
-The bot registers **25 native slash commands** designed with Discord autocomplete and button pagination:
+The bot registers native slash commands designed with Discord autocomplete, select menus, and interactive button pagination:
 
 | Category | Commands | Description |
 | :--- | :--- | :--- |

@@ -802,6 +802,69 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak milestone")
         return embed
 
+    elif category == "todo":
+        embed = discord.Embed(
+            title="📋 Todo & Smart Reminders Addon",
+            description=(
+                "Standalone personal and team task management with intelligent natural language reminders.\n"
+                "Completely isolated in `todo.db` with a clean, distraction-free aesthetic."
+            ),
+            color=0x3498DB
+        )
+        embed.add_field(
+            name="➕ `/todo add [task] [when] [remind_me] [until] [dm] [priority]`",
+            value=(
+                "Create a new task with flexible scheduling and natural language reminders:\n"
+                "• **One-time**: `when:tomorrow 6pm` or `remind_me:2026-10-15 09:30`\n"
+                "• **Intervals**: `remind_me:every 2 hours` or `remind_me:every 30m`\n"
+                "• **Windowed**: `remind_me:every hour after 6 PM` or `every 2h before 10 PM`\n"
+                "• **Smart Cadence**: `remind_me:3 times a day` (09:00, 14:00, 20:00) or `5 times a day`\n"
+                "• **Optional Until**: Habit reminders repeat indefinitely unless an `until` date is set.\n"
+                "• **Delivery**: Set `dm:True` (default) for private DMs or `False` for the current channel."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="📜 `/todo list [filter]` — 15-Item Paginated View",
+            value=(
+                "• View tasks with 15 items per page and interactive `◀️ Prev` / `▶️ Next` pagination.\n"
+                "• Features relative task numbering (`#1, #2, #3...`). If task #1 is done, remaining tasks dynamically re-index.\n"
+                "• Toggle between **Active Tasks** and **Trash Archive** (`T1, T2...`).\n"
+                "• Quick inline select menus to Mark Done, Silence, or Restore tasks directly from the list."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="⚡ Quick Actions & Maintenance",
+            value=(
+                "• `/todo done [id]` — Mark a task complete (moved to 7-day trash archive).\n"
+                "• `/todo silence [id]` — Disable all reminder alerts for this task while keeping it active.\n"
+                "• `/todo delete [id]` — Move a task to the 7-day trash archive.\n"
+                "• `/todo restore [id]` — Restore a trashed task back to active list (e.g. `T1` or `1`).\n"
+                "• `/todo edit [id] [description] [clear_reminders]` — Update task details or remove reminders.\n"
+                "• `/todo clear [which]` — Wipe `active`, `trash`, or `all` tasks with confirmation."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🤝 Team Delegation: `/todo assign [member] [task]`",
+            value=(
+                "Assign a task to a server peer. Sends a channel ping and private DM notification with interactive "
+                "`[ ✅ Accept Task ]` and `[ ❌ Decline ]` buttons. Upon acceptance, the task enters their active `#1..#N` queue."
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🌙 Quiet Hours: `/todo dnd [start_time] [end_time] [enable]`",
+            value=(
+                "Configure Do Not Disturb quiet hours (e.g. `22:00` to `06:00`). Reminders triggered during "
+                "quiet hours are quietly postponed by 30 minutes without waking you."
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Todo Addon • Fully isolated in todo.db • 7-day trash auto-pruning")
+        return embed
+
     elif category == "settings":
         embed = discord.Embed(
             title="⚙️ Accountability, Settings & Utilities",
@@ -925,6 +988,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
                 "• **Governance**: `/accuse`\n"
                 "• **Recovery**: `/shield status` • `/shield use`\n"
+                "• **Productivity Addon**: `/todo add` • `/todo list` • `/todo done` • `/todo silence` • `/todo delete` • `/todo restore` • `/todo edit` • `/todo assign` • `/todo dnd` • `/todo clear`\n"
                 "• **Accountability**: `/reminders` • `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
                 "• **Admin**: `/admin backup` • `/admin sync` • `/admin health` • `/admin set_channel` • `/admin set_role` • `/admin overview` • `/test_reminder`"
             ),

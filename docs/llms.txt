@@ -43,7 +43,7 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - Earn 1 Streak Shield every 7 active days (inventory cap: 2).
 - Protect active streaks during illness, rest, or travel without shame: `/shield use [target] [reason]`.
 
-### 4. 12-Tier Discipline Hierarchy
+### 5. 12-Tier Discipline Hierarchy
 - Calibrated around 12,000 Lifetime Points for Level 12 (Apex) across 90 days (~133 pts/day average):
   - L1: Initiate (0-499 pts)
   - L2: Novice (500-1199 pts)
@@ -58,7 +58,7 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
   - L11: Master (10800-11999 pts)
   - L12: Apex (12,000+ pts)
 
-### 5. Automated Cadence (Dedicated Channel)
+### 6. Automated Cadence (Dedicated Channel)
 - `05:00 IST`: Morning Kickoff & daily targets announcement (silent broadcast) + personal AI wakeup briefings.
 - `16:30 IST`: Afternoon pack progress check-in (silent broadcast) + personal progress check DMs.
 - `21:00 IST`: Evening Streak Warning (silent broadcast, 3h before midnight) + personal streak defense alerts.
@@ -66,6 +66,17 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - `Sunday 10:00 IST`: Weekly State of the Pack & weekly podium.
 - Broadcasts strictly inside channel set by `/admin set_channel` (zero role ping spam).
 - Personal DM reminders configurable individually via `/reminders`.
+
+### 7. Standalone Productivity Addon: Todo & Smart Reminders (`todo.db`)
+- Completely decoupled, zero-contamination SQLite engine (`todo.db`) with clean distraction-free formatting (no wolves or rank metaphors).
+- **Commands**: `/todo add`, `/todo list`, `/todo done`, `/todo silence`, `/todo delete`, `/todo restore`, `/todo edit`, `/todo assign`, `/todo dnd`, `/todo clear`.
+- **Dynamic Relative Task Numbering**: Active tasks automatically re-index contiguously `#1..#N`; completed/deleted tasks enter a 7-day auto-pruning trash archive (`T1..TN`).
+- **Smart Natural-Language Recurrence**: Intervals (`every 2 hours`), windowed schedules (`every hour after 6 PM`), and multi-daily cadences (`3 times a day`, `5 times a day`) with optional `until` parameter for indefinite recurring habits.
+- **Cross-Midnight Quiet Hours (DND)**: Suppresses alerts during sleep windows (e.g., `22:00` to `06:00`), postponing reminders by 30 minutes without spam.
+- **Interactive UI**: 15-item paginated lists with `◀️ Prev` / `▶️ Next` buttons, inline reminder action buttons (`Done`, `Silence`, `Snooze 30m`), and bilateral assignment modals with `[ ✅ Accept ]` and `[ ❌ Decline ]`.
+
+## Automated Test Suite
+- **115 comprehensive unit & integration tests** across 11 domain modules inside `tests/` with **100% pass rate** (`python test_engine.py`).
 
 ## Quick Start / Deployment
 ```bash

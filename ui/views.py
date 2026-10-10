@@ -191,6 +191,7 @@ class HelpView(RobustView):
             discord.SelectOption(label="Workout & AI Logging", value="logging", description="/quick, /log, /set, /grind", emoji="⚡"),
             discord.SelectOption(label="Progress & Analytics", value="progress", description="/today, /streak, /profile, /leaderboard, /stats, /recap, /ranks", emoji="📊"),
             discord.SelectOption(label="Streak Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
+            discord.SelectOption(label="Todo & Smart Reminders", value="todo", description="/todo add, list, done, assign, dnd quiet hours", emoji="📋"),
             discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /enroll, /leave_arc", emoji="⚙️"),
             discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
         ]
