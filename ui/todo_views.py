@@ -9,9 +9,10 @@ Features:
 - Task assignment invitation with [ ✅ Accept ] and [ ❌ Decline ] buttons
 """
 
+from __future__ import annotations
 import math
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import discord
 from discord.ext import commands
 
