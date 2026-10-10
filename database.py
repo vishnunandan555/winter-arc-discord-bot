@@ -203,6 +203,11 @@ def init_db(db_path: str = DB_PATH):
 
         _ensure_column_exists(cursor, "daily_summaries", "is_shielded", "BOOLEAN DEFAULT 0")
 
+        # Backfill NULL dm_* values so existing users receive DMs by default
+        cursor.execute("UPDATE users SET dm_morning = 1 WHERE dm_morning IS NULL;")
+        cursor.execute("UPDATE users SET dm_afternoon = 1 WHERE dm_afternoon IS NULL;")
+        cursor.execute("UPDATE users SET dm_evening = 1 WHERE dm_evening IS NULL;")
+
         # 7. Grind logs table (daily custom workouts & deep work friction logs evaluated by Gemini)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS grind_logs (
@@ -371,8 +376,8 @@ def enroll_user(discord_id: int, username: str, db_path: Optional[str] = None) -
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO users (discord_id, username, enrolled)
-            VALUES (?, ?, 1)
+            INSERT INTO users (discord_id, username, enrolled, dm_morning, dm_afternoon, dm_evening)
+            VALUES (?, ?, 1, 1, 1, 1)
             ON CONFLICT(discord_id) DO UPDATE SET username = excluded.username, enrolled = 1;
         """, (discord_id, username))
         conn.commit()
@@ -1648,13 +1653,13 @@ def get_opted_in_dm_users(category: str = "all", db_path: Optional[str] = None) 
         cursor = conn.cursor()
         query = "SELECT * FROM users WHERE enrolled = 1"
         if category == "morning":
-            query += " AND dm_morning = 1"
+            query += " AND COALESCE(dm_morning, 1) = 1"
         elif category == "afternoon":
-            query += " AND dm_afternoon = 1"
+            query += " AND COALESCE(dm_afternoon, 1) = 1"
         elif category == "evening":
-            query += " AND dm_evening = 1"
+            query += " AND COALESCE(dm_evening, 1) = 1"
         else:
-            query += " AND (dm_morning = 1 OR dm_afternoon = 1 OR dm_evening = 1)"
+            query += " AND (COALESCE(dm_morning, 1) = 1 OR COALESCE(dm_afternoon, 1) = 1 OR COALESCE(dm_evening, 1) = 1)"
         query += " ORDER BY id ASC;"
         cursor.execute(query)
         return [dict(r) for r in cursor.fetchall()]

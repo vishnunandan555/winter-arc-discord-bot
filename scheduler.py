@@ -728,7 +728,7 @@ class WinterArcScheduler:
                 logger.info(f"Delivered Morning Briefing DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.info(f"Cannot deliver morning DM to user {discord_id} (DMs closed).")
+            logger.warning(f"Cannot deliver morning DM to user {discord_id} (DMs closed or user privacy settings block DMs).")
         except Exception as e:
             logger.warning(f"Error sending morning DM to user {discord_id}: {e}")
         return False
@@ -736,6 +736,7 @@ class WinterArcScheduler:
     async def dispatch_morning_dms(self):
         """Dispatches personal morning briefing DMs concurrently to opted-in members."""
         users = db.get_opted_in_dm_users(category="morning", db_path=self.db_path)
+        logger.info(f"Morning briefing DMs: evaluating {len(users)} opted-in member(s)...")
         if not users:
             return
 
@@ -777,7 +778,7 @@ class WinterArcScheduler:
                 logger.info(f"Delivered Afternoon Check-in DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.info(f"Cannot deliver afternoon DM to user {discord_id} (DMs closed).")
+            logger.warning(f"Cannot deliver afternoon DM to user {discord_id} (DMs closed or user privacy settings block DMs).")
         except Exception as e:
             logger.warning(f"Error sending afternoon DM to user {discord_id}: {e}")
         return False
@@ -785,6 +786,7 @@ class WinterArcScheduler:
     async def dispatch_afternoon_dms(self):
         """Dispatches personal afternoon check-in DMs concurrently to opted-in members."""
         users = db.get_opted_in_dm_users(category="afternoon", db_path=self.db_path)
+        logger.info(f"Afternoon check-in DMs: evaluating {len(users)} opted-in member(s)...")
         if not users:
             return
 
@@ -840,7 +842,7 @@ class WinterArcScheduler:
                 logger.info(f"Delivered Evening Streak Warning DM to {discord_user.display_name} ({discord_id})")
                 return True
         except discord.Forbidden:
-            logger.info(f"Cannot deliver evening DM to user {discord_id} (DMs closed).")
+            logger.warning(f"Cannot deliver evening DM to user {discord_id} (DMs closed or user privacy settings block DMs).")
         except Exception as e:
             logger.warning(f"Error sending evening DM to user {discord_id}: {e}")
         return False
@@ -848,6 +850,7 @@ class WinterArcScheduler:
     async def dispatch_evening_dms(self):
         """Dispatches personal evening streak warning DMs concurrently to opted-in members."""
         users = db.get_opted_in_dm_users(category="evening", db_path=self.db_path)
+        logger.info(f"Evening streak warning DMs: evaluating {len(users)} opted-in member(s)...")
         if not users:
             return
 
