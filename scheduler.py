@@ -171,7 +171,7 @@ class WinterArcScheduler:
 
         # 2. Automated Low-Memory Heap Compaction
         try:
-            collected = gc.collect()
+            collected = await asyncio.to_thread(gc.collect)
             if collected > 100:
                 logger.debug(f"Automated GC sweep collected {collected} unreferenced objects.")
         except Exception as e:

@@ -50,6 +50,32 @@ class GeminiServiceError(Exception):
 
 
 _gemini_client = None
+_gemini_geo_blocked: bool = False
+_gemini_geo_blocked_until: float = 0.0
+
+
+def mark_gemini_geo_blocked(reason: str) -> None:
+    """Marks Gemini as geo-blocked or restricted on this host IP, activating direct Groq routing."""
+    global _gemini_geo_blocked, _gemini_geo_blocked_until
+    if not _gemini_geo_blocked:
+        logger.warning(
+            f"Gemini API location unsupported or restricted on this host ({reason}). "
+            "Routing AI requests directly to Groq (qwen/qwen3.8-27b) engine."
+        )
+    _gemini_geo_blocked = True
+    _gemini_geo_blocked_until = time.time() + 3600.0  # re-test after 1 hour
+
+
+def is_gemini_available() -> bool:
+    """Checks if Gemini client is configured and not currently flagged by the geo-block circuit breaker."""
+    global _gemini_geo_blocked, _gemini_geo_blocked_until
+    if not GEMINI_API_KEY:
+        return False
+    if _gemini_geo_blocked:
+        if time.time() < _gemini_geo_blocked_until:
+            return False
+        _gemini_geo_blocked = False
+    return True
 
 
 def get_gemini_client():
@@ -208,6 +234,9 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         "   - Return pure JSON conforming strictly to the requested schema."
     )
 
+    if not is_gemini_available():
+        return await _evaluate_grind_with_groq(raw_text, system_prompt)
+
     client = get_gemini_client()
     if not client:
         logger.warning("Gemini AI client not available or GEMINI_API_KEY missing. Falling back to Groq...")
@@ -215,20 +244,26 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
 
     try:
         logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for /grind evaluation...")
-        response = await client.aio.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=f"User Reflection:\n\"{raw_text}\"",
-            config=types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                response_schema=GrindEvaluation,
-                temperature=0.2,
+        response = await asyncio.wait_for(
+            client.aio.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=f"User Reflection:\n\"{raw_text}\"",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    response_schema=GrindEvaluation,
+                    temperature=0.2,
+                ),
             ),
+            timeout=5.0
         )
         data = json.loads(response.text)
         return _postprocess_grind_evaluation(data, raw_text, provider=f"Gemini ({GEMINI_MODEL})")
     except Exception as e:
-        logger.warning(f"Gemini /grind evaluation failed ({e}). Falling back to Groq...")
+        if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+            mark_gemini_geo_blocked(str(e))
+        else:
+            logger.warning(f"Gemini /grind evaluation failed ({e}). Falling back to Groq...")
         return await _evaluate_grind_with_groq(raw_text, system_prompt)
 
 
@@ -255,22 +290,27 @@ async def generate_daily_toast_and_roast(
         "4. EXACTLY 2 TO 3 SHORT SENTENCES TOTAL (under 80 words)."
     )
 
-    client = get_gemini_client()
-    if client:
-        try:
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=200,
-                ),
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"Gemini daily toast & roast failed ({e}). Falling back to Groq...")
-    else:
-        logger.warning("Gemini AI client unavailable. Falling back to Groq for daily toast & roast...")
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.7,
+                            max_output_tokens=200,
+                        ),
+                    ),
+                    timeout=5.0
+                )
+                return response.text.strip()
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini daily toast & roast failed ({e}). Falling back to Groq...")
 
     # Groq Fallback
     try:
@@ -332,22 +372,27 @@ async def generate_weekly_state_of_the_pack(
         "5. TONE: Grounded, authentic, respected coach or senior peer in chat. NO corny fantasy roleplay tropes."
     )
 
-    client = get_gemini_client()
-    if client:
-        try:
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=180,
-                ),
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"Gemini weekly state of the pack failed ({e}). Falling back to Groq...")
-    else:
-        logger.warning("Gemini AI client unavailable. Falling back to Groq for weekly state of the pack...")
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.7,
+                            max_output_tokens=180,
+                        ),
+                    ),
+                    timeout=5.0
+                )
+                return response.text.strip()
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini weekly state of the pack failed ({e}). Falling back to Groq...")
 
     try:
         from ai.groq_service import get_groq_client
@@ -430,26 +475,31 @@ async def generate_reminder_motivation(
     Strictly 1 to 2 short sentences (under 25-30 words total). Zero AI slop, zero fantasy melodrama.
     """
     import random
-    client = get_gemini_client()
-    if client:
-        try:
-            logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for {reminder_type} reminder quote...")
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-            )
-            txt = (response.text or "").strip().strip('"').strip("'")
-            if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
-                txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for {reminder_type} reminder quote...")
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                    ),
+                    timeout=5.0
+                )
+                txt = (response.text or "").strip().strip('"').strip("'")
+                if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
+                    txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
 
-            logger.info(f"Gemini {reminder_type} quote generated: '{txt}'")
-            if txt and len(txt.split()) <= 35:
-                return txt
-            return random.choice(CURATED_STOIC_FALLBACKS)
-        except Exception as e:
-            logger.warning(f"Gemini {reminder_type} reminder quote failed ({e}). Falling back to Groq...")
-    else:
-        logger.warning(f"Gemini AI client unavailable. Falling back to Groq for {reminder_type} reminder quote...")
+                logger.info(f"Gemini {reminder_type} quote generated: '{txt}'")
+                if txt and len(txt.split()) <= 35:
+                    return txt
+                return random.choice(CURATED_STOIC_FALLBACKS)
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini {reminder_type} reminder quote failed ({e}). Falling back to Groq...")
 
     # Fallback to Groq if Gemini is region-restricted or experiencing temporary outage
     try:
@@ -524,28 +574,33 @@ async def generate_personalized_morning_briefing(
         "Output ONLY the plain text sentences. Do not use quotes or prefixes."
     )
 
-    client = get_gemini_client()
-    if client:
-        try:
-            logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for personalized morning briefing for {u_name}...")
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                    max_output_tokens=100,
-                ),
-            )
-            txt = (response.text or "").strip().strip('"').strip("'")
-            if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
-                txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
-            if txt and len(txt.split()) <= 50:
-                return txt
-            return random.choice(CURATED_STOIC_FALLBACKS)
-        except Exception as e:
-            logger.warning(f"Gemini personalized morning briefing failed for {u_name} ({e}). Falling back to Groq...")
-    else:
-        logger.warning(f"Gemini AI client unavailable. Falling back to Groq for personalized morning briefing for {u_name}...")
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for personalized morning briefing for {u_name}...")
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.7,
+                            max_output_tokens=100,
+                        ),
+                    ),
+                    timeout=5.0
+                )
+                txt = (response.text or "").strip().strip('"').strip("'")
+                if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
+                    txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+                if txt and len(txt.split()) <= 50:
+                    return txt
+                return random.choice(CURATED_STOIC_FALLBACKS)
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini personalized morning briefing failed for {u_name} ({e}). Falling back to Groq...")
 
     try:
         from ai.groq_service import get_groq_client
@@ -634,40 +689,45 @@ async def generate_evening_alert_data(
         "   \"Waste no more time arguing what a good man should be. Be one.\" — Marcus Aurelius"
     )
 
-    client = get_gemini_client()
-    if client:
-        try:
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=f"Participants tonight (3 hours before midnight):\n" + "\n".join(participant_lines),
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    response_mime_type="application/json",
-                    response_schema=EveningAlertPayload,
-                    temperature=0.4,
-                ),
-            )
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=f"Participants tonight (3 hours before midnight):\n" + "\n".join(participant_lines),
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            response_mime_type="application/json",
+                            response_schema=EveningAlertPayload,
+                            temperature=0.4,
+                        ),
+                    ),
+                    timeout=5.0
+                )
 
-            data = json.loads(response.text)
-            result_callouts = dict(fallback_callouts)
-            for item in data.get("callouts", []):
-                try:
-                    user_id = int(item.get("discord_id"))
-                    callout_text = str(item.get("callout", "")).strip()
-                    if callout_text and user_id in result_callouts:
-                        result_callouts[user_id] = callout_text
-                except (ValueError, TypeError):
-                    continue
+                data = json.loads(response.text)
+                result_callouts = dict(fallback_callouts)
+                for item in data.get("callouts", []):
+                    try:
+                        user_id = int(item.get("discord_id"))
+                        callout_text = str(item.get("callout", "")).strip()
+                        if callout_text and user_id in result_callouts:
+                            result_callouts[user_id] = callout_text
+                    except (ValueError, TypeError):
+                        continue
 
-            chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
-            if not chosen_quote or "—" not in chosen_quote:
-                chosen_quote = fallback_quote
+                chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
+                if not chosen_quote or "—" not in chosen_quote:
+                    chosen_quote = fallback_quote
 
-            return result_callouts, chosen_quote
-        except Exception as e:
-            logger.warning(f"Gemini evening alert failed ({e}). Falling back to Groq...")
-    else:
-        logger.warning("Gemini AI client unavailable. Falling back to Groq for evening alert data...")
+                return result_callouts, chosen_quote
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini evening alert failed ({e}). Falling back to Groq...")
 
     # Groq Fallback
     try:
@@ -747,22 +807,27 @@ async def generate_phase_ceremony(
         "5. LENGTH: 3 TO 4 SHORT PARAGRAPHS (UNDER 140 WORDS TOTAL)."
     )
 
-    client = get_gemini_client()
-    if client:
-        try:
-            response = await client.aio.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.75,
-                    max_output_tokens=300,
-                ),
-            )
-            return response.text.strip()
-        except Exception as e:
-            logger.warning(f"Gemini phase ceremony failed ({e}). Falling back to Groq...")
-    else:
-        logger.warning("Gemini AI client unavailable. Falling back to Groq for phase ceremony...")
+    if is_gemini_available():
+        client = get_gemini_client()
+        if client:
+            try:
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            temperature=0.75,
+                            max_output_tokens=300,
+                        ),
+                    ),
+                    timeout=5.0
+                )
+                return response.text.strip()
+            except Exception as e:
+                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                    mark_gemini_geo_blocked(str(e))
+                else:
+                    logger.warning(f"Gemini phase ceremony failed ({e}). Falling back to Groq...")
 
     # Groq Fallback
     try:
