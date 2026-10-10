@@ -116,7 +116,7 @@
             "name": "How does AI workout logging work in the bot?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The bot includes dual AI integrations: Groq LLM parsing (/quick) extracts exercises, reps, and running distances from conversational text in milliseconds. Google Gemini (/grind) evaluates custom physical workouts (Surya Namaskaras, gym, yoga) and intellectual deep work to award bonus points (1x/day, +5 to +50 pts, excluding core checklist disciplines to prevent double-counting)."
+              "text": "The bot includes dual AI integrations: Groq LLM parsing (/quick powered by llama-3.3-70b-versatile) extracts exercises, reps, and running distances from conversational text in milliseconds. Google Gemini (/grind) evaluates custom physical workouts (Surya Namaskaras, gym, yoga) and intellectual deep work with automatic sub-second Groq failover and geo-block circuit breaker."
             }
           },
           {
@@ -1834,7 +1834,8 @@ WINTER_ARC_CHANNEL_ID=
 
 # Optional: AI capabilities for /quick and /grind commands
 GEMINI_API_KEY=your_gemini_api_key_here
-GROQ_API_KEY=your_groq_api_key_here">Copy</button>
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile">Copy</button>
               <pre><code># ==============================================================
 # WINTER ARC BOT CONFIGURATION
 # ==============================================================
@@ -1852,8 +1853,11 @@ WINTER_ARC_CHANNEL_ID=
 # Optional: Google Gemini API Key for /grind deep work scoring (free at aistudio.google.com)
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional: Groq API Key for /quick natural language parsing (free at console.groq.com)
-GROQ_API_KEY=your_groq_api_key_here</code></pre>
+# Optional: Groq API Key for /quick natural language parsing & failover (free at console.groq.com)
+GROQ_API_KEY=your_groq_api_key_here
+
+# Optional: Groq inference model (defaults to llama-3.3-70b-versatile)
+GROQ_MODEL=llama-3.3-70b-versatile</code></pre>
             </div>
           </div>
         </div>
@@ -2397,8 +2401,8 @@ docker compose logs -f</code></pre>
                 The bot features two built-in AI capabilities:
               </p>
               <ul>
-                <li><strong>Groq LLM (<code>/quick [text]</code>):</strong> Parses natural language workout summaries in milliseconds (e.g. <em>"ran 5km and did 40 pushups"</em>) into structured discipline logs. If no API key is provided, an internal regex parser acts as an automatic fallback.</li>
-                <li><strong>Google Gemini (<code>/grind [text]</code>):</strong> Evaluates custom physical workouts (Surya Namaskaras, gym, yoga) or cognitive deep work to award verified bonus points (+5 to +50 pts, capped at 1x per day; core disciplines excluded).</li>
+                <li><strong>Groq AI (<code>/quick [text]</code>):</strong> Parses natural language workout summaries in milliseconds via <code>llama-3.3-70b-versatile</code> (e.g. <em>"ran 5km and did 40 pushups"</em>) into structured discipline logs. If no API key is provided, an internal regex parser acts as an automatic fallback.</li>
+                <li><strong>Google Gemini (<code>/grind [text]</code>):</strong> Evaluates custom physical workouts (Surya Namaskaras, gym, yoga) or cognitive deep work to award verified bonus points (+5 to +50 pts, capped at 1x per day; core disciplines excluded). Backed by an automated sub-second Groq fallback with geo-block circuit breaker to prevent downtime.</li>
               </ul>
             </div>
           </details>
