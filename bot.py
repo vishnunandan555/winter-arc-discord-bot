@@ -224,6 +224,13 @@ class WinterArcBot(commands.Bot):
             logger.info(f"  • {g.name} (ID: {g.id}) - {g.member_count} members")
         logger.info("=" * 60)
 
+        # AI models connectivity and status health check
+        try:
+            from ai.gemini_service import check_ai_health
+            await check_ai_health()
+        except Exception as ai_err:
+            logger.warning(f"AI health check during startup encountered error: {ai_err}")
+
         # Check and purge leftover guild-scoped commands only if any actually exist
         for g in self.guilds:
             try:

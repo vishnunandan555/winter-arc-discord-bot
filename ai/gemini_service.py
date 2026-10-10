@@ -14,7 +14,7 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
-from config import GEMINI_API_KEY, GEMINI_MODEL
+from config import GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL
 from ai.groq_service import safe_groq_chat_completion
 
 try:
@@ -95,8 +95,72 @@ def get_gemini_client():
             _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         except Exception as e:
             logger.error(f"Failed to initialize Google GenAI client: {e}")
-            return None
     return _gemini_client
+
+
+async def check_ai_health() -> Dict[str, str]:
+    """
+    Performs startup health checks on configured AI services (Gemini & Groq)
+    and logs their operational status.
+    """
+    results = {}
+    logger.info("Verifying AI engines connectivity and availability...")
+
+    # 1. Google Gemini
+    gemini_status = "NOT CONFIGURED (GEMINI_API_KEY missing)"
+    if GEMINI_API_KEY:
+        try:
+            client = get_gemini_client()
+            if client:
+                await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents="ping",
+                    ),
+                    timeout=5.0
+                )
+                gemini_status = f"ONLINE ({GEMINI_MODEL})"
+            else:
+                gemini_status = "INITIALIZATION FAILED"
+        except Exception as e:
+            err_str = str(e)
+            if "location is not supported" in err_str.lower() or "failed_precondition" in err_str.lower():
+                mark_gemini_geo_blocked(err_str)
+                gemini_status = "GEO-BLOCKED (Bypassed -> Routed to Groq)"
+            else:
+                gemini_status = f"ERROR ({err_str[:80]})"
+    results["gemini"] = gemini_status
+
+    # 2. Groq Cloud
+    groq_status = "NOT CONFIGURED (GROQ_API_KEY missing)"
+    if GROQ_API_KEY:
+        try:
+            from ai.groq_service import get_groq_client
+            groq_client = get_groq_client()
+            if groq_client:
+                res = await asyncio.wait_for(
+                    safe_groq_chat_completion(
+                        groq_client,
+                        messages=[{"role": "user", "content": "ping"}],
+                        model=GROQ_MODEL,
+                        max_tokens=5,
+                    ),
+                    timeout=6.0
+                )
+                active_model = getattr(res, "model", GROQ_MODEL)
+                groq_status = f"ONLINE ({active_model})"
+            else:
+                groq_status = "INITIALIZATION FAILED"
+        except Exception as e:
+            groq_status = f"ERROR ({str(e)[:80]})"
+    results["groq"] = groq_status
+
+    logger.info("=" * 60)
+    logger.info("🧠 AI ENGINE STARTUP HEALTH STATUS:")
+    logger.info(f"  • Google Gemini: {results['gemini']}")
+    logger.info(f"  • Groq Cloud:    {results['groq']}")
+    logger.info("=" * 60)
+    return results
 
 
 def _postprocess_grind_evaluation(data: Dict[str, Any], raw_text: str, provider: str = "Gemini") -> Dict[str, Any]:

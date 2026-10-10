@@ -273,3 +273,31 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
         self.assertEqual(mock_client.chat.completions.create.call_count, 2)
         # Verify the second call switched to llama-3.1-8b-instant
         self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], "llama-3.1-8b-instant")
+
+    def test_check_ai_health_online_and_geoblocked(self):
+        """Verifies check_ai_health performs startup ping and reports health statuses."""
+        from ai.gemini_service import check_ai_health
+        import ai.gemini_service as gs
+
+        # Scenario: Gemini geo-blocked, Groq online
+        mock_gemini_client = MagicMock()
+        mock_gemini_client.aio.models.generate_content = AsyncMock(
+            side_effect=Exception("400 User location is not supported")
+        )
+
+        mock_groq_res = MagicMock()
+        mock_groq_res.model = "llama-3.1-8b-instant"
+
+        try:
+            with patch.object(gs, "get_gemini_client", return_value=mock_gemini_client), \
+                 patch("ai.gemini_service.safe_groq_chat_completion", new=AsyncMock(return_value=mock_groq_res)), \
+                 patch("ai.groq_service.get_groq_client", return_value=MagicMock()), \
+                 patch("ai.gemini_service.GEMINI_API_KEY", "test-gemini-key"), \
+                 patch("ai.gemini_service.GROQ_API_KEY", "test-groq-key"):
+                results = asyncio.run(check_ai_health())
+                self.assertIn("GEO-BLOCKED", results["gemini"])
+                self.assertIn("ONLINE", results["groq"])
+        finally:
+            gs._gemini_geo_blocked = False
+            gs._gemini_geo_blocked_until = 0.0
+
