@@ -680,6 +680,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             name="🤖 `/quick [text]` — AI Workout Parser (Ultra-Fast Groq)",
             value=(
                 "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
+                "• **Engine**: Powered by Groq AI (`llama-3.3-70b-versatile`) with sub-second inference and regex failover.\n"
                 "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
                 "• **Example**: `/quick text: 40 squats, 30 situps then 20 more squats`\n"
                 "🛡️ *Safeguard*: Unrealistic single-set volume (>50 reps / >10 km) is rejected automatically to preserve integrity."
@@ -708,7 +709,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "Submit custom workouts (Surya Namaskaras, skipping, gym sets, bicep curls, yoga) or heavy cognitive deep work (DSA, systems code, technical study).\n"
                 "• **Reward**: Up to **+50 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
                 "• **Example**: `/grind text: Completed 15 Surya Namaskars, 3x12 bicep curls, and solved 2 graph DP problems`\n"
-                "🛡️ *Strict Evaluation*: Powered by dual-model AI (Gemini + Groq failover). Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
+                "🛡️ *Strict Evaluation*: Powered by dual-model AI (Gemini Flash Lite + Groq Llama 3.3 70B failover with circuit breaker). Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
             ),
             inline=False
         )
@@ -814,7 +815,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets, motivation quote, and clean slate.\n"
                 "• ☀️ **Afternoon Standings DM (16:30 IST)**: Mid-day pulse check and active pack standings.\n"
                 "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you are below 30 points.\n"
-                "*(Requires Discord privacy settings to allow DMs from server members)*"
+                "💡 *Default: Morning, afternoon, and evening DMs are all active upon enrollment. Ensure your Discord privacy settings allow DMs from server members.*"
             ),
             inline=False
         )

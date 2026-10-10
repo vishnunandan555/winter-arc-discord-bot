@@ -59,6 +59,32 @@ class TestRemindersAndDMs(WinterArcTestCase):
         morning_users_after_master_off = db.get_opted_in_dm_users("morning", db_path=self.test_db)
         self.assertNotIn(self.user_id, [u["discord_id"] for u in morning_users_after_master_off])
 
+    def test_dm_coalesce_null_handling(self):
+        """Verifies that users with NULL dm_* values in SQLite default to opted-in (COALESCE(dm_*, 1) = 1)."""
+        null_user_id = 880022
+        import sqlite3
+        conn = sqlite3.connect(self.test_db)
+        c = conn.cursor()
+        c.execute(
+            """INSERT OR REPLACE INTO users (discord_id, username, enrolled, dm_reminders, dm_morning, dm_afternoon, dm_evening)
+               VALUES (?, ?, 1, 1, NULL, NULL, NULL)""",
+            (null_user_id, "NullWarrior")
+        )
+        conn.commit()
+        conn.close()
+
+        # All 3 categories should include this user because COALESCE(NULL, 1) = 1
+        for cat in ["morning", "afternoon", "evening"]:
+            users = db.get_opted_in_dm_users(cat, db_path=self.test_db)
+            u_ids = [u["discord_id"] for u in users]
+            self.assertIn(null_user_id, u_ids, f"User with NULL {cat} should be treated as opted-in via COALESCE")
+
+        # In Python dict lookup, settings should also be True
+        settings = db.get_user_dm_settings(null_user_id, db_path=self.test_db)
+        self.assertTrue(settings["dm_morning"])
+        self.assertTrue(settings["dm_afternoon"])
+        self.assertTrue(settings["dm_evening"])
+
     def test_weekly_briefing_context_and_morning_briefing(self):
         """Verifies 7-day momentum aggregation and personalized morning briefing generator."""
         now = datetime.now(BOT_TZ)

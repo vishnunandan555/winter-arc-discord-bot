@@ -7,7 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import database as db
 from ai import groq_service
 from ai.groq_service import regex_fallback_parser, extract_disciplines_fallback
-from ai.gemini_service import evaluate_grind, GeminiServiceError
+from ai.gemini_service import (
+    evaluate_grind,
+    GeminiServiceError,
+    is_gemini_available,
+    mark_gemini_geo_blocked,
+)
 from tests.base import WinterArcTestCase
 
 
@@ -125,6 +130,39 @@ class TestGeminiGrindService(WinterArcTestCase):
             self.assertEqual(res_edge["key_learning"], "Effort")
             self.assertEqual(res_edge["commentary"], "Grind logged.")
             self.assertEqual(res_edge["tracked_disciplines_excluded"], ["10 pushups"])
+
+    def test_gemini_circuit_breaker_and_geo_block_failover(self):
+        """Verifies that geo-block circuit breaker fast-bypasses Gemini and routes directly to Groq."""
+        import ai.gemini_service as gs
+        import config
+
+        # Ensure circuit breaker activates
+        with patch.object(config, "GEMINI_API_KEY", "mock-gemini-key"):
+            gs.mark_gemini_geo_blocked("User location is not supported for the API use")
+            self.assertFalse(gs.is_gemini_available(), "Gemini should be marked unavailable when geo-blocked")
+
+            # Mock Groq fallback
+            mock_groq_res = {
+                "verdict": "ACCEPTED",
+                "points": 35,
+                "key_learning": "Deep work systems code",
+                "tracked_disciplines_excluded": [],
+                "commentary": "Solid execution."
+            }
+            with patch("ai.gemini_service._evaluate_grind_with_groq", new=AsyncMock(return_value=mock_groq_res)):
+                res = asyncio.run(evaluate_grind("Wrote Linux eBPF telemetry parser"))
+                self.assertEqual(res["verdict"], "ACCEPTED")
+                self.assertEqual(res["points"], 35)
+
+        # Reset circuit breaker
+        gs._gemini_geo_blocked = False
+        gs._gemini_geo_blocked_until = 0.0
+
+    def test_groq_model_configuration(self):
+        """Verifies that Groq model defaults to llama-3.3-70b-versatile."""
+        import config
+        self.assertIn("llama-3.3-70b", config.GROQ_MODEL)
+
 
 
 class TestGroqWorkoutParserAndNudges(WinterArcTestCase):

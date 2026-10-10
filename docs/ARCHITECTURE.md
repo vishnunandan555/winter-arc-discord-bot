@@ -102,11 +102,11 @@ winter-arc-bot/
 │   ├── warrior.py            # User-facing slash commands, /accuse, and /reminders
 │   └── admin.py              # Administrator commands, /admin grind, /admin backup, /nuke
 ├── dm_templates.py           # Centralized DM announcement & invitation templates
-├── tests/                    # Modular domain test suite (95 tests across 10 modules)
+├── tests/                    # Modular domain test suite (98 tests across 10 modules)
 ├── scheduler.py              # Automated background APScheduler loop with silent broadcasts
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test discovery runner (95 tests)
+├── test_engine.py            # Automated test discovery runner (98 tests)
 ├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
 ├── Dockerfile                # Production container specification
 ├── docker-compose.yml        # Multi-platform container configuration
@@ -236,3 +236,41 @@ The Winter Arc governance system enforces authenticity through a dual-trigger ar
    - Concludes with thematic animated courtroom GIFs (Phoenix Wright, Higuruma court, cat council).
    - If Guilty: Points are stripped (`cap_user_grind`). If Innocent or Tied: Points stand.
 4. **Administrative Probation (`/admin grind`)**: Server administrators can suspend `/grind` access (`block` with custom duration & reason) or restore it (`unlock`).
+
+---
+
+## 6. Dual AI Architecture & Geo-Block Circuit Breaker
+
+The bot integrates two complementary LLM providers with automatic sub-second failover:
+
+```text
+User Command (/quick, /grind, DM briefing, toasts/roasts)
+                    │
+                    ▼
+          Is Gemini Configured &
+           Circuit Breaker Clear?
+             /              \
+           Yes               No
+           /                  \
+          ▼                    ▼
+   Google Gemini API     Groq Cloud API
+(gemini-flash-lite)   (llama-3.3-70b-versatile)
+          │                    │
+    400 / Timeout?             │
+          │                    │
+          ├──► Trip Circuit ───┘
+          │    Breaker (1 hr)
+          ▼
+   Sub-second Result
+```
+
+1. **Google Gemini Flash Lite (`gemini-flash-lite-latest`)**:
+   - Used for rich context synthesis: multimodal `/grind` evaluation, midnight toasts/roasts, Sunday recap narrative, and phase ceremonies.
+   - Protected with a strict `asyncio.wait_for(timeout=5.0s)` guard to prevent blocking the Discord event loop.
+2. **Groq Cloud (`llama-3.3-70b-versatile`)**:
+   - Primary engine for ultra-fast `/quick` natural language workout parsing and reactive coach Amarok nudges (~300ms latency).
+   - Instant failover fallback for `/grind`, daily toasts/roasts, weekly recaps, and morning DM briefings if Gemini errors or times out.
+3. **Automated Geo-Block Circuit Breaker (`is_gemini_available`)**:
+   - Free or low-cost cloud hosting providers (e.g., Wispbyte, Pterodactyl, Oracle Cloud, shared VPS) frequently share IP blocks restricted by Google Generative AI (`400 FAILED_PRECONDITION: User location is not supported for the API use`).
+   - When detected, the bot trips a 1-hour fast circuit breaker (`mark_gemini_geo_blocked`). Subsequent calls instantly bypass Google's network round-trip and route directly to Groq in sub-second time without latency penalties.
+

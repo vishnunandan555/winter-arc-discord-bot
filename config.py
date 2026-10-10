@@ -48,9 +48,9 @@ MAX_SINGLE_SET_LIMITS = {
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-flash-lite-latest"
 
-# Groq API: Ultra-fast inference for rapid NLP workout parsing & reactive command nudges
+# Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "qwen/qwen3.8-27b"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 import sys
 from logging.handlers import RotatingFileHandler

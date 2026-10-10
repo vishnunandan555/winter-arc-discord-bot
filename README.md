@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-95%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-98%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -30,7 +30,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 
 - **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
-- **Dual AI Architecture with Automatic Failover**: Log workouts with standard slash commands or natural language with Groq and Gemini AI, backed by automatic failover to guarantee zero downtime across cloud datacenters.
+- **Dual AI Architecture with Sub-Second Failover**: Parse natural language workouts with Groq (`llama-3.3-70b-versatile`) and evaluate custom grinds with Google Gemini, backed by an automated circuit breaker that bypasses regional geo-blocks with zero downtime.
 - **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/accuse`) protect server integrity from vanity claims.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
@@ -41,9 +41,9 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | Feature | Description |
 | :--- | :--- |
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
-| **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full 92-day campaign view with interactive bidirectional switching and status highlights. |
+| **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full campaign view with interactive bidirectional switching and status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
-| **Dual AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day) with automatic sub-second Groq fallback. |
+| **Dual AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (`llama-3.3-70b-versatile`); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day) backed by an automatic sub-second Groq fallback with geo-block circuit breaker. |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |
@@ -92,6 +92,9 @@ WINTER_ARC_CHANNEL_ID=
 # Optional: AI capabilities for /quick and /grind commands
 GEMINI_API_KEY=your_gemini_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
+
+# Optional: Groq inference model (defaults to llama-3.3-70b-versatile)
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 ### 3. Launch the Bot
@@ -106,7 +109,7 @@ python bot.py
 
 ## 🧪 Automated Test Suite
 
-The test suite contains **95 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **98 comprehensive test cases** organized into 10 domain modules inside the [`tests/`](tests/) directory.
 
 ```bash
 # Run the complete test suite via discovery runner
@@ -134,10 +137,10 @@ The bot registers **25 native slash commands** designed with Discord autocomplet
 | Category | Commands | Description |
 | :--- | :--- | :--- |
 | **Workout Logging** | `/log`, `/set`, `/quick`, `/grind` | Add volume, set direct overrides, parse text with AI, or log custom workouts & deep work (+5 to +50 pts). |
-| **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, 3-phase full habit calendar, daily progress card, task guide, and past logs. |
+| **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
-| **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences, manual, and latency check. |
+| **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences (active by default), master interactive manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`, `backup`, `health`), `/test_reminder`, `/nuke` | Channel binding, role ping, database snapshots, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
@@ -183,7 +186,7 @@ winter-arc-discord-bot/
 ├── ai/                      # Groq & Gemini AI service integrations
 ├── cogs/                    # Discord command extensions (warrior & admin cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (94 test cases across 10 modules)
+├── tests/                   # Modular domain test suite (98 test cases across 10 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

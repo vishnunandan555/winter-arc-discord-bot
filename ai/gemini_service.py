@@ -58,9 +58,10 @@ def mark_gemini_geo_blocked(reason: str) -> None:
     """Marks Gemini as geo-blocked or restricted on this host IP, activating direct Groq routing."""
     global _gemini_geo_blocked, _gemini_geo_blocked_until
     if not _gemini_geo_blocked:
+        from config import GROQ_MODEL
         logger.warning(
             f"Gemini API location unsupported or restricted on this host ({reason}). "
-            "Routing AI requests directly to Groq (qwen/qwen3.8-27b) engine."
+            f"Routing AI requests directly to Groq ({GROQ_MODEL}) engine."
         )
     _gemini_geo_blocked = True
     _gemini_geo_blocked_until = time.time() + 3600.0  # re-test after 1 hour
@@ -139,7 +140,7 @@ def _postprocess_grind_evaluation(data: Dict[str, Any], raw_text: str, provider:
 
 
 async def _evaluate_grind_with_groq(raw_text: str, system_prompt: str) -> Dict[str, Any]:
-    """Fallback evaluation engine powered by Groq (qwen/qwen3.8-27b) when Gemini is region-restricted or unavailable."""
+    """Fallback evaluation engine powered by Groq (llama-3.3-70b-versatile / configured model) when Gemini is region-restricted or unavailable."""
     from ai.groq_service import get_groq_client
     from config import GROQ_MODEL
     groq_client = get_groq_client()
@@ -189,7 +190,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     """
     Evaluates a user's daily physical custom workout or intellectual deep work friction.
     Primary: Google Gemini (gemini-flash-lite-latest).
-    Fallback: Groq (qwen/qwen3.8-27b) with seamless location/outage failover.
+    Fallback: Groq (llama-3.3-70b-versatile / configured model) with seamless location/outage failover.
     Strictly excludes core checklist disciplines (Push-ups, Pull-ups, Squats, Sit-ups, Running) to prevent double-counting.
     Raises GeminiServiceError only if both Gemini and Groq models fail.
     """
