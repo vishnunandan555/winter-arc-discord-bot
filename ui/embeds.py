@@ -1081,63 +1081,85 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
     """Builds the 05:00 morning kickoff broadcast embed with active phase context."""
     from phases import get_current_phase, get_phase_progress
     curr_phase = get_current_phase()
-    title_text = f"🌅 Winter Arc — Daily Kickoff • {date_display}"
-    embed_color = 0x3498DB
-    phase_header = ""
+    embed_color = curr_phase["color"] if curr_phase else 0x2980B9
+
+    embed = discord.Embed(
+        title="🌅 Winter Arc — Daily Kickoff",
+        color=embed_color
+    )
+
+    desc_lines = [
+        f"### 📅 {date_display}",
+        "A new day is on the board. **500 points** available across today's disciplines.",
+    ]
     if curr_phase:
         prog = get_phase_progress(curr_phase)
-        title_text = f"{curr_phase['badge']} {curr_phase['short_name']}: {curr_phase['name']} • Daily Kickoff"
-        embed_color = curr_phase["color"]
-        phase_header = f"**{curr_phase['badge']} {curr_phase['name']}** — *Day {prog['day_num']} of {prog['total_days']} ({prog['days_remaining']} days left in phase)*\n\n"
+        desc_lines.append(f"*{curr_phase['badge']} {curr_phase['name']} — Day {prog['day_num']} of {prog['total_days']} ({prog['days_remaining']} days left in phase)*")
+
+    if quote:
+        clean_quote = quote.strip().lstrip(">").strip()
+        desc_lines.append(f"\n**Daily Focus**:\n> {clean_quote}")
+
+    embed.description = "\n".join(desc_lines)
 
     task_lines = []
     for t in active_tasks:
         target_display = format_num(t["target"])
-        task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t['max_points']} pts)*")
+        task_lines.append(f"• **{t['name']}**: `{target_display} {t['unit']}` *(max {t.get('max_points', 100)} pts)*")
 
-    disciplines_block = "\n".join(task_lines) if task_lines else "_No active disciplines._"
-    quote_section = f"\n\n**Daily Focus**:\n> {quote}" if quote else ""
-
-    embed = discord.Embed(
-        title=title_text,
-        description=(
-            f"{phase_header}"
-            "A new day has begun. 500 points available across 5 disciplines.\n\n"
-            "**Daily Targets**\n"
-            f"{disciplines_block}"
-            f"{quote_section}\n\n"
-            "Log your sets with `/log` or check progress with `/today`."
-        ),
-        color=embed_color
+    embed.add_field(
+        name="🎯 Today's Disciplines",
+        value="\n".join(task_lines) if task_lines else "_No active disciplines configured._",
+        inline=False
     )
-    embed.set_footer(text="Day resets at 00:00 IST • Log early to secure your standing")
+
+    embed.set_footer(text="Winter Arc • Log early with /log or /quick • Day resets at 00:00 IST")
     return embed
 
 
 def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 16:30 afternoon check-in broadcast embed."""
-    warrior_lines = []
+    embed = discord.Embed(
+        title="⏳ Winter Arc — Afternoon Check-in",
+        color=0xD35400
+    )
+
+    desc_lines = [
+        "Halfway through the day. Check your numbers and get your remaining sets logged before tonight.",
+    ]
+    if quote:
+        clean_quote = quote.strip().lstrip(">").strip()
+        desc_lines.append(f"\n**Midday Note**:\n> {clean_quote}")
+    embed.description = "\n".join(desc_lines)
+
+    member_lines = []
+    sorted_users = []
     for u in enrolled_users:
         prog = db.get_user_daily_progress(u["discord_id"], today_str)
-        pct = int(prog["overall_completion_rate"] * 100)
-        star = " ⭐" if prog["perfect_day"] else ""
-        warrior_lines.append(
-            f"• **{u['username']}** — **{prog['total_points']} / {prog['max_possible_points']} pts** ({pct}%){star}"
-        )
+        sorted_users.append({
+            "discord_id": u["discord_id"],
+            "username": u.get("username", "Member"),
+            "points": prog["total_points"],
+            "max_points": prog["max_possible_points"],
+            "pct": int(round(prog["overall_completion_rate"] * 100)),
+            "perfect_day": prog["perfect_day"],
+        })
+    sorted_users.sort(key=lambda x: (x["points"], x["pct"]), reverse=True)
 
-    quote_section = f"\n\n**Midday Note**:\n> {quote}" if quote else ""
+    for m in sorted_users:
+        star = " ⭐" if m["perfect_day"] else ""
+        if m["points"] > 0:
+            member_lines.append(f"• **{m['username']}** — **{m['points']} / {m['max_points']} pts** *({m['pct']}%){star}*")
+        else:
+            member_lines.append(f"• **{m['username']}** — **0 / {m['max_points']} pts**")
 
-    embed = discord.Embed(
-        title="⏰ Winter Arc — Afternoon Check-in",
-        description=(
-            "Midday check-in. Complete your remaining disciplines before midnight.\n\n"
-            "**Today's Progress**\n"
-            + ("\n\n".join(warrior_lines) if warrior_lines else "_No enrolled participants yet. Use `/enroll` to join!_")
-            + quote_section
-        ),
-        color=0xE67E22
+    embed.add_field(
+        name="📊 Pack Progress So Far",
+        value="\n".join(member_lines) if member_lines else "_No enrolled members yet._",
+        inline=False
     )
-    embed.set_footer(text="Log sets with /log • Finalizes at 00:00 IST")
+
+    embed.set_footer(text="Winter Arc • 30 pts/day minimum for streak • Finalizes at 00:00 IST")
     return embed
 
 
@@ -1207,48 +1229,57 @@ def build_evening_checkin_message(
     return f"{header}\n\n{warriors_section}\n\n{quote_section}\n\n{subtext}"
 
 
-def build_evening_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
+def build_evening_checkin_embed(
+    enrolled_users: List[Dict[str, Any]],
+    today_str: str,
+    quote: Optional[str] = None,
+    callouts: Optional[Dict[int, str]] = None,
+) -> discord.Embed:
     """Builds the 21:00 IST evening streak alert channel broadcast embed (3 hours before midnight)."""
-    completed_lines = []
-    pending_lines = []
+    secured_lines = []
+    at_risk_lines = []
 
     for u in enrolled_users:
         prog = db.get_user_daily_progress(u["discord_id"], today_str)
-        pct = int(round(prog["overall_completion_rate"] * 100))
         pts = prog["total_points"]
         max_pts = prog["max_possible_points"]
         streak = db.calculate_streak(u["discord_id"], today_str)
+        username = u.get("username", "Warrior")
 
         if prog["perfect_day"]:
-            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (⭐ 100% Perfect Day • 🔥 {streak}d)")
+            secured_lines.append(f"• **{username}** — **{pts} / {max_pts} pts** *(⭐ 100% Perfect Day • {streak}d streak)*")
         elif pts >= MIN_STREAK_POINTS:
-            completed_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (Streak Secured ✅ • 🔥 {streak}d)")
+            secured_lines.append(f"• **{username}** — **{pts} / {max_pts} pts** *(Streak Secured ✅ • {streak}d streak)*")
         else:
             needed = MIN_STREAK_POINTS - pts
-            pending_lines.append(f"• **{u['username']}** — **{pts} / {max_pts} pts** (⚠️ {needed} pts needed for streak)")
+            callout = (callouts or {}).get(u["discord_id"])
+            extra = f" — *{callout}*" if callout else f" — *{needed} pts needed*"
+            at_risk_lines.append(f"• **{username}** — **{pts} / {max_pts} pts**{extra}")
 
     desc = (
         "⏳ **3 Hours Remaining Until Midnight Rollover!**\n"
         f"Scores lock in at 00:00 IST. Earn at least **{MIN_STREAK_POINTS} pts** to defend your streak.\n\n"
     )
 
-    if completed_lines:
-        desc += "**🔥 Streak Secured**\n" + "\n".join(completed_lines) + "\n\n"
+    if at_risk_lines:
+        desc += "**⚠️ Streak at Risk (< 30 pts)**\n" + "\n".join(at_risk_lines) + "\n\n"
 
-    if pending_lines:
-        desc += "**⚠️ Streak at Risk (< 30 pts)**\n" + "\n".join(pending_lines) + "\n\n"
+    if secured_lines:
+        desc += "**🔥 Streak Secured**\n" + "\n".join(secured_lines) + "\n\n"
 
-    if not completed_lines and not pending_lines:
-        desc += "_No enrolled warriors yet. Use `/enroll` to join!_\n\n"
+    if not at_risk_lines and not secured_lines:
+        desc += "_No enrolled warriors yet._\n\n"
 
-    quote_section = f"\n\n**Evening Note**:\n> {quote}" if quote else ""
+    if quote:
+        clean_quote = quote.strip().lstrip(">").strip()
+        desc += f"**Evening Note**:\n> {clean_quote}\n\n"
 
     embed = discord.Embed(
         title="🌙 Winter Arc — Evening Streak Alert",
-        description=desc.strip() + quote_section,
-        color=0xE67E22
+        description=desc.strip(),
+        color=0xC0392B
     )
-    embed.set_footer(text=f"Log sets with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
+    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
     return embed
 
 
@@ -1304,41 +1335,79 @@ def build_midnight_finalization_message(
     return "\n\n".join(sections)
 
 
-def build_podium_embed(date_str: str, leaderboard: List[Dict[str, Any]]) -> discord.Embed:
-    """Builds the 00:00 midnight finalization podium embed."""
+def build_podium_embed(
+    date_str: str,
+    leaderboard: List[Dict[str, Any]],
+    ai_recap: Optional[str] = None,
+    alerts: Optional[List[str]] = None,
+) -> discord.Embed:
+    """Builds the 00:00 midnight daily finalization embed with stylized visual hierarchy."""
     try:
         d_obj = date.fromisoformat(date_str)
         title_date = d_obj.strftime("%A, %B %d, %Y")
     except Exception:
         title_date = date_str
 
-    podium_lines = []
-    perfect_count = 0
-
-    for idx, entry in enumerate(leaderboard):
-        pts = entry["points"]
-        rank = format_rank_badge(idx, pts=pts)
-        perfect_star = " ⭐" if entry["perfect_day"] else ""
-        if entry["perfect_day"]:
-            perfect_count += 1
-        pct = int(entry["completion_rate"] * 100)
-        podium_lines.append(f"{rank}  **{entry['username']}** — **{pts} pts** ({pct}%){perfect_star}")
-
-    if not podium_lines:
-        podium_lines.append("_No activity logged for this day._")
-
-    perfect_info = f"\n\n🔥 **Perfect Days**: **{perfect_count}** member(s) completed 100%." if perfect_count > 0 else ""
+    from phases import get_current_phase
+    curr_phase = get_current_phase()
+    embed_color = curr_phase["color"] if curr_phase else 0x6C5CE7
 
     embed = discord.Embed(
-        title=f"🌙 Winter Arc — Daily Finalization • {title_date}",
-        description=(
-            "Scores are locked in for the day. Final standings:\n\n"
-            + "\n\n".join(podium_lines)
-            + perfect_info
-        ),
-        color=0x9B59B6
+        title="🌙 Winter Arc — Daily Finalization",
+        color=embed_color,
     )
-    embed.set_footer(text="A new day has begun • Check your fresh slate with /today")
+
+    desc_lines = [
+        f"### 📅 {title_date}",
+        "Scores are locked for the day. Final standings have been archived.",
+    ]
+    if curr_phase:
+        desc_lines.append(f"*{curr_phase['badge']} {curr_phase['name']}*")
+
+    if ai_recap:
+        clean_recap = ai_recap.strip().lstrip(">").strip()
+        desc_lines.append(f"\n> {clean_recap}")
+
+    embed.description = "\n".join(desc_lines)
+
+    podium_lines = []
+    perfect_count = 0
+    for idx, entry in enumerate(leaderboard):
+        pts = entry.get("points", 0)
+        badge = ["🥇", "🥈", "🥉"][idx] if idx < 3 else f"`#{idx+1}`"
+        star = " ⭐" if entry.get("perfect_day") else ""
+        if entry.get("perfect_day"):
+            perfect_count += 1
+        pct = int(round(entry.get("completion_rate", 0) * 100))
+        username = entry.get("username", "Warrior")
+        if pts > 0:
+            podium_lines.append(f"{badge} **{username}** — **{pts} pts** *({pct}%)*{star}")
+        else:
+            podium_lines.append(f"{badge} **{username}** — **0 pts**")
+
+    if not podium_lines:
+        podium_lines.append("_No disciplines logged for this day._")
+
+    standings_text = "\n".join(podium_lines)
+    if perfect_count > 0:
+        standings_text += f"\n\n⭐ **Perfect Days**: **{perfect_count}** warrior(s) completed 100%."
+
+    embed.add_field(
+        name="🏆 Final Standings",
+        value=standings_text,
+        inline=False
+    )
+
+    if alerts:
+        clean_alerts = [a.strip() for a in alerts if a and a.strip()]
+        if clean_alerts:
+            embed.add_field(
+                name="🛡️ Streak Updates",
+                value="\n".join(clean_alerts[:10]),
+                inline=False
+            )
+
+    embed.set_footer(text="Winter Arc • Fresh slate is open • Rollover at 00:00 IST")
     return embed
 
 
@@ -1891,19 +1960,23 @@ def build_weekly_state_of_the_pack_embed(
     ai_speech: str
 ) -> discord.Embed:
     """Builds the Sunday 10:00 IST community broadcast embed."""
+    now_dt = datetime.now(BOT_TZ)
+    day_str = _format_day_ordinal(now_dt.day)
+    date_display = now_dt.strftime(f"%A, {day_str} %B %Y")
+
     podium_lines = []
-    badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    badges = ["🥇", "🥈", "🥉", "`#4`", "`#5`"]
     for idx, w in enumerate(top_warriors[:5]):
-        badge = badges[idx] if idx < len(badges) else f"#{idx+1}"
+        badge = badges[idx] if idx < len(badges) else f"`#{idx+1}`"
         pts = w.get("points", w.get("total_points", 0))
         podium_lines.append(f"{badge} **{w.get('username', 'Warrior')}** — **{pts:,} pts**")
 
-    ai_block = f"> {ai_speech}\n\n" if ai_speech else ""
+    ai_block = f"> {ai_speech.strip()}\n\n" if ai_speech else ""
     desc = (
         ai_block
-        + "**Weekly Top 5**\n"
+        + "**Weekly Top Warriors**\n"
         + ("\n".join(podium_lines) if podium_lines else "_No scores logged this week._")
-        + "\n\n**Weekly Workout Volume**\n"
+        + "\n\n**Collective Pack Volume**\n"
         f"• Push-ups: `{weekly_stats.get('total_pushups', 0):,}` reps\n"
         f"• Pull-ups: `{weekly_stats.get('total_pullups', 0):,}` reps\n"
         f"• Squats: `{weekly_stats.get('total_squats', 0):,}` reps\n"
@@ -1911,16 +1984,12 @@ def build_weekly_state_of_the_pack_embed(
         f"• Running: `{weekly_stats.get('total_km', 0):,.1f}` km"
     )
 
-    now_dt = datetime.now(BOT_TZ)
-    day_str = _format_day_ordinal(now_dt.day)
-    date_display = now_dt.strftime(f"%A, {day_str} %B %Y")
-
     embed = discord.Embed(
         title="Winter Arc | Weekly Recap",
         description=desc,
-        color=0xF1C40F
+        color=0xD4AF37
     )
-    embed.set_footer(text=f"{date_display} • Winter Arc")
+    embed.set_footer(text=f"{date_display} • Winter Arc • Standings Archived")
     return embed
 
 

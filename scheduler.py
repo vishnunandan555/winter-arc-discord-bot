@@ -268,6 +268,22 @@ class WinterArcScheduler:
         if current_chunk.strip():
             await channel.send(content=current_chunk.strip(), allowed_mentions=allowed_mentions)
 
+    async def _send_broadcast_embed(
+        self,
+        channel: discord.TextChannel,
+        embed: discord.Embed,
+        role_ping: str = "",
+        allowed_mentions: Optional[discord.AllowedMentions] = None
+    ):
+        """Dispatches an announcement embed to a channel, prepending role ping if provided."""
+        if allowed_mentions is None:
+            allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        content = role_ping.strip() if role_ping else ""
+        if content:
+            await channel.send(content=content, embed=embed, allowed_mentions=allowed_mentions)
+        else:
+            await channel.send(content="", embed=embed, allowed_mentions=allowed_mentions)
+
     async def broadcast_morning_kickoff(
         self,
         target_channel: discord.TextChannel = None,
@@ -292,35 +308,22 @@ class WinterArcScheduler:
             except Exception as e:
                 logger.debug(f"Could not generate AI morning quote: {e}")
 
-        curr_phase = get_current_phase()
-        phase_progress = get_phase_progress(curr_phase) if curr_phase else None
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        embed = build_morning_kickoff_embed(
+            active_tasks=active_tasks,
+            date_display=date_display,
+            quote=quote,
+        )
 
         if target_channel:
-            msg = build_morning_kickoff_message(
-                active_tasks=active_tasks,
-                date_display=date_display,
-                curr_phase=curr_phase,
-                phase_progress=phase_progress,
-                quote=quote,
-                role_ping=role_ping,
-            )
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    msg = build_morning_kickoff_message(
-                        active_tasks=active_tasks,
-                        date_display=date_display,
-                        curr_phase=curr_phase,
-                        phase_progress=phase_progress,
-                        quote=quote,
-                        role_ping="",
-                    )
-                    await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not send morning kickoff to {channel.name} in {guild.name}: {e}")
 
@@ -349,28 +352,21 @@ class WinterArcScheduler:
                 logger.debug(f"Could not generate AI afternoon quote: {e}")
 
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        embed = build_afternoon_checkin_embed(
+            enrolled_users=enrolled_users,
+            today_str=today_str,
+            quote=quote,
+        )
 
         if target_channel:
-            msg = build_afternoon_checkin_message(
-                enrolled_users=enrolled_users,
-                today_str=today_str,
-                quote=quote,
-                role_ping=role_ping,
-            )
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    msg = build_afternoon_checkin_message(
-                        enrolled_users=enrolled_users,
-                        today_str=today_str,
-                        quote=quote,
-                        role_ping="",
-                    )
-                    await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not send afternoon check-in to {channel.name} in {guild.name}: {e}")
 
@@ -406,28 +402,22 @@ class WinterArcScheduler:
         )
 
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        embed = build_evening_checkin_embed(
+            enrolled_users=enrolled_users,
+            today_str=today_str,
+            quote=stoic_quote,
+            callouts=callouts,
+        )
 
         if target_channel:
-            msg = build_evening_checkin_message(
-                warriors_data=warriors_data,
-                callouts=callouts,
-                stoic_quote=stoic_quote,
-                role_ping=role_ping,
-            )
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    msg = build_evening_checkin_message(
-                        warriors_data=warriors_data,
-                        callouts=callouts,
-                        stoic_quote=stoic_quote,
-                        role_ping="",
-                    )
-                    await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not send evening streak alert to {channel.name} in {guild.name}: {e}")
 
@@ -492,13 +482,7 @@ class WinterArcScheduler:
                 logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
 
         if target_channel:
-            msg = build_midnight_finalization_message(
-                date_str=yesterday,
-                leaderboard=leaderboard,
-                ai_recap=ai_recap,
-                role_ping=role_ping,
-            )
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
             for alert in individual_alerts:
                 try:
                     await target_channel.send(alert, allowed_mentions=allowed_mentions)
@@ -509,13 +493,7 @@ class WinterArcScheduler:
                 channel, ping = self._get_target_channel_and_ping(guild)
                 if channel:
                     try:
-                        msg = build_midnight_finalization_message(
-                            date_str=yesterday,
-                            leaderboard=leaderboard,
-                            ai_recap=ai_recap,
-                            role_ping="",
-                        )
-                        await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                        await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
                         for alert in individual_alerts:
                             try:
                                 await channel.send(alert, allowed_mentions=allowed_mentions)
@@ -564,35 +542,23 @@ class WinterArcScheduler:
                 bottom_warriors=bottom_warriors,
                 next_phase_info=next_phase
             )
+            if ceremony_speech:
+                clean_speech = ceremony_speech.strip().lstrip(">").strip()
+                podium_embed.description = f"> {clean_speech}\n\n" + (podium_embed.description or "")
         except Exception as e:
             logger.warning(f"Could not generate Gemini phase ceremony speech: {e}")
-            ceremony_speech = ""
 
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
-        msg = build_phase_conclusion_message(
-            phase_dict=phase_dict,
-            phase_lb=phase_lb,
-            ceremony_speech=ceremony_speech,
-            next_phase_dict=next_phase,
-            role_ping=role_ping,
-        )
 
         if target_channel:
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, podium_embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
             return podium_embed
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    guild_msg = build_phase_conclusion_message(
-                        phase_dict=phase_dict,
-                        phase_lb=phase_lb,
-                        ceremony_speech=ceremony_speech,
-                        next_phase_dict=next_phase,
-                        role_ping=ping,
-                    )
-                    await self._send_chunked_message(channel, guild_msg, allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, podium_embed, role_ping=ping, allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not post phase conclusion to {channel.name} in {guild.name}: {e}")
 
@@ -669,29 +635,17 @@ class WinterArcScheduler:
         embed = build_weekly_state_of_the_pack_embed(weekly_volume, top_warriors, ai_speech)
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
+        header_content = f"{role_ping.strip()} ### Winter Arc | Weekly Recap".strip() if role_ping else "### Winter Arc | Weekly Recap"
         if target_channel:
-            msg = build_weekly_recap_message(
-                weekly_stats=weekly_volume,
-                top_warriors=top_warriors,
-                ai_speech=ai_speech,
-                role_ping=role_ping,
-                date_dt=now,
-            )
-            await self._send_chunked_message(target_channel, msg, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=header_content, allowed_mentions=allowed_mentions)
             return embed
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    msg = build_weekly_recap_message(
-                        weekly_stats=weekly_volume,
-                        top_warriors=top_warriors,
-                        ai_speech=ai_speech,
-                        role_ping=ping,
-                        date_dt=now,
-                    )
-                    await self._send_chunked_message(channel, msg, allowed_mentions=allowed_mentions)
+                    guild_header = f"{ping.strip()} ### Winter Arc | Weekly Recap".strip() if ping else "### Winter Arc | Weekly Recap"
+                    await self._send_broadcast_embed(channel, embed, role_ping=guild_header, allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not post Weekly Recap to {channel.name} in {guild.name}: {e}")
 
