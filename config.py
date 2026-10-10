@@ -51,11 +51,11 @@ GEMINI_MODEL = "gemini-flash-lite-latest"
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-_raw_groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
-if _raw_groq_model in ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]:
-    GROQ_MODEL = "llama-3.1-8b-instant"
+_raw_groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
+if _raw_groq_model in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]:
+    GROQ_MODEL = "openai/gpt-oss-20b"
 else:
-    GROQ_MODEL = _raw_groq_model or "llama-3.1-8b-instant"
+    GROQ_MODEL = _raw_groq_model or "openai/gpt-oss-20b"
 
 import sys
 from logging.handlers import RotatingFileHandler

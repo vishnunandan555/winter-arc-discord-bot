@@ -35,7 +35,7 @@ def get_groq_client():
 
 async def safe_groq_chat_completion(client, **kwargs):
     """
-    Executes a Groq chat completion with automatic resilient fallback to llama-3.1-8b-instant
+    Executes a Groq chat completion with automatic resilient fallback to openai/gpt-oss-20b
     if the configured model is unavailable, deprecated, or returns 404 (model_not_found).
     """
     model = kwargs.get("model", GROQ_MODEL)
@@ -43,10 +43,10 @@ async def safe_groq_chat_completion(client, **kwargs):
         return await client.chat.completions.create(**kwargs)
     except Exception as e:
         err_msg = str(e).lower()
-        if ("does not exist" in err_msg or "model_not_found" in err_msg or "404" in err_msg) and model != "llama-3.1-8b-instant":
-            logger.warning(f"Groq model '{model}' not accessible on this account ({e}). Retrying with 'llama-3.1-8b-instant'...")
+        if ("does not exist" in err_msg or "model_not_found" in err_msg or "404" in err_msg) and model != "openai/gpt-oss-20b":
+            logger.warning(f"Groq model '{model}' not accessible on this account ({e}). Retrying with 'openai/gpt-oss-20b'...")
             kwargs_copy = dict(kwargs)
-            kwargs_copy["model"] = "llama-3.1-8b-instant"
+            kwargs_copy["model"] = "openai/gpt-oss-20b"
             return await client.chat.completions.create(**kwargs_copy)
         raise
 

@@ -159,9 +159,9 @@ class TestGeminiGrindService(WinterArcTestCase):
         gs._gemini_geo_blocked_until = 0.0
 
     def test_groq_model_configuration(self):
-        """Verifies that Groq model defaults to high-availability Llama model (llama-3.1-8b-instant)."""
+        """Verifies that Groq model defaults to high-availability active model (openai/gpt-oss-20b)."""
         import config
-        self.assertTrue("llama-3.1-8b" in config.GROQ_MODEL or "llama-3.3-70b" in config.GROQ_MODEL)
+        self.assertTrue("openai/gpt-oss-20b" in config.GROQ_MODEL or "gpt-oss" in config.GROQ_MODEL)
 
 
 
@@ -272,7 +272,7 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
         self.assertEqual(result, mock_res)
         self.assertEqual(mock_client.chat.completions.create.call_count, 2)
         # Verify the second call switched to llama-3.1-8b-instant
-        self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], "llama-3.1-8b-instant")
+        self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], "openai/gpt-oss-20b")
 
     def test_check_ai_health_online_and_geoblocked(self):
         """Verifies check_ai_health performs startup ping and reports health statuses."""
