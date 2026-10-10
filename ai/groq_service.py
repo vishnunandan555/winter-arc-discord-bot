@@ -11,7 +11,7 @@ import time
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
-from config import GROQ_API_KEY, GROQ_MODEL, MAX_SINGLE_SET_LIMITS
+from config import GROQ_API_KEY, GROQ_MODEL, GROQ_FALLBACK_MODELS, MAX_SINGLE_SET_LIMITS
 
 logger = logging.getLogger("winter_arc.ai.groq")
 
@@ -33,22 +33,54 @@ def get_groq_client():
     return _groq_client
 
 
+def get_groq_candidate_models(requested_model: Optional[str] = None) -> List[str]:
+    """Builds an ordered, deduplicated list of fallback models for Groq."""
+    primary = requested_model or GROQ_MODEL
+    ordered = [primary] + GROQ_FALLBACK_MODELS
+    seen = set()
+    res = []
+    for m in ordered:
+        if m and m not in seen:
+            seen.add(m)
+            res.append(m)
+    return res
+
+
 async def safe_groq_chat_completion(client, **kwargs):
     """
-    Executes a Groq chat completion with automatic resilient fallback to openai/gpt-oss-20b
-    if the configured model is unavailable, deprecated, or returns 404 (model_not_found).
+    Executes a Groq chat completion with 3+ live fallback models and explicit console logging
+    whenever any fallback transition occurs.
     """
-    model = kwargs.get("model", GROQ_MODEL)
-    try:
-        return await client.chat.completions.create(**kwargs)
-    except Exception as e:
-        err_msg = str(e).lower()
-        if ("does not exist" in err_msg or "model_not_found" in err_msg or "404" in err_msg) and model != "openai/gpt-oss-20b":
-            logger.warning(f"Groq model '{model}' not accessible on this account ({e}). Retrying with 'openai/gpt-oss-20b'...")
-            kwargs_copy = dict(kwargs)
-            kwargs_copy["model"] = "openai/gpt-oss-20b"
-            return await client.chat.completions.create(**kwargs_copy)
-        raise
+    requested_model = kwargs.get("model", GROQ_MODEL)
+    candidates = get_groq_candidate_models(requested_model)
+    last_exception = None
+
+    for idx, model in enumerate(candidates):
+        kwargs_copy = dict(kwargs)
+        kwargs_copy["model"] = model
+        try:
+            res = await client.chat.completions.create(**kwargs_copy)
+            if idx > 0:
+                logger.info(
+                    f"✅ Groq fallback SUCCESS: Recovered with fallback model '{model}' "
+                    f"after previous model(s) failed."
+                )
+            return res
+        except Exception as e:
+            last_exception = e
+            err_msg = str(e)
+            if idx + 1 < len(candidates):
+                next_model = candidates[idx + 1]
+                logger.warning(
+                    f"⚠️ Groq model '{model}' failed ({err_msg[:120]}). "
+                    f"Falling back to candidate '{next_model}' (Attempt {idx + 1}/{len(candidates)})..."
+                )
+            else:
+                logger.error(
+                    f"❌ All {len(candidates)} Groq fallback models failed. Final error: {e}"
+                )
+
+    raise last_exception
 
 
 def extract_disciplines_fallback(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:

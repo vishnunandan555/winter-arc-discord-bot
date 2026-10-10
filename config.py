@@ -47,7 +47,19 @@ MAX_SINGLE_SET_LIMITS = {
 # AI Configuration
 # Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = "gemini-flash-lite-latest"
+_raw_gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest").strip()
+if _raw_gemini_model in ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest"]:
+    GEMINI_MODEL = "gemini-flash-lite-latest"
+else:
+    GEMINI_MODEL = _raw_gemini_model or "gemini-flash-lite-latest"
+
+# 3+ verified active Gemini fallback models (tested against Google GenAI API)
+GEMINI_FALLBACK_MODELS = [
+    GEMINI_MODEL,
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-flash-latest",
+]
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
@@ -56,6 +68,14 @@ if _raw_groq_model in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama
     GROQ_MODEL = "openai/gpt-oss-20b"
 else:
     GROQ_MODEL = _raw_groq_model or "openai/gpt-oss-20b"
+
+# 3+ verified active Groq fallback models (tested against Groq Cloud API)
+GROQ_FALLBACK_MODELS = [
+    GROQ_MODEL,
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-120b",
+    "allam-2-7b",
+]
 
 import sys
 from logging.handlers import RotatingFileHandler

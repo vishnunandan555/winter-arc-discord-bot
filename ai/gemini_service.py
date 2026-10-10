@@ -14,7 +14,14 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
-from config import GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY, GROQ_MODEL
+from config import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GEMINI_FALLBACK_MODELS,
+    GROQ_API_KEY,
+    GROQ_MODEL,
+    GROQ_FALLBACK_MODELS,
+)
 from ai.groq_service import safe_groq_chat_completion
 
 try:
@@ -113,6 +120,63 @@ def get_gemini_client():
     return _gemini_client
 
 
+def get_gemini_candidate_models(requested_model: Optional[str] = None) -> List[str]:
+    """Builds an ordered, deduplicated list of fallback models for Gemini."""
+    primary = requested_model or GEMINI_MODEL
+    ordered = [primary] + GEMINI_FALLBACK_MODELS
+    seen = set()
+    res = []
+    for m in ordered:
+        if m and m not in seen:
+            seen.add(m)
+            res.append(m)
+    return res
+
+
+async def safe_gemini_generate_content(client, **kwargs):
+    """
+    Executes a Google Gemini generate_content call with 3+ live fallback models and explicit console logging
+    whenever any fallback transition occurs. If the host is geo-blocked (403), immediately raises to route to Groq.
+    """
+    requested_model = kwargs.get("model", GEMINI_MODEL)
+    candidates = get_gemini_candidate_models(requested_model)
+    last_exception = None
+
+    for idx, model in enumerate(candidates):
+        kwargs_copy = dict(kwargs)
+        kwargs_copy["model"] = model
+        try:
+            res = await client.aio.models.generate_content(**kwargs_copy)
+            if idx > 0:
+                logger.info(
+                    f"✅ Gemini fallback SUCCESS: Recovered with fallback model '{model}' "
+                    f"after previous model(s) failed."
+                )
+            return res
+        except Exception as e:
+            last_exception = e
+            err_msg = str(e)
+            if is_gemini_blocking_error(e):
+                mark_gemini_geo_blocked(err_msg)
+                logger.warning(
+                    f"⚠️ Gemini host IP restricted/geo-blocked ({err_msg[:120]}). "
+                    f"Bypassing remaining Gemini models and routing directly to Groq cascade..."
+                )
+                raise
+            if idx + 1 < len(candidates):
+                next_model = candidates[idx + 1]
+                logger.warning(
+                    f"⚠️ Gemini model '{model}' failed ({err_msg[:120]}). "
+                    f"Falling back to candidate '{next_model}' (Attempt {idx + 1}/{len(candidates)})..."
+                )
+            else:
+                logger.error(
+                    f"❌ All {len(candidates)} Gemini fallback models failed. Final error: {e}"
+                )
+
+    raise last_exception
+
+
 async def check_ai_health() -> Dict[str, str]:
     """
     Performs startup health checks on configured AI services (Gemini & Groq)
@@ -127,13 +191,15 @@ async def check_ai_health() -> Dict[str, str]:
         try:
             client = get_gemini_client()
             if client:
-                await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                res = await asyncio.wait_for(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents="ping",
                     ),
                     timeout=5.0
                 )
+                active_model = getattr(res, "model_version", GEMINI_MODEL)
                 gemini_status = f"ONLINE ({GEMINI_MODEL})"
             else:
                 gemini_status = "INITIALIZATION FAILED"
@@ -264,9 +330,13 @@ async def _evaluate_grind_with_groq(raw_text: str, system_prompt: str) -> Dict[s
             timeout=8.0
         )
         latency = time.time() - start_t
-        content = chat_completion.choices[0].message.content
-        data = json.loads(content)
-        return _postprocess_grind_evaluation(data, raw_text, provider=f"Groq ({GROQ_MODEL}) in {latency:.2f}s")
+        used_model = getattr(chat_completion, "model", GROQ_MODEL)
+        content = chat_completion.choices[0].message.content or "{}"
+        import re
+        clean_content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.IGNORECASE)
+        clean_content = re.sub(r"\s*```$", "", clean_content).strip()
+        data = json.loads(clean_content)
+        return _postprocess_grind_evaluation(data, raw_text, provider=f"Groq ({used_model}) in {latency:.2f}s")
     except Exception as e:
         logger.error(f"Error calling Groq for fallback /grind evaluation: {e}")
         raise GeminiServiceError(f"Both Gemini and Groq AI evaluation services failed ({e}).")
@@ -332,7 +402,8 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
     try:
         logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for /grind evaluation...")
         response = await asyncio.wait_for(
-            client.aio.models.generate_content(
+            safe_gemini_generate_content(
+                client,
                 model=GEMINI_MODEL,
                 contents=f"User Reflection:\n\"{raw_text}\"",
                 config=types.GenerateContentConfig(
@@ -342,7 +413,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
                     temperature=0.2,
                 ),
             ),
-            timeout=5.0
+            timeout=8.0
         )
         data = json.loads(response.text)
         return _postprocess_grind_evaluation(data, raw_text, provider=f"Gemini ({GEMINI_MODEL})")
@@ -382,7 +453,8 @@ async def generate_daily_toast_and_roast(
         if client:
             try:
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
@@ -390,7 +462,7 @@ async def generate_daily_toast_and_roast(
                             max_output_tokens=200,
                         ),
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
                 return response.text.strip()
             except Exception as e:
@@ -465,7 +537,8 @@ async def generate_weekly_state_of_the_pack(
         if client:
             try:
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
@@ -473,7 +546,7 @@ async def generate_weekly_state_of_the_pack(
                             max_output_tokens=180,
                         ),
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
                 return response.text.strip()
             except Exception as e:
@@ -613,11 +686,12 @@ async def generate_reminder_motivation(
             try:
                 logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for {reminder_type} reminder quote...")
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=prompt,
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
                 txt = (response.text or "").strip().strip('"').strip("'")
                 if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
@@ -713,7 +787,8 @@ async def generate_personalized_morning_briefing(
             try:
                 logger.info(f"Calling Gemini API ({GEMINI_MODEL}) for personalized morning briefing for {u_name}...")
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
@@ -721,7 +796,7 @@ async def generate_personalized_morning_briefing(
                             max_output_tokens=100,
                         ),
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
                 txt = (response.text or "").strip().strip('"').strip("'")
                 if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
@@ -828,7 +903,8 @@ async def generate_evening_alert_data(
         if client:
             try:
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=f"Participants tonight (3 hours before midnight):\n" + "\n".join(participant_lines),
                         config=types.GenerateContentConfig(
@@ -838,7 +914,7 @@ async def generate_evening_alert_data(
                             temperature=0.4,
                         ),
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
 
                 data = json.loads(response.text)
@@ -947,7 +1023,8 @@ async def generate_phase_ceremony(
         if client:
             try:
                 response = await asyncio.wait_for(
-                    client.aio.models.generate_content(
+                    safe_gemini_generate_content(
+                        client,
                         model=GEMINI_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
@@ -955,7 +1032,7 @@ async def generate_phase_ceremony(
                             max_output_tokens=300,
                         ),
                     ),
-                    timeout=5.0
+                    timeout=8.0
                 )
                 return response.text.strip()
             except Exception as e:

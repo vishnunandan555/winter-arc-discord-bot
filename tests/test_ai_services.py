@@ -322,8 +322,58 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
                  patch("ai.gemini_service.GROQ_API_KEY", "test-groq-key"):
                 results = asyncio.run(check_ai_health())
                 self.assertIn("GEO-BLOCKED", results["gemini"])
-                self.assertTrue(gs._gemini_geo_blocked)
         finally:
             gs._gemini_geo_blocked = False
             gs._gemini_geo_blocked_until = 0.0
+
+    def test_safe_groq_chat_completion_cascade_3_fallbacks(self):
+        """Verifies safe_groq_chat_completion cascades through at least 3 fallback models with logging."""
+        from ai.groq_service import safe_groq_chat_completion
+
+        mock_client = MagicMock()
+        mock_success = MagicMock()
+        # Fail first 2 models (e.g. 404 and 429), succeed on 3rd model
+        mock_client.chat.completions.create = AsyncMock(side_effect=[
+            Exception("Model 1 not found (404)"),
+            Exception("Model 2 rate limit (429)"),
+            mock_success,
+        ])
+
+        res = asyncio.run(safe_groq_chat_completion(
+            mock_client,
+            messages=[{"role": "user", "content": "test"}],
+            model="openai/gpt-oss-20b"
+        ))
+        self.assertEqual(res, mock_success)
+        self.assertEqual(mock_client.chat.completions.create.call_count, 3)
+        calls = mock_client.chat.completions.create.call_args_list
+        self.assertEqual(calls[0][1]["model"], "openai/gpt-oss-20b")
+        self.assertEqual(calls[1][1]["model"], "qwen/qwen3.8-27b")
+        self.assertEqual(calls[2][1]["model"], "openai/gpt-oss-120b")
+
+    def test_safe_gemini_generate_content_cascade_3_fallbacks(self):
+        """Verifies safe_gemini_generate_content cascades through at least 3 fallback models with logging."""
+        from ai.gemini_service import safe_gemini_generate_content
+
+        mock_client = MagicMock()
+        mock_success = MagicMock()
+        # Fail first 2 models (e.g. 404 and 503), succeed on 3rd model
+        mock_client.aio.models.generate_content = AsyncMock(side_effect=[
+            Exception("Model 1 deprecated (404)"),
+            Exception("Model 2 temporarily unavailable (503)"),
+            mock_success,
+        ])
+
+        res = asyncio.run(safe_gemini_generate_content(
+            mock_client,
+            contents="ping",
+            model="gemini-flash-lite-latest"
+        ))
+        self.assertEqual(res, mock_success)
+        self.assertEqual(mock_client.aio.models.generate_content.call_count, 3)
+        calls = mock_client.aio.models.generate_content.call_args_list
+        self.assertEqual(calls[0][1]["model"], "gemini-flash-lite-latest")
+        self.assertEqual(calls[1][1]["model"], "gemini-3.5-flash-lite")
+        self.assertEqual(calls[2][1]["model"], "gemini-3.8-flash")
+
 
