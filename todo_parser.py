@@ -9,6 +9,7 @@ Handles natural language and structured reminder expressions:
 - Optional 'until': 'done' (indefinite until completed), 'tomorrow 20:00', or specific date/time
 """
 
+import json
 import re
 import time
 from datetime import datetime, timedelta, time as dt_time
@@ -264,6 +265,35 @@ def parse_remind_spec(
         }
 
     # =====================================================================
+    # 4b. Daily Recurring Times ('every day at 10:00', 'every day 10:00', 'daily at 18:00')
+    # =====================================================================
+    m_daily = re.search(r"(?:every\s+day|daily)(?:\s+at)?\s+(.+)", low)
+    if m_daily:
+        time_part = m_daily.group(1).strip()
+        parsed_daily_time = parse_time_component(time_part)
+        if parsed_daily_time:
+            dh, dm = parsed_daily_time
+            time_str = f"{dh:02d}:{dm:02d}"
+            times = [time_str]
+            today_dt = datetime(now.year, now.month, now.day, dh, dm, tzinfo=tz)
+            if today_dt > now:
+                next_ts = int(today_dt.timestamp())
+            else:
+                next_ts = int((today_dt + timedelta(days=1)).timestamp())
+            conf = f"🔔 Recurring reminder scheduled **every day at {time_str}**{until_desc}."
+            return {
+                "remind_spec": raw,
+                "remind_type": "daily_fixed",
+                "remind_interval_mins": None,
+                "remind_fixed_times": times,
+                "remind_window_start": None,
+                "until_spec": until_spec,
+                "until_timestamp": until_ts,
+                "next_reminder_at": next_ts,
+                "confirmation_msg": conf,
+            }
+
+    # =====================================================================
     # 5. One-Time Fixed Dates / Times ('tomorrow 10:00', 'today 18:30', '18:00', '6 PM')
     # =====================================================================
     parsed_time = parse_time_component(low)
@@ -361,8 +391,17 @@ def compute_next_reminder(
         return next_ts
 
     # 2. Smart frequency or daily fixed times
-    if remind_type in ["smart_frequency", "daily_fixed"]:
-        fixed_times = task.get("fixed_times_list") or []
+    if remind_type in ["smart_frequency", "daily_fixed", "fixed_daily"]:
+        fixed_times = task.get("fixed_times_list")
+        if not fixed_times and task.get("remind_fixed_times"):
+            rft = task["remind_fixed_times"]
+            if isinstance(rft, list):
+                fixed_times = rft
+            elif isinstance(rft, str):
+                try:
+                    fixed_times = json.loads(rft)
+                except Exception:
+                    fixed_times = []
         if not fixed_times:
             return None
 

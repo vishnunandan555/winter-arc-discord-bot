@@ -370,3 +370,315 @@ class TestTodoViewsAndInteractionFlow(WinterArcTestCase):
         self.assertEqual(len(assignee_tasks), 1)
         self.assertEqual(assignee_tasks[0]["task_text"], "Shared Engineering Review")
         self.assertEqual(assignee_tasks[0]["priority"], "high")
+
+    def test_task_assignment_decline_flow(self):
+        """Verifies friend assignment decline button callback."""
+        assigner_id = 111
+        assignee_id = 222
+        task_data = {
+            "task_text": "Optional Task",
+            "priority": "low",
+            "remind_spec": None,
+            "remind_type": "none",
+            "next_reminder_at": None,
+            "dm_only": True,
+        }
+
+        view = TaskAssignmentView(
+            assignee_id=assignee_id,
+            assigner_id=assigner_id,
+            task_data=task_data,
+            db_path=self.todo_test_db
+        )
+
+        inter = self.create_mock_interaction(user_id=assignee_id)
+        asyncio.run(view.btn_decline.callback(inter))
+
+        inter.response.edit_message.assert_called()
+        edit_content = inter.response.edit_message.call_args[1].get("content")
+        self.assertIn("Task Declined", edit_content)
+        # Should not be in database
+        self.assertEqual(len(db.get_active_tasks(assignee_id, db_path=self.todo_test_db)), 0)
+
+    def test_todolist_toggle_trash_and_pagination_buttons(self):
+        """Verifies toggling between active tasks and trash, and navigating pages."""
+        mock_user = self.create_mock_member(user_id=self.user_id, display_name="TaskMaster")
+        for i in range(1, 20):
+            db.add_task(self.user_id, f"Item {i}", db_path=self.todo_test_db)
+
+        # Mark 2 tasks done so we have trash items
+        db.mark_task_done(self.user_id, 1, db_path=self.todo_test_db)
+        db.mark_task_done(self.user_id, 1, db_path=self.todo_test_db)
+
+        view = TodoListView(user_id=self.user_id, user=mock_user, page=1, db_path=self.todo_test_db)
+        inter = self.create_mock_interaction(user_id=self.user_id)
+
+        # Toggle to Trash
+        asyncio.run(view.btn_trash_toggle.callback(inter))
+        self.assertTrue(view.is_trash)
+        self.assertEqual(view.page, 1)
+
+        # Toggle back to Active
+        asyncio.run(view.btn_trash_toggle.callback(inter))
+        self.assertFalse(view.is_trash)
+
+        # Move to Next Page
+        asyncio.run(view.btn_next.callback(inter))
+        self.assertEqual(view.page, 2)
+
+        # Move to Prev Page
+        asyncio.run(view.btn_prev.callback(inter))
+        self.assertEqual(view.page, 1)
+
+
+class TestTodoReminderService(WinterArcTestCase):
+    """Verifies background reminder ticker, DND deferrals, recurring advances, and delivery."""
+
+    def setUp(self):
+        super().setUp()
+        self.todo_test_db = os.path.join(self._temp_dir.name, "test_todo_reminders.db")
+        db.init_todo_db(self.todo_test_db)
+        self.user_id = 778899
+        with db.get_todo_connection(self.todo_test_db) as conn:
+            conn.execute("DELETE FROM todos;")
+            conn.execute("DELETE FROM todo_user_settings;")
+            conn.commit()
+
+    def test_process_single_reminder_delivers_alert_and_advances(self):
+        """Verifies that due reminder is delivered and recurring task advances to next timestamp."""
+        now_ts = int(time.time())
+        task = db.add_task(
+            self.user_id,
+            "Daily Standup Prep",
+            remind_spec="every day 10:00",
+            remind_type="fixed_daily",
+            remind_fixed_times=["10:00"],
+            next_reminder_at=now_ts - 10,  # due now
+            dm_only=True,
+            db_path=self.todo_test_db
+        )
+
+        mock_bot = MagicMock()
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.send = AsyncMock()
+        mock_user.display_name = "DevWarrior"
+        mock_bot.get_user.return_value = mock_user
+
+        service = TodoReminderService(mock_bot, db_path=self.todo_test_db)
+        asyncio.run(service._process_single_reminder(task, now_ts))
+
+        # Verification: Alert was sent to user's DM
+        self.assertTrue(mock_user.send.called)
+        sent_embed = mock_user.send.call_args[1].get("embed")
+        self.assertIsNotNone(sent_embed)
+        self.assertIn("Daily Standup Prep", sent_embed.description)
+
+        # Verification: Task in DB has been advanced into the future
+        active = db.get_active_tasks(self.user_id, db_path=self.todo_test_db)
+        self.assertEqual(len(active), 1)
+        self.assertGreater(active[0]["next_reminder_at"], now_ts)
+
+    def test_process_single_reminder_respects_dnd_and_postpones(self):
+        """Verifies that if user is in DND quiet hours, reminder is postponed without sending message."""
+        now_ts = int(time.time())
+        task = db.add_task(
+            self.user_id,
+            "Quiet Night Task",
+            remind_spec="every hour",
+            next_reminder_at=now_ts - 5,
+            dm_only=True,
+            db_path=self.todo_test_db
+        )
+
+        # Enable DND covering the entire 24h for test
+        db.update_user_settings(
+            self.user_id,
+            dnd_enabled=True,
+            dnd_start="00:00",
+            dnd_end="23:59",
+            db_path=self.todo_test_db
+        )
+
+        mock_bot = MagicMock()
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.send = AsyncMock()
+        mock_bot.get_user.return_value = mock_user
+
+        service = TodoReminderService(mock_bot, db_path=self.todo_test_db)
+        asyncio.run(service._process_single_reminder(task, now_ts))
+
+        # Alert should NOT have been sent during DND
+        self.assertFalse(mock_user.send.called)
+
+        # Reminder should be postponed by roughly 30 minutes (1800s)
+        active = db.get_active_tasks(self.user_id, db_path=self.todo_test_db)
+        self.assertEqual(len(active), 1)
+        self.assertAlmostEqual(active[0]["next_reminder_at"], now_ts + 1800, delta=10)
+
+    def test_deliver_alert_channel_fallback_when_dm_forbidden(self):
+        """Verifies fallback to origin channel when private DM is blocked."""
+        now_ts = int(time.time())
+        origin_channel_id = 998811
+        task = db.add_task(
+            self.user_id,
+            "Important Channel Reminder",
+            next_reminder_at=now_ts,
+            dm_only=True,
+            origin_channel_id=origin_channel_id,
+            db_path=self.todo_test_db
+        )
+
+        mock_bot = MagicMock()
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "DMs closed"))
+        mock_user.display_name = "ClosedDMUser"
+        mock_bot.get_user.return_value = mock_user
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+        mock_bot.get_channel.return_value = mock_channel
+
+        service = TodoReminderService(mock_bot, db_path=self.todo_test_db)
+        delivered = asyncio.run(service._deliver_alert(task))
+
+        self.assertTrue(delivered)
+        self.assertTrue(mock_channel.send.called)
+        sent_content = mock_channel.send.call_args[1].get("content")
+        self.assertIn(str(self.user_id), sent_content)
+
+
+class TestTodoCommandCallbacks(WinterArcTestCase):
+    """Verifies slash command execution callbacks on TodoCog."""
+
+    def setUp(self):
+        super().setUp()
+        self.todo_test_db = os.path.join(self._temp_dir.name, "test_todo_cogs.db")
+        db.init_todo_db(self.todo_test_db)
+        self.user_id = 667788
+        self.mock_bot = MagicMock()
+        with db.get_todo_connection(self.todo_test_db) as conn:
+            conn.execute("DELETE FROM todos;")
+            conn.execute("DELETE FROM todo_user_settings;")
+            conn.commit()
+        from cogs.todo import TodoCog
+        self.cog = TodoCog(self.mock_bot, db_path=self.todo_test_db)
+
+    def test_cmd_todo_add_and_list(self):
+        """Verifies /todo add and /todo list slash command callbacks."""
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        from discord import app_commands
+        p_choice = app_commands.Choice(name="🔴 High", value="high")
+
+        # 1. /todo add
+        asyncio.run(self.cog.todo_add.callback(self.cog, inter, task="Code review", priority=p_choice, remind="18:00"))
+        inter.response.send_message.assert_called_once()
+        msg = inter.response.send_message.call_args[0][0]
+        self.assertIn("#1", msg)
+        self.assertIn("Code review", msg)
+        self.assertIn("High", msg)
+
+        # 2. /todo list
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_list.callback(self.cog, inter))
+        inter.response.send_message.assert_called_once()
+        sent_embed = inter.response.send_message.call_args[1].get("embed")
+        self.assertIsNotNone(sent_embed)
+        self.assertIn("Code review", sent_embed.description)
+
+    def test_cmd_todo_done_and_delete_and_restore(self):
+        """Verifies /todo done, /todo delete, and /todo restore command callbacks."""
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        db.add_task(self.user_id, "Feature A", db_path=self.todo_test_db)
+        db.add_task(self.user_id, "Feature B", db_path=self.todo_test_db)
+
+        # /todo done 1 -> Feature A marked done
+        asyncio.run(self.cog.todo_done.callback(self.cog, inter, id=1))
+        inter.response.send_message.assert_called_once()
+        msg_done = inter.response.send_message.call_args[0][0]
+        self.assertIn("Completed!", msg_done)
+
+        # Active tasks now only Feature B as #1
+        inter.response.send_message.reset_mock()
+        # /todo delete 1 -> Feature B deleted to trash
+        asyncio.run(self.cog.todo_delete.callback(self.cog, inter, id=1))
+        inter.response.send_message.assert_called_once()
+        msg_del = inter.response.send_message.call_args[0][0]
+        self.assertIn("moved to trash", msg_del)
+
+        # Active is empty, trash has 2 items (T1, T2)
+        self.assertEqual(len(db.get_active_tasks(self.user_id, db_path=self.todo_test_db)), 0)
+        self.assertEqual(len(db.get_trashed_tasks(self.user_id, db_path=self.todo_test_db)), 2)
+
+        # /todo restore 1 -> Restores T1
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_restore.callback(self.cog, inter, trash_id=1))
+        inter.response.send_message.assert_called_once()
+        msg_res = inter.response.send_message.call_args[0][0]
+        self.assertIn("Restored task", msg_res)
+        self.assertEqual(len(db.get_active_tasks(self.user_id, db_path=self.todo_test_db)), 1)
+
+    def test_cmd_todo_dnd_and_clear(self):
+        """Verifies /todo dnd set/status/off and /todo clear commands."""
+        from discord import app_commands
+        inter = self.create_mock_interaction(user_id=self.user_id)
+
+        # 1. /todo dnd set
+        act_set = app_commands.Choice(name="Set", value="set")
+        asyncio.run(self.cog.todo_dnd.callback(self.cog, inter, action=act_set, start="22:00", end="06:00"))
+        inter.response.send_message.assert_called_once()
+        msg_dnd = inter.response.send_message.call_args[0][0]
+        self.assertIn("DND Quiet Hours Enabled", msg_dnd)
+        st = db.get_user_settings(self.user_id, db_path=self.todo_test_db)
+        self.assertTrue(st["dnd_enabled"])
+        self.assertEqual(st["dnd_start"], "22:00")
+        self.assertEqual(st["dnd_end"], "06:00")
+
+        # 2. /todo dnd status
+        inter.response.send_message.reset_mock()
+        act_status = app_commands.Choice(name="Status", value="status")
+        asyncio.run(self.cog.todo_dnd.callback(self.cog, inter, action=act_status))
+        msg_status = inter.response.send_message.call_args[0][0]
+        self.assertIn("22:00", msg_status)
+
+        # 3. /todo dnd off
+        inter.response.send_message.reset_mock()
+        act_off = app_commands.Choice(name="Off", value="off")
+        asyncio.run(self.cog.todo_dnd.callback(self.cog, inter, action=act_off))
+        msg_off = inter.response.send_message.call_args[0][0]
+        self.assertIn("DND Mode Disabled", msg_off)
+        self.assertFalse(db.get_user_settings(self.user_id, db_path=self.todo_test_db)["dnd_enabled"])
+
+        # 4. /todo clear
+        db.add_task(self.user_id, "Trash Me", db_path=self.todo_test_db)
+        db.mark_task_done(self.user_id, 1, db_path=self.todo_test_db)
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_clear.callback(self.cog, inter, confirm=True))
+        msg_clear = inter.response.send_message.call_args[0][0]
+        self.assertIn("Trash Cleared", msg_clear)
+        self.assertEqual(len(db.get_trashed_tasks(self.user_id, db_path=self.todo_test_db)), 0)
+
+    def test_cmd_todo_assign(self):
+        """Verifies /todo assign sends proposal embed and view to target member."""
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        mock_member = MagicMock(spec=discord.Member)
+        mock_member.bot = False
+        mock_member.id = 998877
+        mock_member.mention = "<@998877>"
+        mock_member.display_name = "Teammate"
+        mock_member.send = AsyncMock()
+
+        asyncio.run(
+            self.cog.todo_assign.callback(
+                self.cog,
+                inter,
+                member=mock_member,
+                task="Review PR #42",
+                remind="tomorrow 10:00"
+            )
+        )
+        inter.response.send_message.assert_called_once()
+        kwargs = inter.response.send_message.call_args[1]
+        self.assertIn("assigned a new task", kwargs.get("content", ""))
+        self.assertTrue(mock_member.send.called)
+
+

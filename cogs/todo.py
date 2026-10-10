@@ -33,12 +33,13 @@ logger = logging.getLogger("winter_arc.cogs.todo")
 class TodoCog(commands.Cog, name="Todo & Reminders"):
     """Standalone Todo & Smart Reminder Management System."""
 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, db_path: Optional[str] = None):
         self.bot = bot
-        self.reminder_service = TodoReminderService(bot)
+        self.db_path = db_path
+        self.reminder_service = TodoReminderService(bot, db_path=db_path)
 
     async def cog_load(self):
-        db.init_todo_db()
+        db.init_todo_db(self.db_path)
         self.reminder_service.start()
         logger.info("TodoCog loaded and reminder ticker active.")
 
@@ -77,7 +78,13 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         p_val = priority.value if priority else "normal"
         dm_val = True if dm is None else bool(dm)
 
-        # Parse schedule
+        origin_ch = None
+        if interaction.channel_id is not None:
+            try:
+                origin_ch = int(interaction.channel_id)
+            except (ValueError, TypeError):
+                origin_ch = None
+
         parsed = parser.parse_remind_spec(remind, until_text=until)
 
         new_item = db.add_task(
@@ -92,8 +99,9 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             until_spec=parsed["until_spec"],
             until_timestamp=parsed["until_timestamp"],
             dm_only=dm_val,
-            origin_channel_id=interaction.channel_id,
+            origin_channel_id=origin_ch,
             next_reminder_at=parsed["next_reminder_at"],
+            db_path=self.db_path,
         )
 
         num = new_item.get("num", 1)
@@ -133,6 +141,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             page=1,
             priority_filter=p_filter,
             with_reminders_only=with_reminders,
+            db_path=self.db_path,
         )
 
         embed = view.build_current_embed()
@@ -141,7 +150,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @todo_group.command(name="done", description="Mark a task completed and move it to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_done(self, interaction: discord.Interaction, id: int):
-        res = db.mark_task_done(interaction.user.id, id)
+        res = db.mark_task_done(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"✅ **Completed!** Task **`#{id}`** (*{res['task_text']}*) marked done and moved to trash.\n"
@@ -157,7 +166,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @todo_group.command(name="silence", description="Turn off future reminders for a task while keeping it on your list.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_silence(self, interaction: discord.Interaction, id: int):
-        res = db.silence_task(interaction.user.id, id)
+        res = db.silence_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🔕 **Reminders Silenced!** Task **`#{id}`** (*{res['task_text']}*) will no longer send alerts.\n"
@@ -173,7 +182,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @todo_group.command(name="delete", description="Remove an active task directly to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_delete(self, interaction: discord.Interaction, id: int):
-        res = db.delete_task(interaction.user.id, id)
+        res = db.delete_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🗑️ Task **`#{id}`** (*{res['task_text']}*) moved to trash.\n"
@@ -186,7 +195,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @todo_group.command(name="restore", description="Restore a task from 7-day trash back to your active list.")
     @app_commands.describe(trash_id="The trash number (e.g. 1 for T1)")
     async def todo_restore(self, interaction: discord.Interaction, trash_id: int):
-        res = db.restore_task(interaction.user.id, trash_id)
+        res = db.restore_task(interaction.user.id, trash_id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"♻️ Restored task **`T{trash_id}`** (*{res['task_text']}*) back to your active list as **`#{res.get('num', 1)}`**.",
@@ -240,6 +249,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             remind_window_start=parsed["remind_window_start"] if parsed else None,
             until_spec=parsed["until_spec"] if parsed else None,
             until_timestamp=parsed["until_timestamp"] if parsed else None,
+            db_path=self.db_path,
         )
 
         if res:
@@ -299,6 +309,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             assignee_id=member.id,
             assigner_id=interaction.user.id,
             task_data=task_data,
+            db_path=self.db_path,
         )
 
         p_badge = format_priority_badge(p_val)
@@ -324,6 +335,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
                 assignee_id=member.id,
                 assigner_id=interaction.user.id,
                 task_data=task_data,
+                db_path=self.db_path,
             )
             await member.send(content=invite_msg, view=dm_view)
         except Exception:
@@ -350,12 +362,12 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         act = action.value
 
         if act == "off":
-            db.update_user_settings(interaction.user.id, dnd_enabled=False)
+            db.update_user_settings(interaction.user.id, dnd_enabled=False, db_path=self.db_path)
             await interaction.response.send_message("🔕 **DND Mode Disabled.** Reminders will fire anytime they are due.", ephemeral=True)
             return
 
         if act == "status":
-            st = db.get_user_settings(interaction.user.id)
+            st = db.get_user_settings(interaction.user.id, db_path=self.db_path)
             is_on = bool(st.get("dnd_enabled"))
             s_time = st.get("dnd_start", "22:00")
             e_time = st.get("dnd_end", "06:00")
@@ -387,7 +399,8 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             user_id=interaction.user.id,
             dnd_enabled=True,
             dnd_start=s_formatted,
-            dnd_end=e_formatted
+            dnd_end=e_formatted,
+            db_path=self.db_path,
         )
 
         await interaction.response.send_message(
@@ -407,7 +420,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             )
             return
 
-        count = db.clear_trash(interaction.user.id)
+        count = db.clear_trash(interaction.user.id, db_path=self.db_path)
         await interaction.response.send_message(
             f"🧹 **Trash Cleared.** Permanently removed **{count}** trashed task(s).",
             ephemeral=True

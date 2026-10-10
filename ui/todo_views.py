@@ -203,30 +203,30 @@ class TodoListView(discord.ui.View):
     # ---------------- Buttons ----------------
 
     @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary, custom_id="btn_todo_prev")
-    async def btn_prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def btn_prev(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         self.page -= 1
         self._update_buttons()
         await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
 
     @discord.ui.button(label="Page 1/1", style=discord.ButtonStyle.secondary, disabled=True, custom_id="btn_todo_page_num")
-    async def btn_page_num(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def btn_page_num(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         pass
 
     @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary, custom_id="btn_todo_next")
-    async def btn_next(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def btn_next(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         self.page += 1
         self._update_buttons()
         await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
 
     @discord.ui.button(label="🗑️ Trash / History", style=discord.ButtonStyle.secondary, custom_id="btn_todo_trash_toggle")
-    async def btn_trash_toggle(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def btn_trash_toggle(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         self.is_trash = not self.is_trash
         self.page = 1
         self._update_buttons()
         await interaction.response.edit_message(embed=self.build_current_embed(), view=self)
 
     @discord.ui.button(label="✅ Mark Done", style=discord.ButtonStyle.success, custom_id="btn_todo_done_action")
-    async def btn_action_done(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def btn_action_done(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         page_items, _, _ = self._get_current_items()
         if not page_items:
             await interaction.response.send_message("No tasks available to select.", ephemeral=True)
