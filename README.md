@@ -30,7 +30,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 
 - **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
-- **Dual AI Workout Logging**: Log workouts with standard slash commands or natural language with Groq and Gemini AI.
+- **Dual AI Architecture with Automatic Failover**: Log workouts with standard slash commands or natural language with Groq and Gemini AI, backed by automatic failover to guarantee zero downtime across cloud datacenters.
 - **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/accuse`) protect server integrity from vanity claims.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
@@ -43,7 +43,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
 | **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full 92-day campaign view with interactive bidirectional switching and status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
-| **Dual AI Parsing** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day). |
+| **Dual AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (Qwen 2.5); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day) with automatic sub-second Groq fallback. |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |

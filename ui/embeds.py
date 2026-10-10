@@ -703,12 +703,12 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
-            name="⚔️ `/grind [text]` — Custom Workouts & Deep Work (Gemini AI)",
+            name="⚔️ `/grind [text]` — Custom Workouts & Deep Work (AI Evaluation)",
             value=(
                 "Submit custom workouts (Surya Namaskaras, skipping, gym sets, bicep curls, yoga) or heavy cognitive deep work (DSA, systems code, technical study).\n"
                 "• **Reward**: Up to **+50 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
                 "• **Example**: `/grind text: Completed 15 Surya Namaskars, 3x12 bicep curls, and solved 2 graph DP problems`\n"
-                "🛡️ *Strict Evaluation*: Evaluated by Gemini AI. Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
+                "🛡️ *Strict Evaluation*: Powered by dual-model AI (Gemini + Groq failover). Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
             ),
             inline=False
         )

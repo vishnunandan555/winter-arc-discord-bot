@@ -186,19 +186,39 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
 
     def test_cleanup_fixes_and_robustness(self):
         """Verifies no-fallback Gemini error handling, formatted history with grind tags, and retroactive sync."""
+        import json
         from ai.gemini_service import GeminiServiceError, evaluate_grind
         from ui.embeds import build_history_embed, build_stats_embed, build_profile_embed
 
-        # 1. Verify GeminiServiceError is raised without fake fallback points when unconfigured or failing
-        with patch("ai.gemini_service.get_gemini_client", return_value=None):
+        # 1. Verify GeminiServiceError is raised when both AI services fail/are unconfigured
+        with patch("ai.gemini_service.get_gemini_client", return_value=None), \
+             patch("ai.groq_service.get_groq_client", return_value=None):
             with self.assertRaises(GeminiServiceError):
                 asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
 
         mock_failing_client = MagicMock()
         mock_failing_client.aio.models.generate_content = AsyncMock(side_effect=RuntimeError("API quota exhausted"))
-        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client):
+        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client), \
+             patch("ai.groq_service.get_groq_client", return_value=None):
             with self.assertRaises(GeminiServiceError):
                 asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
+
+        # Verify Groq fallback succeeds when Gemini fails
+        mock_groq = MagicMock()
+        mock_groq_resp = MagicMock()
+        mock_groq_resp.choices = [MagicMock(message=MagicMock(content=json.dumps({
+            "verdict": "ACCEPTED",
+            "points": 35,
+            "key_learning": "Algorithms Deep Work",
+            "tracked_disciplines_excluded": [],
+            "commentary": "Solid deep work session."
+        })))]
+        mock_groq.chat.completions.create = AsyncMock(return_value=mock_groq_resp)
+        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client), \
+             patch("ai.groq_service.get_groq_client", return_value=mock_groq):
+            res_groq = asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
+            self.assertEqual(res_groq["verdict"], "ACCEPTED")
+            self.assertEqual(res_groq["points"], 35)
 
         # 2. Formatted history with grind log attachment
         u_hist = 999777

@@ -85,6 +85,19 @@ class WinterArcBot(commands.Bot):
         # 1. Initialize SQLite database schemas
         db.init_db()
 
+        # Pre-warm AI client singletons at startup so heavy imports occur BEFORE connecting to gateway
+        try:
+            from ai.gemini_service import get_gemini_client
+            get_gemini_client()
+        except Exception as e:
+            logger.debug(f"Gemini client startup warmup: {e}")
+
+        try:
+            from ai.groq_service import get_groq_client
+            get_groq_client()
+        except Exception as e:
+            logger.debug(f"Groq client startup warmup: {e}")
+
         # 2. Load modular cogs
         for ext in EXTENSIONS:
             try:
