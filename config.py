@@ -50,10 +50,23 @@ GEMINI_MODEL = "gemini-flash-lite-latest"
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+_raw_groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+if _raw_groq_model in ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]:
+    GROQ_MODEL = "llama-3.1-8b-instant"
+else:
+    GROQ_MODEL = _raw_groq_model or "llama-3.1-8b-instant"
 
 import sys
 from logging.handlers import RotatingFileHandler
+
+# Force unbuffered / line-buffered streams so logs display in real-time in container consoles (Pterodactyl, Docker, systemd)
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
 
 LOG_DIR = os.getenv("LOG_DIR", "logs")
 LOG_FILE_PATH = os.path.join(LOG_DIR, "winter_arc.log")

@@ -301,3 +301,29 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
             gs._gemini_geo_blocked = False
             gs._gemini_geo_blocked_until = 0.0
 
+    def test_check_ai_health_403_forbidden_sets_geoblocked(self):
+        """Verifies 403 Forbidden from cloud IP triggers circuit breaker and reports GEO-BLOCKED."""
+        from ai.gemini_service import check_ai_health
+        import ai.gemini_service as gs
+
+        mock_gemini_client = MagicMock()
+        mock_gemini_client.aio.models.generate_content = AsyncMock(
+            side_effect=Exception("403 Forbidden. {'message': '<!DOCTYPE html>...')")
+        )
+
+        mock_groq_res = MagicMock()
+        mock_groq_res.model = "llama-3.1-8b-instant"
+
+        try:
+            with patch.object(gs, "get_gemini_client", return_value=mock_gemini_client), \
+                 patch("ai.gemini_service.safe_groq_chat_completion", new=AsyncMock(return_value=mock_groq_res)), \
+                 patch("ai.groq_service.get_groq_client", return_value=MagicMock()), \
+                 patch("ai.gemini_service.GEMINI_API_KEY", "test-gemini-key"), \
+                 patch("ai.gemini_service.GROQ_API_KEY", "test-groq-key"):
+                results = asyncio.run(check_ai_health())
+                self.assertIn("GEO-BLOCKED", results["gemini"])
+                self.assertTrue(gs._gemini_geo_blocked)
+        finally:
+            gs._gemini_geo_blocked = False
+            gs._gemini_geo_blocked_until = 0.0
+

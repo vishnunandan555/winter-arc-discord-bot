@@ -7,6 +7,8 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./winter_arc.db:/app/winter_arc.db
       - ./logs:/app/logs

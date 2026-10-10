@@ -55,6 +55,21 @@ _gemini_geo_blocked: bool = False
 _gemini_geo_blocked_until: float = 0.0
 
 
+def is_gemini_blocking_error(err: Any) -> bool:
+    """Detects regional blocks, cloud IP blocks (403 Forbidden), or failed preconditions."""
+    s = str(err).lower()
+    return any(indicator in s for indicator in [
+        "location is not supported",
+        "failed_precondition",
+        "403 forbidden",
+        "403",
+        "forbidden",
+        "access denied",
+        "blocked",
+        "unauthorized",
+    ])
+
+
 def mark_gemini_geo_blocked(reason: str) -> None:
     """Marks Gemini as geo-blocked or restricted on this host IP, activating direct Groq routing."""
     global _gemini_geo_blocked, _gemini_geo_blocked_until
@@ -124,11 +139,12 @@ async def check_ai_health() -> Dict[str, str]:
                 gemini_status = "INITIALIZATION FAILED"
         except Exception as e:
             err_str = str(e)
-            if "location is not supported" in err_str.lower() or "failed_precondition" in err_str.lower():
+            if is_gemini_blocking_error(e):
                 mark_gemini_geo_blocked(err_str)
-                gemini_status = "GEO-BLOCKED (Bypassed -> Routed to Groq)"
+                gemini_status = "GEO-BLOCKED / IP RESTRICTED (Bypassed -> Routed to Groq)"
             else:
-                gemini_status = f"ERROR ({err_str[:80]})"
+                err_msg = err_str.strip() or type(e).__name__
+                gemini_status = f"ERROR ({err_msg[:80]})"
     results["gemini"] = gemini_status
 
     # 2. Groq Cloud
@@ -145,14 +161,15 @@ async def check_ai_health() -> Dict[str, str]:
                         model=GROQ_MODEL,
                         max_tokens=5,
                     ),
-                    timeout=6.0
+                    timeout=10.0
                 )
                 active_model = getattr(res, "model", GROQ_MODEL)
                 groq_status = f"ONLINE ({active_model})"
             else:
                 groq_status = "INITIALIZATION FAILED"
         except Exception as e:
-            groq_status = f"ERROR ({str(e)[:80]})"
+            err_msg = str(e).strip() or type(e).__name__
+            groq_status = f"ERROR ({err_msg[:80]})"
     results["groq"] = groq_status
 
     logger.info("=" * 60)
@@ -330,7 +347,7 @@ async def evaluate_grind(raw_text: str) -> Dict[str, Any]:
         data = json.loads(response.text)
         return _postprocess_grind_evaluation(data, raw_text, provider=f"Gemini ({GEMINI_MODEL})")
     except Exception as e:
-        if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+        if is_gemini_blocking_error(e):
             mark_gemini_geo_blocked(str(e))
         else:
             logger.warning(f"Gemini /grind evaluation failed ({e}). Falling back to Groq...")
@@ -377,7 +394,7 @@ async def generate_daily_toast_and_roast(
                 )
                 return response.text.strip()
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini daily toast & roast failed ({e}). Falling back to Groq...")
@@ -460,7 +477,7 @@ async def generate_weekly_state_of_the_pack(
                 )
                 return response.text.strip()
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini weekly state of the pack failed ({e}). Falling back to Groq...")
@@ -611,7 +628,7 @@ async def generate_reminder_motivation(
                     return txt
                 return random.choice(CURATED_STOIC_FALLBACKS)
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini {reminder_type} reminder quote failed ({e}). Falling back to Groq...")
@@ -713,7 +730,7 @@ async def generate_personalized_morning_briefing(
                     return txt
                 return random.choice(CURATED_STOIC_FALLBACKS)
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini personalized morning briefing failed for {u_name} ({e}). Falling back to Groq...")
@@ -841,7 +858,7 @@ async def generate_evening_alert_data(
 
                 return result_callouts, chosen_quote
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini evening alert failed ({e}). Falling back to Groq...")
@@ -942,7 +959,7 @@ async def generate_phase_ceremony(
                 )
                 return response.text.strip()
             except Exception as e:
-                if "location is not supported" in str(e).lower() or "failed_precondition" in str(e).lower():
+                if is_gemini_blocking_error(e):
                     mark_gemini_geo_blocked(str(e))
                 else:
                     logger.warning(f"Gemini phase ceremony failed ({e}). Falling back to Groq...")

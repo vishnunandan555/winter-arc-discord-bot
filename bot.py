@@ -209,10 +209,18 @@ class WinterArcBot(commands.Bot):
             except Exception as e:
                 logger.error(f"Failed to sync slash commands in setup_hook: {e}")
 
+    async def on_disconnect(self):
+        """Called when the client has disconnected from Discord Gateway."""
+        logger.warning("⚠️ Discord Gateway connection lost. Awaiting automatic reconnect...")
+
+    async def on_resumed(self):
+        """Called when a gateway session is successfully resumed."""
+        logger.info("🔁 Discord Gateway session resumed successfully. Active session state preserved.")
+
     async def on_ready(self):
         """Called when gateway connection is established."""
         if getattr(self, "_has_started", False):
-            logger.info("🔁 Discord Gateway connection resumed. Active session and command state preserved.")
+            logger.info("🔁 Discord Gateway connection re-established (new session). Active session and command state preserved.")
             return
 
         self._has_started = True
@@ -360,11 +368,22 @@ bot = WinterArcBot()
 
 async def shutdown(bot_instance: WinterArcBot):
     """Graceful shutdown handler for SIGTERM and SIGINT."""
+    if getattr(bot_instance, "_is_shutting_down", False):
+        return
+    bot_instance._is_shutting_down = True
+
     logger.info("Shutdown signal received. Closing scheduler and gateway connection...")
     if bot_instance.scheduler:
         bot_instance.scheduler.stop()
     await bot_instance.close()
     logger.info("Winter Arc Bot closed cleanly.")
+
+    # Flush all log handlers to ensure no buffered outputs are lost on exit
+    for handler in logging.getLogger().handlers:
+        try:
+            handler.flush()
+        except Exception:
+            pass
 
 
 def handle_signals(bot_instance: WinterArcBot, loop: asyncio.AbstractEventLoop):
