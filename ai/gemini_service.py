@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
+from ai.groq_service import safe_groq_chat_completion
 
 try:
     from google import genai
@@ -81,13 +82,16 @@ def is_gemini_available() -> bool:
 
 def get_gemini_client():
     """Returns an authenticated GenAI Client singleton if GEMINI_API_KEY is configured."""
-    global _gemini_client
+    global _gemini_client, genai
     if not GEMINI_API_KEY:
         return None
     if _gemini_client is None:
         try:
             if genai is None:
-                from google import genai
+                from google import genai as _genai
+                genai = _genai
+            if genai is None:
+                return None
             _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
         except Exception as e:
             logger.error(f"Failed to initialize Google GenAI client: {e}")
@@ -165,7 +169,8 @@ async def _evaluate_grind_with_groq(raw_text: str, system_prompt: str) -> Dict[s
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for fallback /grind evaluation...")
         start_t = time.time()
         chat_completion = await asyncio.wait_for(
-            groq_client.chat.completions.create(
+            safe_groq_chat_completion(
+                groq_client,
                 messages=[
                     {"role": "system", "content": groq_system},
                     {"role": "user", "content": f"User Reflection:\n\"{raw_text}\""},
@@ -320,7 +325,8 @@ async def generate_daily_toast_and_roast(
         groq_client = get_groq_client()
         if groq_client:
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": "You are Amarok, an authentic server mod and coach. Deliver a compact, natural midnight Winter Arc recap. Exactly 2 to 3 short sentences under 80 words."},
                         {"role": "user", "content": prompt},
@@ -401,7 +407,8 @@ async def generate_weekly_state_of_the_pack(
         groq_client = get_groq_client()
         if groq_client:
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": "You are Amarok, a grounded coach. Deliver short Sunday morning weekly commentary. Exactly 2 to 3 sentences under 65 words. No fantasy tropes."},
                         {"role": "user", "content": prompt},
@@ -476,6 +483,49 @@ async def generate_reminder_motivation(
     Strictly 1 to 2 short sentences (under 25-30 words total). Zero AI slop, zero fantasy melodrama.
     """
     import random
+
+    include_history_judgment = False
+    context_notes = []
+    if user_context:
+        u_name = user_context.get("username", "Warrior")
+        u_streak = user_context.get("streak", 0)
+        context_notes.append(f"Warrior: {u_name}")
+        context_notes.append(f"Active streak: {u_streak} days")
+        if recent_history:
+            past_pts = [f"{d['date'][-5:]}: {d.get('points', 0)} pts" for d in recent_history[:3]]
+            context_notes.append(f"Recent daily scores: {', '.join(past_pts)}")
+        recent_logs = user_context.get("recent_logs")
+        if recent_logs:
+            phys_summary = [f"{l['amount']} {l['unit']} {l['task_name']}" for l in recent_logs[:3]]
+            context_notes.append(f"Recent physical logs: {', '.join(phys_summary)}")
+        recent_grinds = user_context.get("recent_grinds")
+        if recent_grinds:
+            grind_summary = [f"{g.get('key_learning') or 'deep work'}" for g in recent_grinds[:2]]
+            context_notes.append(f"Recent study/grind: {', '.join(grind_summary)}")
+
+        has_slacked = recent_history and recent_history[0].get("points", 0) == 0
+        include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
+
+    prompt = (
+        f"You are Amarok, a grounded stoic coach in the Winter Arc.\n"
+        f"Generate a single razor-sharp stoic reminder or discipline quote for a {reminder_type.upper()} announcement.\n\n"
+        "STRICT CONSTRAINTS:\n"
+        "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 25 WORDS TOTAL).\n"
+        "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, zero generic motivational quotes.\n"
+    )
+
+    if include_history_judgment and context_notes:
+        prompt += (
+            f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
+            f"  {'; '.join(context_notes)}\n"
+            f"- INSTRUCTION: Bluntly or subtly weave their past work or momentum into a cold stoic edict. "
+            f"If they are slacking/idle, call it out bluntly. If consistent, remind them yesterday's sweat buys nothing today.\n"
+        )
+    else:
+        prompt += "- Deliver an original, unpredictable stoic discipline edict tailored for the Winter Arc.\n"
+
+    prompt += "\nOutput ONLY the plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
+
     if is_gemini_available():
         client = get_gemini_client()
         if client:
@@ -510,7 +560,8 @@ async def generate_reminder_motivation(
         if groq_client:
             logger.info(f"Calling Groq API ({GROQ_MODEL}) for fallback {reminder_type} reminder quote...")
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": "You are Amarok, a blunt stoic discipline coach. Deliver exactly 1 to 2 short sentences (under 25 words). No clichés. Output only the plain quote text without markdown or prefixes."},
                         {"role": "user", "content": prompt},
@@ -610,7 +661,8 @@ async def generate_personalized_morning_briefing(
         if groq_client:
             logger.info(f"Calling Groq API ({GROQ_MODEL}) for fallback morning briefing for {u_name}...")
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": "You are Amarok, a gritty discipline coach. Deliver exactly 1 to 2 short sentences (under 25 words). No clichés. Mention their momentum or recent work directly."},
                         {"role": "user", "content": prompt},
@@ -742,7 +794,8 @@ async def generate_evening_alert_data(
                 "{\"callouts\": [{\"discord_id\": int, \"callout\": str}], \"stoic_quote\": str}"
             )
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": groq_sys},
                         {"role": "user", "content": f"Participants tonight:\n" + "\n".join(participant_lines)},
@@ -837,7 +890,8 @@ async def generate_phase_ceremony(
         groq_client = get_groq_client()
         if groq_client:
             completion = await asyncio.wait_for(
-                groq_client.chat.completions.create(
+                safe_groq_chat_completion(
+                    groq_client,
                     messages=[
                         {"role": "system", "content": "You are Amarok. Generate the official Discord address marking the end of the phase. 3 to 4 short paragraphs under 140 words total."},
                         {"role": "user", "content": prompt},

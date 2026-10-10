@@ -10,7 +10,7 @@ Provides reusable functions across cogs and scheduler:
 
 import logging
 import re
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, time, timedelta
 import discord
 from discord import app_commands

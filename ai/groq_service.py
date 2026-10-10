@@ -30,8 +30,25 @@ def get_groq_client():
             _groq_client = AsyncGroq(api_key=GROQ_API_KEY)
         except Exception as e:
             logger.error(f"Failed to initialize Groq client: {e}")
-            return None
     return _groq_client
+
+
+async def safe_groq_chat_completion(client, **kwargs):
+    """
+    Executes a Groq chat completion with automatic resilient fallback to llama-3.1-8b-instant
+    if the configured model is unavailable, deprecated, or returns 404 (model_not_found).
+    """
+    model = kwargs.get("model", GROQ_MODEL)
+    try:
+        return await client.chat.completions.create(**kwargs)
+    except Exception as e:
+        err_msg = str(e).lower()
+        if ("does not exist" in err_msg or "model_not_found" in err_msg or "404" in err_msg) and model != "llama-3.1-8b-instant":
+            logger.warning(f"Groq model '{model}' not accessible on this account ({e}). Retrying with 'llama-3.1-8b-instant'...")
+            kwargs_copy = dict(kwargs)
+            kwargs_copy["model"] = "llama-3.1-8b-instant"
+            return await client.chat.completions.create(**kwargs_copy)
+        raise
 
 
 def extract_disciplines_fallback(raw_text: str, active_tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -159,7 +176,8 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for workout parsing: '{raw_text}'...")
         start_t = time.time()
         chat_completion = await asyncio.wait_for(
-            client.chat.completions.create(
+            safe_groq_chat_completion(
+                client,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": raw_text},
@@ -297,7 +315,8 @@ async def generate_reactive_nudge(
         logger.info(f"Calling Groq API ({GROQ_MODEL}) for reactive observation: {user_name} on /{command_name}...")
         start_t = time.time()
         chat_completion = await asyncio.wait_for(
-            client.chat.completions.create(
+            safe_groq_chat_completion(
+                client,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},

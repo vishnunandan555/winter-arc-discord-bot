@@ -159,9 +159,9 @@ class TestGeminiGrindService(WinterArcTestCase):
         gs._gemini_geo_blocked_until = 0.0
 
     def test_groq_model_configuration(self):
-        """Verifies that Groq model defaults to llama-3.3-70b-versatile."""
+        """Verifies that Groq model defaults to high-availability Llama model (llama-3.1-8b-instant)."""
         import config
-        self.assertIn("llama-3.3-70b", config.GROQ_MODEL)
+        self.assertTrue("llama-3.1-8b" in config.GROQ_MODEL or "llama-3.3-70b" in config.GROQ_MODEL)
 
 
 
@@ -251,3 +251,25 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
         self.assertTrue(groq_service.should_trigger_nudge(test_uid, force=True))
         groq_service.record_nudge_triggered(test_uid)
         self.assertFalse(groq_service.should_trigger_nudge(test_uid, force=False))
+
+    def test_safe_groq_chat_completion_fallback_on_404(self):
+        """Verifies safe_groq_chat_completion retries with llama-3.1-8b-instant when model returns 404/model_not_found."""
+        from ai.groq_service import safe_groq_chat_completion
+
+        mock_client = MagicMock()
+        mock_res = MagicMock()
+        # First call raises 404 model_not_found, second call succeeds
+        mock_client.chat.completions.create = AsyncMock(side_effect=[
+            Exception("Error code: 404 - {'error': {'message': 'The model `llama-3.3-70b-versatile` does not exist', 'code': 'model_not_found'}}"),
+            mock_res
+        ])
+
+        result = asyncio.run(safe_groq_chat_completion(
+            mock_client,
+            messages=[{"role": "user", "content": "hi"}],
+            model="llama-3.3-70b-versatile"
+        ))
+        self.assertEqual(result, mock_res)
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+        # Verify the second call switched to llama-3.1-8b-instant
+        self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], "llama-3.1-8b-instant")
