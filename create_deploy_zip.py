@@ -50,6 +50,7 @@ INCLUDE_DIRS = [
     "cogs",
     "ui",
     "tests",
+    "scripts",
 ]
 
 # Patterns and directories to strictly exclude

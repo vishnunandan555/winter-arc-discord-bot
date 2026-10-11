@@ -10,6 +10,7 @@ Verifies:
 6. Reactive AI nudge tone adaptation on recovery days.
 """
 
+import os
 import asyncio
 from datetime import date, datetime, timedelta
 from unittest.mock import patch, MagicMock
@@ -29,6 +30,7 @@ from ui.embeds import (
     build_dm_morning_message,
     build_dm_evening_message,
     build_streak_consistency_embed,
+    build_daily_leaderboard_embed,
 )
 from ai import groq_service
 from scheduler import WinterArcScheduler
@@ -275,4 +277,108 @@ class TestActiveRecoverySystem(WinterArcTestCase):
             with patch.object(scheduler, "_send_single_afternoon_dm") as mock_dm:
                 asyncio.run(scheduler.dispatch_afternoon_dms())
                 self.assertFalse(mock_dm.called)
+
+    def test_daily_leaderboard_paused_on_ard(self):
+        """Verifies daily leaderboard reflects paused competition on recovery days."""
+        with patch("ui.embeds.is_recovery_day", return_value=True):
+            embed = build_daily_leaderboard_embed()
+            self.assertIn("Active Recovery Day 🌿", embed.title)
+            self.assertIn("The scoreboard is paused today.", embed.description)
+            self.assertIn("Daily scoring and competition are closed", embed.description)
+
+    def test_ard_blocks_logging_commands(self):
+        """Verifies /log, /set, /grind, and /quick reject submissions on recovery days."""
+        from cogs.warrior import WarriorCog
+        from unittest.mock import AsyncMock
+
+        mock_bot = MagicMock()
+        cog = WarriorCog(mock_bot)
+        mock_user = self.create_mock_member(user_id=12345, display_name="TiredWarrior")
+
+        async def run_checks():
+            # 1. /log
+            inter_log = MagicMock(spec=discord.Interaction)
+            inter_log.user = mock_user
+            inter_log.response = MagicMock()
+            inter_log.response.defer = AsyncMock()
+            inter_log.followup = MagicMock()
+            inter_log.followup.send = AsyncMock()
+
+            with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.is_recovery_day", return_value=True), \
+                 patch("cogs.warrior.safe_react", new_callable=AsyncMock):
+                await cog.log_activity_cmd.callback(cog, inter_log, "Push-ups", 25)
+                inter_log.followup.send.assert_called_once()
+                args, _ = inter_log.followup.send.call_args
+                self.assertIn("Active Recovery Day (ARD)", args[0])
+
+            # 2. /set
+            inter_set = MagicMock(spec=discord.Interaction)
+            inter_set.user = mock_user
+            inter_set.response = MagicMock()
+            inter_set.response.defer = AsyncMock()
+            inter_set.followup = MagicMock()
+            inter_set.followup.send = AsyncMock()
+
+            with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.is_recovery_day", return_value=True), \
+                 patch("cogs.warrior.safe_react", new_callable=AsyncMock):
+                await cog.set_activity_cmd.callback(cog, inter_set, "Push-ups", 0)
+                inter_set.followup.send.assert_called_once()
+                args, _ = inter_set.followup.send.call_args
+                self.assertIn("Active Recovery Day (ARD)", args[0])
+
+            # 3. /grind
+            inter_grind = MagicMock(spec=discord.Interaction)
+            inter_grind.user = mock_user
+            inter_grind.response = MagicMock()
+            inter_grind.response.send_message = AsyncMock()
+
+            with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.is_recovery_day", return_value=True):
+                await cog.grind_cmd.callback(cog, inter_grind, "Light morning yoga and breathing")
+                inter_grind.response.send_message.assert_called_once()
+                args, _ = inter_grind.response.send_message.call_args
+                self.assertIn("Active Recovery Day (ARD)", args[0])
+
+            # 4. /quick
+            inter_quick = MagicMock(spec=discord.Interaction)
+            inter_quick.user = mock_user
+            inter_quick.response = MagicMock()
+            inter_quick.response.send_message = AsyncMock()
+
+            with patch("cogs.warrior.require_enrolled", new_callable=AsyncMock, return_value=True), \
+                 patch("cogs.warrior.is_recovery_day", return_value=True):
+                await cog.quick_cmd.callback(cog, inter_quick, "did 30 pushups")
+                inter_quick.response.send_message.assert_called_once()
+                args, _ = inter_quick.response.send_message.call_args
+                self.assertIn("Active Recovery Day (ARD)", args[0])
+
+        asyncio.run(run_checks())
+
+    def test_purge_recovery_day_logs(self):
+        """Verifies safe database purge of accidental activity, grind, and summaries on recovery days."""
+        test_uid = 887766
+        ard_date = f"{phases.BASE_YEAR}-10-11"
+
+        db.enroll_user(test_uid, "AccidentalLogger", self.test_db)
+        db.log_activity(test_uid, "AccidentalLogger", "Push-ups", 40, ard_date, db_path=self.test_db)
+        db.record_grind_entry(test_uid, ard_date, "Heavy bag session", "PASS", 30, "Stamina", "Solid work", db_path=self.test_db)
+
+        # Confirm logs exist prior to purge
+        prog_before = db.get_user_daily_progress(test_uid, ard_date, db_path=self.test_db)
+        self.assertGreater(prog_before["total_points"], 0)
+
+        # Perform safe purge
+        res = db.purge_recovery_day_logs(ard_date, db_path=self.test_db)
+        self.assertEqual(res["date"], ard_date)
+        self.assertGreaterEqual(res["deleted_daily_logs"], 1)
+        self.assertGreaterEqual(res["deleted_grind_logs"], 1)
+        self.assertTrue(os.path.exists(res["backup_path"]))
+
+        # Confirm logs are wiped clean for that target day
+        prog_after = db.get_user_daily_progress(test_uid, ard_date, db_path=self.test_db)
+        self.assertEqual(prog_after["total_points"], 0)
+        self.assertIsNone(db.get_user_daily_grind(test_uid, ard_date, db_path=self.test_db))
+
 

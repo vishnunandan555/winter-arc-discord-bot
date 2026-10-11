@@ -3051,6 +3051,64 @@ def get_user_full_campaign_calendar(discord_id: int, db_path: str = DB_PATH) -> 
     }
 
 
+def purge_recovery_day_logs(target_date_str: str, db_path: str = DB_PATH) -> Dict[str, Any]:
+    """
+    Safely purges all activity logs, grind logs, and daily summaries recorded on a specific date.
+    Creates an automatic timestamped database backup prior to execution.
+    """
+    import shutil
+    from datetime import datetime
+
+    # 1. Validate date format YYYY-MM-DD
+    try:
+        date.fromisoformat(target_date_str)
+    except (ValueError, TypeError):
+        raise ValueError(f"Invalid date format '{target_date_str}'. Expected 'YYYY-MM-DD'.")
+
+    # 2. Automated Safety Backup
+    db_abs = os.path.abspath(db_path)
+    backup_dir = os.path.join(os.path.dirname(db_abs), "backups")
+    os.makedirs(backup_dir, exist_ok=True)
+    ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"winter_arc_pre_purge_{target_date_str}_{ts_str}.db"
+    backup_filepath = os.path.join(backup_dir, backup_filename)
+    if os.path.exists(db_abs):
+        shutil.copy2(db_abs, backup_filepath)
+        logger.info(f"Database backed up to '{backup_filepath}' before purging records for {target_date_str}.")
+
+    # 3. Atomic purge transaction
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM daily_logs WHERE date = ?;", (target_date_str,))
+        deleted_daily_logs = int(cursor.fetchone()["cnt"])
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM grind_logs WHERE date = ?;", (target_date_str,))
+        deleted_grind_logs = int(cursor.fetchone()["cnt"])
+
+        cursor.execute("SELECT COUNT(*) AS cnt FROM daily_summaries WHERE date = ?;", (target_date_str,))
+        deleted_summaries = int(cursor.fetchone()["cnt"])
+
+        cursor.execute("DELETE FROM daily_logs WHERE date = ?;", (target_date_str,))
+        cursor.execute("DELETE FROM grind_logs WHERE date = ?;", (target_date_str,))
+        cursor.execute("DELETE FROM daily_summaries WHERE date = ?;", (target_date_str,))
+        conn.commit()
+
+    logger.info(
+        f"Purged records for {target_date_str}: {deleted_daily_logs} daily logs, "
+        f"{deleted_grind_logs} grind logs, {deleted_summaries} daily summaries."
+    )
+
+    return {
+        "date": target_date_str,
+        "backup_path": backup_filepath,
+        "deleted_daily_logs": deleted_daily_logs,
+        "deleted_grind_logs": deleted_grind_logs,
+        "deleted_daily_summaries": deleted_summaries,
+    }
+
+
+
 
 
 

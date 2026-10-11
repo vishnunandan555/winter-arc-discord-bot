@@ -93,6 +93,24 @@ def build_daily_leaderboard_embed() -> discord.Embed:
     now = datetime.now(BOT_TZ)
     today_str = now.strftime("%Y-%m-%d")
     date_display = now.strftime("%A, %B %d, %Y")
+
+    if is_recovery_day(today_str):
+        import random
+        rest_quote = random.choice(AUTHENTIC_REST_QUOTES)
+        embed = discord.Embed(
+            title="Winter Arc — Active Recovery Day 🌿",
+            description=(
+                f"📅 **{date_display}**\n\n"
+                "**The scoreboard is paused today.**\n"
+                "The pack is observing Active Recovery. Daily scoring and competition are closed so everyone can rest and rebuild equally.\n\n"
+                "🔥 **All streaks are automatically preserved.**\n\n"
+                f"> {rest_quote}"
+            ),
+            color=0x27AE60
+        )
+        embed.set_footer(text="Active Recovery Day (ARD) ❤️ • Streaks protected • Competition resumes tomorrow")
+        return embed
+
     data = db.get_daily_leaderboard(today_str)
     top_10 = data[:10]
 
@@ -302,16 +320,42 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     reset_ts = get_midnight_reset_timestamp()
     today_recovery = is_recovery_day()
 
+    if today_recovery:
+        if total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]:
+            streak_status = " *(Streak Secured ✅)*"
+            footer_text = "Active Recovery Day (ARD) ❤️ • Streak secured with volume • Rebuild & recover!"
+            color = 0x1ABC9C if progress["perfect_day"] else 0x2ECC71
+        else:
+            streak_status = " *(ARD ❤️ Streak Protected)*"
+            footer_text = "Active Recovery Day (ARD) ❤️ • Light mobility & hydration • Streak automatically preserved"
+            color = 0x9B59B6
+
+        deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+        desc = (
+            f"**{target_user.display_name}** • {date_display}\n"
+            f"🔥 Current Streak: **{streak} days**{streak_status}\n"
+            f"{deadline_line}\n\n"
+            "🌿 **Active Recovery Day (ARD)**\n"
+            "Competition and logging are paused today. Rest is not weakness — it is where the body adapts and rebuilds.\n\n"
+            "**Recommended Recovery Protocol**:\n"
+            "• 💧 **Hydration**: Drink 3–4L water\n"
+            "• 🧘 **Gentle Mobility**: 15–30 min casual walk or stretching\n"
+            "• 🧠 **Mental Deload**: Sleep 8+ hours, disconnect, read\n\n"
+            "*Rest easy warrior. Your streak is safe. Tomorrow we hunt.*"
+        )
+        embed = discord.Embed(
+            title="❄️ Winter Arc — Rest & Recovery Day",
+            description=desc,
+            color=color
+        )
+        embed.set_footer(text=footer_text)
+        return embed
+
     if total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]:
         streak_status = " *(Streak Secured ✅)*"
         deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
-        footer_text = "Active Recovery Day (ARD) ❤️ • Streak secured with volume • Rebuild & recover!" if today_recovery else f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak"
+        footer_text = f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak"
         color = 0x1ABC9C if progress["perfect_day"] else 0x2ECC71
-    elif today_recovery:
-        streak_status = " *(ARD ❤️ Streak Protected)*"
-        deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
-        footer_text = "Active Recovery Day (ARD) ❤️ • Light mobility & hydration • Streak automatically preserved"
-        color = 0x9B59B6
     else:
         streak_status = f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
         deadline_line = f"⏳ **Deadline to Secure Streak**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"

@@ -418,6 +418,38 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             logger.error(f"Failed to create database backup for {interaction.user}: {e}", exc_info=True)
             await interaction.followup.send(f"❌ Failed to generate database backup: `{e}`", ephemeral=True)
 
+    @admin_group.command(name="purge_rest_day_logs", description="Safely purge workout logs recorded on an Active Recovery Day.")
+    @app_commands.describe(date_str="Optional date (YYYY-MM-DD). Defaults to today.")
+    async def admin_purge_rest_day_logs(self, interaction: discord.Interaction, date_str: Optional[str] = None):
+        """Safely purges logs and resets daily summaries for an Active Recovery Day with auto-backup."""
+        await interaction.response.defer(ephemeral=True)
+        target_date = date_str or datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        logger.info(f"Admin command '/admin purge_rest_day_logs' initiated by {interaction.user} for {target_date}")
+
+        try:
+            summary = db.purge_recovery_day_logs(target_date)
+            backup_filename = os.path.basename(summary["backup_path"])
+
+            embed = discord.Embed(
+                title="🧹 Active Recovery Day Purge Complete",
+                description=(
+                    f"Successfully cleaned accidental logs recorded for **{target_date}**.\n"
+                    f"All lifetime points, streaks, and leaderboards have been restored to non-competitive rest state."
+                ),
+                color=0x2ECC71,
+            )
+            embed.add_field(name="📅 Target Date", value=f"`{target_date}`", inline=True)
+            embed.add_field(name="🛡️ Auto Safety Backup", value=f"`{backup_filename}`", inline=False)
+            embed.add_field(name="🏋️ Daily Logs Purged", value=f"`{summary['deleted_daily_logs']}`", inline=True)
+            embed.add_field(name="⚔️ Grind Logs Purged", value=f"`{summary['deleted_grind_logs']}`", inline=True)
+            embed.add_field(name="📊 Summaries Reset", value=f"`{summary['deleted_daily_summaries']}`", inline=True)
+            embed.set_footer(text="Amarok Data Protection • Safe Recovery Purge")
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Failed to purge rest day logs for {target_date}: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ Failed to purge rest day logs: `{e}`", ephemeral=True)
+
     # ==========================================
     # Diagnostic & Testing Command
     # ==========================================

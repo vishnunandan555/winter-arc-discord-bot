@@ -20,6 +20,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import database as db
+from phases import is_recovery_day
 from config import BOT_TZ, MAX_SINGLE_SET_LIMITS, DEFAULT_ROLE_ID
 from helpers import (
     require_enrolled,
@@ -306,6 +307,8 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         if progress["perfect_day"]:
             await safe_react(interaction, "⭐", "🔥")
+        elif is_recovery_day(today_str):
+            await safe_react(interaction, "🌿", "🧘")
         else:
             await safe_react(interaction, "🐺", "❄️")
 
@@ -374,6 +377,17 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.response.defer()
         logger.info(f"Slash command '/log' invoked by {interaction.user}: {task} +{amount}")
         if not await require_enrolled(interaction):
+            return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        if is_recovery_day(today_str):
+            await interaction.followup.send(
+                "🌿 **Active Recovery Day (ARD)**\n\n"
+                "Logging and competitive points are paused today. "
+                "Rest is an essential discipline — the body grows during recovery, not exhaustion.\n\n"
+                "🔥 *Your streak is automatically protected today.* Hydrate, do light mobility, and rest up for tomorrow!"
+            )
+            await safe_react(interaction, "🌿", "🧘")
             return
 
         if amount <= 0:
@@ -459,6 +473,17 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         await interaction.response.defer()
         logger.info(f"Slash command '/set' invoked by {interaction.user}: {task} set to {amount}")
         if not await require_enrolled(interaction):
+            return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        if is_recovery_day(today_str):
+            await interaction.followup.send(
+                "🌿 **Active Recovery Day (ARD)**\n\n"
+                "Logging and competitive points are paused today. "
+                "Rest is an essential discipline — the body grows during recovery, not exhaustion.\n\n"
+                "🔥 *Your streak is automatically protected today.* Hydrate, do light mobility, and rest up for tomorrow!"
+            )
+            await safe_react(interaction, "🌿", "🧘")
             return
 
         if amount < 0:
@@ -1121,6 +1146,15 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         now = datetime.now(BOT_TZ)
         today_str = now.strftime("%Y-%m-%d")
 
+        if is_recovery_day(today_str):
+            await interaction.response.send_message(
+                "🌿 **Active Recovery Day (ARD)**\n\n"
+                "Logging and competitive points are paused today. "
+                "Rest is an essential discipline — the body grows during recovery, not exhaustion.\n\n"
+                "🔥 *Your streak is automatically protected today.* Hydrate, do light mobility, and rest up for tomorrow!"
+            )
+            return
+
         # Check if already submitted today
         existing = db.get_user_daily_grind(interaction.user.id, today_str)
         if existing:
@@ -1322,6 +1356,16 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         if len(text.strip()) < 3:
             await interaction.response.send_message("❌ Please specify your completed exercises and amounts.", ephemeral=True)
+            return
+
+        today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
+        if is_recovery_day(today_str):
+            await interaction.response.send_message(
+                "🌿 **Active Recovery Day (ARD)**\n\n"
+                "Logging and competitive points are paused today. "
+                "Rest is an essential discipline — the body grows during recovery, not exhaustion.\n\n"
+                "🔥 *Your streak is automatically protected today.* Hydrate, do light mobility, and rest up for tomorrow!"
+            )
             return
 
         await interaction.response.defer()
