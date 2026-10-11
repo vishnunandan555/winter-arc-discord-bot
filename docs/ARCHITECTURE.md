@@ -91,7 +91,7 @@ winter-arc-bot/
 ├── phases.py                 # 4-phase calendar & recap definitions
 ├── helpers.py                # Reusable guards, role resolver, safe reactions
 ├── tips.py                   # Contextual tips engine & rate limits
-├── ai/                       # Groq & Gemini AI service integrations
+├── ai/                       # OpenRouter & Groq AI service integrations
 ├── ui/
 │   ├── __init__.py
 │   ├── formatters.py         # Visual progress bar & rank badge formatters
@@ -233,7 +233,7 @@ $$\text{Arc Progress \%} = \min\left(100.0, \frac{\text{Lifetime Points}}{12000}
 
 The Winter Arc governance system enforces authenticity through a dual-trigger architecture:
 
-1. **Automated AI Sentinel**: When Gemini flags vague buzzword bingo or ungrounded claims (`verdict == 'ROASTED'`), Amarok credits token effort points (+10 pts) and immediately auto-summons the Council in the designated announcements channel.
+1. **Automated AI Sentinel**: When OpenRouter flags vague buzzword bingo or ungrounded claims (`verdict == 'ROASTED'`), Amarok credits token effort points (+10 pts) and immediately auto-summons the Council in the designated announcements channel.
 2. **Community Challenge (`/accuse @member`)**: Any enrolled brother can challenge a dishonest log. To prevent petty rivalry or jealousy, the challenger must pass an ephemeral **Honor Code Verification Modal** before the public trial is summoned.
 3. **Democratic Resolution (`CouncilVotingView`)**:
    - 10-minute public voting session with real-time button counts: `[ 🔨 Guilty ]` vs `[ 🛡️ Innocent ]`.
@@ -244,40 +244,43 @@ The Winter Arc governance system enforces authenticity through a dual-trigger ar
 
 ---
 
-## 6. Dual AI Architecture & Geo-Block Circuit Breaker
+## 6. Multi-Tier AI Architecture & Cascade Failover Engine
 
-The bot integrates two complementary LLM providers with automatic sub-second failover:
+The bot employs a fault-tolerant, 3-tier cascade architecture to guarantee zero-downtime execution and eliminate regional datacenter IP restrictions:
 
 ```text
-User Command (/quick, /grind, DM briefing, toasts/roasts)
+User Request (/grind, recaps, announcements, briefings)
                     │
                     ▼
-          Is Gemini Configured &
-           Circuit Breaker Clear?
-             /              \
-           Yes               No
-           /                  \
-          ▼                    ▼
-   Google Gemini API     Groq Cloud API
-(gemini-flash-lite)   (llama-3.3-70b-versatile)
-          │                    │
-    400 / Timeout?             │
-          │                    │
-          ├──► Trip Circuit ───┘
-          │    Breaker (1 hr)
-          ▼
-   Sub-second Result
+          Is OpenRouter Configured?
+              /              \
+            Yes               No
+            /                  \
+           ▼                    ▼
+    OpenRouter API        Groq Cloud API
+ (openrouter/free cascade) (openai/gpt-oss-20b)
+           │                    │
+     All Models Fail?           │
+           │                    ▼
+           ├──► Fallback ───────┤
+           │                    ▼
+           ▼              Groq Fails?
+     Curated Reserves     /         \
+     (Authentic Stoic)   No         Yes
+                         │           │
+                         ▼           ▼
+                      Result   Curated Reserves
 ```
 
-1. **Google Gemini Flash Lite (`gemini-flash-lite-latest`)**:
-   - Used for rich context synthesis: multimodal `/grind` evaluation, midnight toasts/roasts, Sunday recap narrative, and phase ceremonies.
-   - Protected with a strict `asyncio.wait_for(timeout=5.0s)` guard to prevent blocking the Discord event loop.
-2. **Groq Cloud (`llama-3.3-70b-versatile`)**:
+1. **Tier 1 — OpenRouter API (`openrouter/free` with model cascade)**:
+   - Primary high-reasoning engine for `/grind` evaluations, midnight toasts/roasts, Sunday State of the Pack recaps, morning personalized briefings, and end-of-phase ceremonies.
+   - Bypasses European VPS datacenter IP restrictions (Google edge proxy HTTP 403 Forbidden) by routing requests through OpenRouter's distributed global proxy.
+   - Multi-model fallback cascade automatically recovers across free candidate models (`openrouter/free`, `nvidia/nemotron-3.5-lightning:free`, `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free`) upon 429 rate limits or upstream 500 errors.
+2. **Tier 2 — Groq Cloud (`openai/gpt-oss-20b`)**:
    - Primary engine for ultra-fast `/quick` natural language workout parsing and reactive coach Amarok nudges (~300ms latency).
-   - Instant failover fallback for `/grind`, daily toasts/roasts, weekly recaps, and morning DM briefings if Gemini errors or times out.
-3. **Automated Geo-Block Circuit Breaker (`is_gemini_available`)**:
-   - Free or low-cost cloud hosting providers (e.g., Wispbyte, Pterodactyl, Oracle Cloud, shared VPS) frequently share IP blocks restricted by Google Generative AI (`400 FAILED_PRECONDITION: User location is not supported for the API use`).
-   - When detected, the bot trips a 1-hour fast circuit breaker (`mark_gemini_geo_blocked`). Subsequent calls instantly bypass Google's network round-trip and route directly to Groq in sub-second time without latency penalties.
+   - Real-time reasoning failover fallback for `/grind`, daily toasts/roasts, weekly recaps, and morning DM briefings if OpenRouter candidate models fail.
+3. **Tier 3 — Curated Stoic Safety Net**:
+   - Zero-downtime safety net guaranteeing grounded, authentic Stoic edicts (Marcus Aurelius, Seneca, Epictetus) and deterministic announcements even during network partitions.
 
 ---
 

@@ -30,7 +30,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 
 - **Shared Pack Accountability**: Volume, streaks, and missed days are transparently celebrated or challenged in your server.
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
-- **Dual AI Architecture with Sub-Second Failover**: Parse natural language workouts with Groq (`llama-3.3-70b-versatile`) and evaluate custom grinds with Google Gemini, backed by an automated circuit breaker that bypasses regional geo-blocks with zero downtime.
+- **Multi-Tier AI Architecture with Cascade Failover**: High-reasoning evaluations (`/grind`, recaps, Stoic quotes) powered by OpenRouter with a multi-model fallback cascade; sub-second NLP workout text parsing (`/quick`) and instant failover powered by Groq (`openai/gpt-oss-20b`); and an authentic Stoic curated safety net.
 - **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/accuse`) protect server integrity from vanity claims.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
@@ -43,7 +43,7 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
 | **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full campaign view with interactive bidirectional switching and status highlights. |
 | **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
-| **Dual AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (`llama-3.3-70b-versatile`); `/grind` evaluates custom workouts & deep work via Gemini (+5 to +50 pts, 1x/day) backed by an automatic sub-second Groq fallback with geo-block circuit breaker. |
+| **Multi-Tier AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (`openai/gpt-oss-20b`); `/grind` evaluates custom workouts & deep work via OpenRouter (+5 to +50 pts, 1x/day) with instant Groq failover and zero cloud-IP geo-blocking. |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
 | **Automated Cadence** | Morning kickoff (05:00 IST), afternoon pulse (16:30 IST), evening warning (21:00 IST), Sunday weekly recap (10:00 IST), midnight podium (00:00 IST), and month-end phase ceremonies. |
@@ -89,12 +89,13 @@ NUKE_SECURITY_HASH=ae50ad81a2d4006e372c0bd3220f24c377345455d0e980c3f0d94f0e5faf2
 WINTER_ARC_ROLE_ID=
 WINTER_ARC_CHANNEL_ID=
 
-# Optional: AI capabilities for /quick and /grind commands
-GEMINI_API_KEY=your_gemini_api_key_here
-GROQ_API_KEY=your_groq_api_key_here
+# Primary High-Reasoning AI (evaluations, recaps, quotes - free tier available at openrouter.ai)
+OPEN_ROUTER_KEY=your_openrouter_api_key_here
+OPENROUTER_MODEL=openrouter/free
 
-# Optional: Groq inference model (defaults to llama-3.3-70b-versatile)
-GROQ_MODEL=llama-3.3-70b-versatile
+# Ultra-Fast NLP & Failover AI (/quick parsing, failovers - free tier at console.groq.com)
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
 ### 3. Launch the Bot
@@ -185,10 +186,10 @@ python create_deploy_zip.py
 
 ```text
 winter-arc-discord-bot/
-├── ai/                      # Groq & Gemini AI service integrations
+├── ai/                      # OpenRouter & Groq AI service integrations
 ├── cogs/                    # Discord command extensions (warrior, admin, and todo cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (115 test cases across 11 modules)
+├── tests/                   # Modular domain test suite (131 test cases across 12 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

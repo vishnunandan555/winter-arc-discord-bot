@@ -90,7 +90,7 @@ BOT_USAGE_TIPS: List[str] = [
     # 🗂️ /recap — Phase Performance Snapshots
     "💡 **Tip (`/recap`)**: How to use: Explore detailed phase-by-phase performance summaries and exercise volume breakdowns with `/recap [member]`.",
     "💡 **Tip (`/recap`)**: Why `/recap`? Each official Winter Arc phase has distinct psychological challenges; `/recap` permanently archives your achievements across each phase.",
-    "💡 **Tip (`/recap`)**: Pro Tip: Run `/recap` at the end of Phase 1 (Foundation) or Phase 2 (Intensity) to see your total reps accumulated across the month!",
+    "💡 **Tip (`/recap`)**: Pro Tip: Run `/recap` at the end of Phase 1 (First Frost) or Phase 2 (The Hunt) to see your total reps accumulated across the month!",
 
     # 🔔 /reminders & /settings — Personal DM Reminders
     "💡 **Tip (`/reminders`)**: How to use: Never miss a streak deadline! Toggle private morning kickoff (05:00 IST), afternoon check-in (16:30 IST), and evening streak alert (21:00 IST) DMs with `/reminders` or `/settings`.",

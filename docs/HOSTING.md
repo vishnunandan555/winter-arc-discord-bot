@@ -44,7 +44,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 4. **Configure Secrets (`.env`)**:
    - Since `.gitignore` intentionally excludes `.env` and `*.db` for security, open **File Manager** in the panel.
    - Create a `.env` file with your `DISCORD_TOKEN`, `APPLICATION_ID`, etc.
-   - **Tip for Cloud Containers**: Cloud container IPs (like Wispbyte / Pterodactyl nodes) may be blocked by Google Gemini's regional policies (`400 User location is not supported`). Providing a free `GROQ_API_KEY` (optionally with `GROQ_MODEL=llama-3.3-70b-versatile`) enables the bot's automatic circuit breaker to failover all AI tasks to Groq with zero downtime.
+   - **Tip for Cloud Containers & European VPS**: Cloud container IPs (like Wispbyte / Pterodactyl / Hetzner nodes) may encounter regional restrictions with direct Google Gemini SDK calls (`403 Forbidden` / `400 User location is not supported`). Winter Arc solves this with native OpenRouter integration (`OPEN_ROUTER_KEY=your_key`, free at [openrouter.ai](https://openrouter.ai)), backed by Groq Cloud (`GROQ_API_KEY`) for rapid NLP parsing and automatic failover. This guarantees 100% operational uptime with zero geo-blocking.
     - *Note: Live SQLite databases (`winter_arc.db` and `todo.db`) are ignored by Git, so pulling updates will never overwrite user progress, streaks, or active todos.*
 5. **Verify Startup & Start**:
    - In the **Startup** tab, ensure **Startup Command** is `python bot.py`.
@@ -98,7 +98,7 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    ```bash
    cp .env.example .env
    nano .env
-   # Add your DISCORD_TOKEN, NUKE_SECURITY_HASH, GROQ_API_KEY, GEMINI_API_KEY
+   # Add your DISCORD_TOKEN, NUKE_SECURITY_HASH, OPEN_ROUTER_KEY, GROQ_API_KEY
    ```
 
 3. **Create a Systemd Service**:
@@ -178,8 +178,8 @@ For dedicated control on Ubuntu/Debian (DigitalOcean, Hetzner, AWS EC2, Linode):
    - `NUKE_SECURITY_HASH`
    - `WINTER_ARC_ROLE_ID` (optional)
    - `WINTER_ARC_CHANNEL_ID` (optional)
-   - `GROQ_API_KEY` (optional)
-   - `GEMINI_API_KEY` (optional)
+   - `OPEN_ROUTER_KEY` (optional, for high-reasoning /grind evaluations & recaps)
+   - `GROQ_API_KEY` (optional, for rapid /quick workout NLP parsing & failover)
 5. Deploy the worker.
 
 ---

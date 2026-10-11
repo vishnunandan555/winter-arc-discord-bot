@@ -292,14 +292,14 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         active_tasks = db.get_active_tasks(self.test_db)
 
         m_embed = build_morning_kickoff_embed(active_tasks, "Saturday, Sep 19", quote=test_quote)
-        self.assertEmbedDescriptionContains(m_embed, "**Daily Focus**:", test_quote)
+        self.assertEmbedDescriptionContains(m_embed, test_quote)
 
         enrolled = db.get_enrolled_users(self.test_db)
         a_embed = build_afternoon_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
-        self.assertEmbedDescriptionContains(a_embed, "**Midday Note**:", test_quote)
+        self.assertEmbedDescriptionContains(a_embed, test_quote)
 
         e_embed = build_evening_checkin_embed(enrolled, "2026-09-19", quote=test_quote)
-        self.assertEmbedDescriptionContains(e_embed, "**Evening Note**:", test_quote)
+        self.assertEmbedDescriptionContains(e_embed, test_quote)
 
         mock_user = self.create_mock_member(user_id=1004, display_name="Fenrir")
         dm_m_embed = build_dm_morning_embed(active_tasks, streak=5, date_display="Saturday, Sep 19", quote=test_quote)

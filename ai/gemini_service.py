@@ -702,26 +702,27 @@ async def generate_weekly_state_of_the_pack(
     weekly_grinds: List[Dict[str, Any]],
     ghosts_count: int
 ) -> str:
-    """Generates the Sunday 10:00 IST community broadcast reflection (under 75 words)."""
-    leaderboard_lines = [
-        f"#{idx+1} {w.get('username', 'Warrior')} ({w.get('points', w.get('total_points', 0))} pts)"
-        for idx, w in enumerate(top_warriors[:5])
+    """Generates the Sunday 10:00 IST community broadcast reflection (under 80 words)."""
+    top_3_lines = [
+        f"#{idx+1} {w.get('username', 'Warrior')} ({w.get('points', w.get('total_points', 0)):,} pts)"
+        for idx, w in enumerate(top_warriors[:3])
     ]
-    grind_summaries = [f"{g['username']} ({g.get('key_learning', 'study')})" for g in weekly_grinds[:4]]
+    grind_summaries = [f"{g.get('username', 'Warrior')}: {g.get('key_learning', 'deep work')}" for g in weekly_grinds[:4] if g.get('key_learning')]
 
     prompt = (
-        f"Generate a short Sunday morning weekly commentary for the Winter Arc Discord community.\n"
+        f"Generate a sharp, authentic Sunday weekly commentary for the Winter Arc Discord community.\n"
         f"Full Weekly Results Context:\n"
-        f"- Top 5 Leaderboard: {', '.join(leaderboard_lines) if leaderboard_lines else 'None recorded'}\n"
+        f"- Top 3 Warriors: {', '.join(top_3_lines) if top_3_lines else 'None recorded'}\n"
         f"- Total Weekly Volume: {weekly_stats.get('total_pushups', 0):,} push-ups, {weekly_stats.get('total_pullups', 0):,} pull-ups, {weekly_stats.get('total_squats', 0):,} squats, {weekly_stats.get('total_situps', 0):,} sit-ups, {weekly_stats.get('total_km', 0):,.1f} km run.\n"
-        f"- Deep Work / Study Highlights: {', '.join(grind_summaries) if grind_summaries else 'Minimal'}\n"
-        f"- Inactive Members (0 pts all week): {ghosts_count}\n\n"
+        f"- Standout Deep Work & Study (/grind): {', '.join(grind_summaries) if grind_summaries else 'None logged'}\n"
+        f"- Ghost Members (0 pts all week): {ghosts_count}\n\n"
         "TASK & CONSTRAINTS:\n"
-        "1. Frame a motivational or roast commentary based on the results.\n"
-        "2. DO NOT recite or list out all raw numbers.\n"
-        "3. Keep it to a few sharp words: 2 to 3 concise sentences (UNDER 75 WORDS TOTAL).\n"
-        "4. Acknowledge top performers' consistency, deliver a quick grounded callout to ghosts, and set tone for new week.\n"
-        "5. TONE: Grounded, authentic, respected coach or senior peer. NO corny fantasy tropes."
+        "1. Give direct credit to the top 3 warriors by name for leading the pack if they earned solid points.\n"
+        "2. If standout /grind deep-work sessions are present, briefly highlight their high-focus execution.\n"
+        "3. Deliver a sharp, blunt callout to ghosts at zero, and set a commanding tone for the fresh week starting tomorrow.\n"
+        "4. DO NOT repeat all raw volume numbers.\n"
+        "5. Keep it to 2 to 3 concise, impactful sentences (under 80 words total).\n"
+        "6. TONE: Grounded, authentic, respected coach or senior peer. No corny fantasy tropes, no markdown header tags."
     )
 
     # 0. Test Mock Check
@@ -1294,7 +1295,7 @@ async def generate_phase_ceremony(
         f"- Slackers / Low Effort: {', '.join(bottom_summaries) if bottom_summaries else 'None identified'}\n"
         f"- {next_phase_text}\n\n"
         "Requirements:\n"
-        "1. Give powerful, authentic praise to the top 3 champions by name for holding the highest standard.\n"
+        "1. Give powerful, authentic praise to the top 3 champions by name for holding down the podium, and give deep respect to everyone who held the line with consistent daily effort.\n"
         "2. Deliver a sharp, blunt roast to anyone who went ghost or logged zero effort throughout this entire month.\n"
         "3. Announce the transition to the next phase with cold, commanding authority. No excuses roll over.\n"
         "4. TONE: Authoritative, raw, respected coach voice. Real and gritty, NOT corny fantasy roleplay.\n"
@@ -1366,6 +1367,7 @@ async def generate_phase_ceremony(
         logger.warning(f"Groq phase ceremony fallback failed ({groq_err}). Using deterministic proclamation.")
 
     # 3. Tertiary: Static Fallback
-    top_str = f"Salute to {top_warriors[0]['username']} for dominating {phase_info['name']}." if top_warriors else ""
+    top_names = [w['username'] for w in top_warriors[:3]]
+    top_str = f"Salute to {', '.join(top_names)} and everyone who held the line daily throughout {phase_info['name']}." if top_names else f"Respect to everyone who held the line daily throughout {phase_info['name']}."
     next_str = f"Prepare for {next_phase_info['name']} tomorrow." if next_phase_info else "The Winter Arc stands conquered."
     return f"{phase_info['name']} has officially closed. {top_str} The standards only rise from here. {next_str}"

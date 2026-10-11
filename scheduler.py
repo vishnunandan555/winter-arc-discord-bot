@@ -19,7 +19,7 @@ import discord
 from discord.ext import tasks
 
 import database as db
-from config import BOT_TZ, DEFAULT_ROLE_ID
+from config import BOT_TZ, DEFAULT_ROLE_ID, MIN_STREAK_POINTS
 from ui.embeds import (
     build_morning_kickoff_embed,
     build_morning_kickoff_message,
@@ -308,7 +308,7 @@ class WinterArcScheduler:
             except Exception as e:
                 logger.debug(f"Could not generate AI morning quote: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=False, everyone=False)
         embed = build_morning_kickoff_embed(
             active_tasks=active_tasks,
             date_display=date_display,
@@ -316,7 +316,7 @@ class WinterArcScheduler:
         )
 
         if target_channel:
-            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping="", allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
@@ -351,7 +351,7 @@ class WinterArcScheduler:
             except Exception as e:
                 logger.debug(f"Could not generate AI afternoon quote: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=False, everyone=False)
         embed = build_afternoon_checkin_embed(
             enrolled_users=enrolled_users,
             today_str=today_str,
@@ -359,7 +359,7 @@ class WinterArcScheduler:
         )
 
         if target_channel:
-            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping="", allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
@@ -401,7 +401,11 @@ class WinterArcScheduler:
             override_quote=override_quote,
         )
 
-        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        # Ping ONLY warriors whose streak is at risk (< 30 pts); never ping the role
+        at_risk_mentions = [f"<@{w['discord_id']}>" for w in warriors_data if w.get("points", 0) < MIN_STREAK_POINTS]
+        at_risk_content = " ".join(at_risk_mentions) if at_risk_mentions else ""
+        allowed_mentions = discord.AllowedMentions(users=True, roles=False, everyone=False)
+
         embed = build_evening_checkin_embed(
             enrolled_users=enrolled_users,
             today_str=today_str,
@@ -410,14 +414,14 @@ class WinterArcScheduler:
         )
 
         if target_channel:
-            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping=at_risk_content, allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, embed, role_ping=at_risk_content, allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not send evening streak alert to {channel.name} in {guild.name}: {e}")
 
@@ -455,9 +459,9 @@ class WinterArcScheduler:
         except Exception as e:
             logger.warning(f"Could not auto-export web stats: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
+        # Individual alerts ping only users whose shield was consumed or streak was broken; no role pings
+        allowed_mentions = discord.AllowedMentions(users=True, roles=False, everyone=False)
 
-        # Build individual channel alert messages for shields used and broken streaks
         individual_alerts = []
         for entry in leaderboard:
             u_id = entry.get("discord_id")
@@ -469,20 +473,20 @@ class WinterArcScheduler:
                 streak = entry.get("current_streak", 0)
                 shields_left = entry.get("shields_left", 0)
                 if shields_left == 1:
-                    alert = f"🛡️ **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
+                    alert = f"🛡️ <@{u_id}> **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
                 else:
-                    alert = f"🛡️ **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
+                    alert = f"🛡️ <@{u_id}> **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Shield auto-applied for user {u_id} (streak: {streak}, {shields_left} shields left)")
 
             elif entry.get("streak_broken"):
                 broken_streak = entry.get("broken_streak_count", 0)
-                alert = f"💔 **{uname}** You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
+                alert = f"💔 <@{u_id}> **{uname}** You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
 
         if target_channel:
-            await self._send_broadcast_embed(target_channel, embed, role_ping=role_ping, allowed_mentions=allowed_mentions)
+            await self._send_broadcast_embed(target_channel, embed, role_ping="", allowed_mentions=allowed_mentions)
             for alert in individual_alerts:
                 try:
                     await target_channel.send(alert, allowed_mentions=allowed_mentions)
