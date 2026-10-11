@@ -45,21 +45,26 @@ MAX_SINGLE_SET_LIMITS = {
 }
 
 # AI Configuration
-# Gemini API: Judgemental & reasoning commands (/grind evaluation, Toast & Roast, Sunday address)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-_raw_gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest").strip()
-if _raw_gemini_model in ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest"]:
-    GEMINI_MODEL = "gemini-flash-lite-latest"
-else:
-    GEMINI_MODEL = _raw_gemini_model or "gemini-flash-lite-latest"
+# OpenRouter API: Primary high-reasoning engine (/grind evaluation, Toast & Roast, Sunday address, quotes)
+OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_KEY") or os.getenv("OPENROUTER_API_KEY") or ""
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+OPENROUTER_FALLBACK_MODELS = [
+    OPENROUTER_MODEL,
+    "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+]
 
-# 3+ verified active Gemini fallback models (tested against Google GenAI API)
+# Legacy Gemini API references for backward compatibility
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 GEMINI_FALLBACK_MODELS = [
     GEMINI_MODEL,
     "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
     "gemini-flash-latest",
 ]
+
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

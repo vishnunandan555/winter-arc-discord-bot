@@ -118,9 +118,16 @@ class TestRemindersAndDMs(WinterArcTestCase):
         mock_resp = MagicMock()
         mock_resp.text = mock_briefing
         mock_client.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        with patch("ai.gemini_service.get_gemini_client", return_value=mock_client):
-            briefing = asyncio.run(generate_personalized_morning_briefing(context))
-            self.assertEqual(briefing, mock_briefing)
+        with patch("ai.gemini_service.is_gemini_available", return_value=True):
+            with patch("ai.gemini_service.get_gemini_client", return_value=mock_client):
+                briefing = asyncio.run(generate_personalized_morning_briefing(context))
+                self.assertEqual(briefing, mock_briefing)
+
+        # Test briefing generation with OpenRouter mock
+        with patch("ai.gemini_service.OPENROUTER_API_KEY", "test-key"), \
+             patch("ai.gemini_service.safe_openrouter_chat_completion", new=AsyncMock(return_value=mock_briefing)):
+            briefing_or = asyncio.run(generate_personalized_morning_briefing(context))
+            self.assertEqual(briefing_or, mock_briefing)
 
         # Test fallback when API client is not configured
         with patch("ai.gemini_service.get_gemini_client", return_value=None):
@@ -484,8 +491,10 @@ class TestRemindersAndDMs(WinterArcTestCase):
 
             mock_channel.send.assert_called()
             sent_content = mock_channel.send.call_args[1].get("content") or mock_channel.send.call_args[0][0]
-            self.assertIn("### Winter Arc | Weekly Recap", sent_content)
             self.assertIn("<@&999111>", sent_content)
+            self.assertNotIn("### Winter Arc", sent_content)
+            sent_embed = mock_channel.send.call_args[1].get("embed")
+            self.assertEqual(sent_embed.title, "Winter Arc | Weekly Recap")
 
         asyncio.run(run_sunday_test())
 

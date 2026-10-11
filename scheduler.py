@@ -635,7 +635,7 @@ class WinterArcScheduler:
         embed = build_weekly_state_of_the_pack_embed(weekly_volume, top_warriors, ai_speech)
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
-        header_content = f"{role_ping.strip()} ### Winter Arc | Weekly Recap".strip() if role_ping else "### Winter Arc | Weekly Recap"
+        header_content = role_ping.strip() if role_ping else ""
         if target_channel:
             await self._send_broadcast_embed(target_channel, embed, role_ping=header_content, allowed_mentions=allowed_mentions)
             return embed
@@ -644,7 +644,7 @@ class WinterArcScheduler:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
                 try:
-                    guild_header = f"{ping.strip()} ### Winter Arc | Weekly Recap".strip() if ping else "### Winter Arc | Weekly Recap"
+                    guild_header = ping.strip() if ping else ""
                     await self._send_broadcast_embed(channel, embed, role_ping=guild_header, allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not post Weekly Recap to {channel.name} in {guild.name}: {e}")
