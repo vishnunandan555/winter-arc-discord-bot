@@ -3108,6 +3108,12 @@ def purge_recovery_day_logs(target_date_str: str, db_path: str = DB_PATH) -> Dic
     }
 
 
+# Convenient aliases for admin / nuke commands
+nuke_day_logs = purge_recovery_day_logs
+purge_day_logs = purge_recovery_day_logs
+
+
+
 
 
 

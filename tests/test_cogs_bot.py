@@ -29,7 +29,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
 
             expected_cmds = {
                 "admin", "accuse", "calendar", "enroll", "grind", "help", "history",
-                "leaderboard", "leave_arc", "log", "nuke", "ping", "profile", "quick",
+                "leaderboard", "leave_arc", "log", "nuke", "nuke_day", "ping", "profile", "quick",
                 "ranks", "recap", "reminders", "set", "settings", "shield", "stats", "streak",
                 "tasks", "test_reminder", "today", "tips"
             }
@@ -42,6 +42,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
             self.assertIn("grind", subcmd_names)
             self.assertIn("backup", subcmd_names)
             self.assertIn("tips", subcmd_names)
+            self.assertIn("nuke_day", subcmd_names)
 
         asyncio.run(verify_bot_cogs())
 
@@ -328,4 +329,88 @@ class TestErrorHandlingAndRobustLogging(WinterArcTestCase):
             self.assertTrue(file_obj.filename.endswith(".db"))
 
         asyncio.run(run_backup())
+
+    def test_nuke_day_command_and_2fa_workflow(self):
+        """Verifies owner/admin permission guards, confirmation view, and 2FA modal workflow for /nuke_day."""
+        from cogs.admin import AdminCog
+        from ui.views import NukeDayConfirmView, NukeDay2FAModal
+
+        bot = MagicMock()
+        cog = AdminCog(bot)
+        target_date = "2026-10-11"
+
+        # 1. Non-admin and non-owner invocation rejected
+        inter_unauth = self.create_mock_interaction(user_id=12345)
+        mock_guild = MagicMock()
+        mock_guild.owner_id = 99999
+        inter_unauth.guild = mock_guild
+        inter_unauth.user.guild_permissions.administrator = False
+
+        async def run_unauth_test():
+            await cog.nuke_day.callback(cog, inter_unauth, target_date)
+            inter_unauth.response.send_message.assert_called_once()
+            self.assertIn("Permission Denied", inter_unauth.response.send_message.call_args[0][0])
+
+        asyncio.run(run_unauth_test())
+
+        # 2. Owner invocation prompts confirmation view
+        inter_owner = self.create_mock_interaction(user_id=99999)
+        inter_owner.guild = mock_guild
+        inter_owner.user.guild_permissions.administrator = True
+
+        async def run_owner_prompt_test():
+            await cog.nuke_day.callback(cog, inter_owner, target_date)
+            inter_owner.response.send_message.assert_called_once()
+            call_kwargs = inter_owner.response.send_message.call_args[1]
+            self.assertIn("view", call_kwargs)
+            self.assertIsInstance(call_kwargs["view"], NukeDayConfirmView)
+
+        asyncio.run(run_owner_prompt_test())
+
+        # 3. Confirm button opens NukeDay2FAModal
+        view = NukeDayConfirmView(owner_id=99999, target_date=target_date)
+        btn_confirm = [b for b in view.children if getattr(b, "custom_id", "") == "btn_confirm_nuke_day"][0]
+
+        async def run_modal_open_test():
+            inter_btn = self.create_mock_interaction(user_id=99999)
+            inter_btn.response.send_modal = AsyncMock()
+            await btn_confirm.callback(inter_btn)
+            inter_btn.response.send_modal.assert_called_once()
+            modal = inter_btn.response.send_modal.call_args[0][0]
+            self.assertIsInstance(modal, NukeDay2FAModal)
+            self.assertEqual(modal.target_date, target_date)
+
+        asyncio.run(run_modal_open_test())
+
+        # 4. Incorrect 2FA answer rejected
+        modal_bad = NukeDay2FAModal(target_date=target_date)
+        modal_bad.answer_input._value = "wrong_pass"
+        inter_modal_bad = self.create_mock_interaction(user_id=99999)
+
+        async def run_wrong_2fa_test():
+            await modal_bad.on_submit(inter_modal_bad)
+            inter_modal_bad.response.send_message.assert_called_once()
+            self.assertIn("2FA Verification Failed", inter_modal_bad.response.send_message.call_args[0][0])
+
+        asyncio.run(run_wrong_2fa_test())
+
+        # 5. Correct 2FA answer purges day and delivers success embed
+        modal_ok = NukeDay2FAModal(target_date=target_date)
+        modal_ok.answer_input._value = "jackie"
+        inter_modal_ok = self.create_mock_interaction(user_id=99999)
+        inter_modal_ok.response.defer = AsyncMock()
+        inter_modal_ok.followup = MagicMock()
+        inter_modal_ok.followup.send = AsyncMock()
+
+        async def run_correct_2fa_test():
+            await modal_ok.on_submit(inter_modal_ok)
+            inter_modal_ok.response.defer.assert_called_once_with(ephemeral=True)
+            inter_modal_ok.followup.send.assert_called_once()
+            call_kwargs = inter_modal_ok.followup.send.call_args[1]
+            self.assertIn("embed", call_kwargs)
+            embed = call_kwargs["embed"]
+            self.assertIn("DAY NUKED", embed.title)
+
+        asyncio.run(run_correct_2fa_test())
+
 

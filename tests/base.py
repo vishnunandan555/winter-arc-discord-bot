@@ -35,11 +35,13 @@ class WinterArcTestCase(unittest.TestCase):
         db.init_db(cls.test_db)
         db.init_db(db.DB_PATH)
 
-        # Isolate OpenRouter API key to prevent unmocked live LLM network calls during unit tests
+        # Isolate OpenRouter and Groq API keys to prevent unmocked live LLM network calls during unit tests
         try:
             import ai.gemini_service as gs
             cls._orig_openrouter_key = gs.OPENROUTER_API_KEY
+            cls._orig_groq_key = gs.GROQ_API_KEY
             gs.OPENROUTER_API_KEY = ""
+            gs.GROQ_API_KEY = ""
         except Exception:
             pass
 
@@ -55,6 +57,7 @@ class WinterArcTestCase(unittest.TestCase):
         try:
             import ai.gemini_service as gs
             gs.OPENROUTER_API_KEY = getattr(cls, "_orig_openrouter_key", "")
+            gs.GROQ_API_KEY = getattr(cls, "_orig_groq_key", "")
         except Exception:
             pass
 
@@ -65,6 +68,7 @@ class WinterArcTestCase(unittest.TestCase):
         try:
             import ai.gemini_service as gs
             gs.OPENROUTER_API_KEY = ""
+            gs.GROQ_API_KEY = ""
         except Exception:
             pass
 
@@ -72,6 +76,7 @@ class WinterArcTestCase(unittest.TestCase):
         try:
             import ai.gemini_service as gs
             gs.OPENROUTER_API_KEY = getattr(self.__class__, "_orig_openrouter_key", "")
+            gs.GROQ_API_KEY = getattr(self.__class__, "_orig_groq_key", "")
         except Exception:
             pass
 

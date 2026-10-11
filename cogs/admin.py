@@ -15,7 +15,7 @@ import gc
 import logging
 import resource
 from typing import Any, Optional, Dict, List, Union
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -418,37 +418,74 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             logger.error(f"Failed to create database backup for {interaction.user}: {e}", exc_info=True)
             await interaction.followup.send(f"❌ Failed to generate database backup: `{e}`", ephemeral=True)
 
-    @admin_group.command(name="purge_rest_day_logs", description="Safely purge workout logs recorded on an Active Recovery Day.")
-    @app_commands.describe(date_str="Optional date (YYYY-MM-DD). Defaults to today.")
-    async def admin_purge_rest_day_logs(self, interaction: discord.Interaction, date_str: Optional[str] = None):
-        """Safely purges logs and resets daily summaries for an Active Recovery Day with auto-backup."""
-        await interaction.response.defer(ephemeral=True)
+    async def _initiate_nuke_day(self, interaction: discord.Interaction, date_str: Optional[str] = None):
+        """Initiates the 2FA modal workflow to nuke all workout records for a specific date."""
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This command must be run within a server.", ephemeral=True)
+            return
+
+        is_owner = interaction.user.id == interaction.guild.owner_id
+        is_admin = interaction.user.guild_permissions.administrator
+        if not (is_owner or is_admin):
+            logger.warning(f"Unauthorized /nuke_day attempt rejected: {interaction.user} is neither Server Owner nor Administrator.")
+            await interaction.response.send_message(
+                "🚫 **Permission Denied**: Only the **Server Owner** or an **Administrator** can execute this command.",
+                ephemeral=True
+            )
+            return
+
         target_date = date_str or datetime.now(BOT_TZ).strftime("%Y-%m-%d")
-        logger.info(f"Admin command '/admin purge_rest_day_logs' initiated by {interaction.user} for {target_date}")
 
         try:
-            summary = db.purge_recovery_day_logs(target_date)
-            backup_filename = os.path.basename(summary["backup_path"])
-
-            embed = discord.Embed(
-                title="🧹 Active Recovery Day Purge Complete",
-                description=(
-                    f"Successfully cleaned accidental logs recorded for **{target_date}**.\n"
-                    f"All lifetime points, streaks, and leaderboards have been restored to non-competitive rest state."
-                ),
-                color=0x2ECC71,
+            date.fromisoformat(target_date)
+        except (ValueError, TypeError):
+            await interaction.response.send_message(
+                f"❌ Invalid date format: `{target_date}`. Please use `YYYY-MM-DD` (e.g. `2026-10-11`).",
+                ephemeral=True
             )
-            embed.add_field(name="📅 Target Date", value=f"`{target_date}`", inline=True)
-            embed.add_field(name="🛡️ Auto Safety Backup", value=f"`{backup_filename}`", inline=False)
-            embed.add_field(name="🏋️ Daily Logs Purged", value=f"`{summary['deleted_daily_logs']}`", inline=True)
-            embed.add_field(name="⚔️ Grind Logs Purged", value=f"`{summary['deleted_grind_logs']}`", inline=True)
-            embed.add_field(name="📊 Summaries Reset", value=f"`{summary['deleted_daily_summaries']}`", inline=True)
-            embed.set_footer(text="Amarok Data Protection • Safe Recovery Purge")
+            return
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            logger.error(f"Failed to purge rest day logs for {target_date}: {e}", exc_info=True)
-            await interaction.followup.send(f"❌ Failed to purge rest day logs: `{e}`", ephemeral=True)
+        logger.info(f"Critical command 'nuke_day' prompted by {interaction.user} for {target_date}")
+
+        # Check existing row counts to inform the admin
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) AS cnt FROM daily_logs WHERE date = ?;", (target_date,))
+            count_logs = int(cursor.fetchone()["cnt"])
+            cursor.execute("SELECT COUNT(*) AS cnt FROM grind_logs WHERE date = ?;", (target_date,))
+            count_grind = int(cursor.fetchone()["cnt"])
+            cursor.execute("SELECT COUNT(*) AS cnt FROM daily_summaries WHERE date = ?;", (target_date,))
+            count_summaries = int(cursor.fetchone()["cnt"])
+
+        from ui.views import NukeDayConfirmView
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+
+        msg_text = (
+            f"⚠️ **Are you sure you want to NUKE records for `{target_date}`?**\n\n"
+            f"• **Daily Workout Logs**: `{count_logs}`\n"
+            f"• **Grind Entries**: `{count_grind}`\n"
+            f"• **Daily Summaries**: `{count_summaries}`\n\n"
+            f"All records for `{target_date}` will be permanently erased. "
+            f"A safety point-in-time database backup will be created automatically before deletion."
+        )
+        embed = discord.Embed(color=0xE74C3C)
+        embed.set_image(url="https://media.tenor.com/UbtVks4zby0AAAAC/ghost.gif")
+        view = NukeDayConfirmView(owner_id=interaction.user.id, target_date=target_date)
+        await interaction.response.send_message(content=msg_text, embed=embed, view=view, ephemeral=True)
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
+    @admin_group.command(name="nuke_day", description="Purge and reset all workout logs for any day (Owner/Admin 2FA).")
+    @app_commands.describe(date_str="Target date in YYYY-MM-DD format (defaults to today in IST).")
+    async def admin_nuke_day(self, interaction: discord.Interaction, date_str: Optional[str] = None):
+        """Purge and reset all workout logs for any day with 2FA modal verification."""
+        await self._initiate_nuke_day(interaction, date_str)
+
+    @admin_group.command(name="purge_rest_day_logs", description="Safely purge workout logs for a date with 2FA verification.")
+    @app_commands.describe(date_str="Target date in YYYY-MM-DD format (defaults to today in IST).")
+    async def admin_purge_rest_day_logs(self, interaction: discord.Interaction, date_str: Optional[str] = None):
+        """Safely purges logs and resets daily summaries with 2FA modal verification."""
+        await self._initiate_nuke_day(interaction, date_str)
 
     # ==========================================
     # Diagnostic & Testing Command
@@ -657,6 +694,13 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         view = NukeConfirmView(owner_id=interaction.guild.owner_id)
         await interaction.response.send_message(content=msg_text, embed=embed, view=view, ephemeral=True)
         asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
+    @app_commands.command(name="nuke_day", description="Purge and reset all workout logs for any day (Owner/Admin 2FA).")
+    @app_commands.describe(date_str="Target date in YYYY-MM-DD format (defaults to today in IST).")
+    @app_commands.guild_only()
+    async def nuke_day(self, interaction: discord.Interaction, date_str: Optional[str] = None):
+        """Purge and reset all workout logs for any day with 2FA modal verification."""
+        await self._initiate_nuke_day(interaction, date_str)
 
     @admin_group.command(name="health", description="Inspect server memory, database footprint, and host resources.")
     async def admin_health(self, interaction: discord.Interaction):

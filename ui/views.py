@@ -555,6 +555,98 @@ class NukeConfirmView(RobustView):
         asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
 
 
+class NukeDay2FAModal(discord.ui.Modal, title="🔐 Owner 2FA Verification — Nuke Day"):
+    """Secure pop-up modal asking for owner's 2FA answer before nuking workout records for a date."""
+
+    answer_input = discord.ui.TextInput(
+        label="Admin's pet dog name? (all small caps)",
+        style=discord.TextStyle.short,
+        placeholder="Enter security answer...",
+        required=True,
+        min_length=1,
+        max_length=50
+    )
+
+    def __init__(self, target_date: str):
+        super().__init__(timeout=120.0)
+        self.target_date = target_date
+
+    async def on_submit(self, interaction: discord.Interaction):
+        import hashlib
+        import os
+        from config import NUKE_SECURITY_HASH
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+        import database as db
+
+        submitted_answer = self.answer_input.value.strip().lower()
+        submitted_hash = hashlib.sha256(submitted_answer.encode()).hexdigest()
+
+        if not NUKE_SECURITY_HASH or submitted_hash != NUKE_SECURITY_HASH:
+            await interaction.response.send_message(
+                "❌ **2FA Verification Failed**: Incorrect answer. Nuke sequence aborted.",
+                ephemeral=True
+            )
+            asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            summary = db.purge_recovery_day_logs(self.target_date)
+            backup_filename = os.path.basename(summary["backup_path"])
+            gif_url = get_next_nuke_gif()
+
+            embed = discord.Embed(
+                title=f"💥 DAY NUKED — {self.target_date}",
+                description=(
+                    f"All workout logs, grind submissions, and summaries for **{self.target_date}** have been permanently purged.\n\n"
+                    f"• **Daily Logs Deleted**: `{summary['deleted_daily_logs']}`\n"
+                    f"• **Grind Logs Deleted**: `{summary['deleted_grind_logs']}`\n"
+                    f"• **Summaries Reset**: `{summary['deleted_daily_summaries']}`\n"
+                    f"• **Auto Safety Backup**: `{backup_filename}`\n\n"
+                    f"All streaks, leaderboards, and lifetime points have been restored."
+                ),
+                color=0xE74C3C,
+            )
+            embed.set_image(url=gif_url)
+            embed.set_footer(text="Amarok Security • Safe Point-in-Time SQLite Backup Created")
+
+            await interaction.followup.send(content="💥 **DAY NUKED!**", embed=embed, ephemeral=True)
+            logger.info(f"Day {self.target_date} successfully nuked by {interaction.user} (2FA Verified)")
+        except Exception as e:
+            logger.error(f"Error nuking day {self.target_date}: {e}", exc_info=True)
+            await interaction.followup.send(f"❌ Failed to nuke records for {self.target_date}: `{e}`", ephemeral=True)
+
+
+class NukeDayConfirmView(RobustView):
+    """Confirmation view with Yes (proceeds to 2FA Modal) and No buttons for nuking a day's logs."""
+
+    def __init__(self, owner_id: int, target_date: str):
+        super().__init__(timeout=60.0)
+        self.owner_id = owner_id
+        self.target_date = target_date
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("🚫 Only the Server Owner can confirm this action.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="⚠️ Yes, Proceed to 2FA", style=discord.ButtonStyle.danger, custom_id="btn_confirm_nuke_day")
+    async def confirm_nuke_day(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(NukeDay2FAModal(target_date=self.target_date))
+
+    @discord.ui.button(label="❌ No, Cancel", style=discord.ButtonStyle.secondary, custom_id="btn_cancel_nuke_day")
+    async def cancel_nuke_day(self, interaction: discord.Interaction, button: discord.ui.Button):
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content=f"🛡️ **Nuke operation cancelled.** Records for `{self.target_date}` remain intact.", embed=None, view=None)
+        from helpers import auto_dismiss_ephemeral
+        import asyncio
+        asyncio.create_task(auto_dismiss_ephemeral(interaction, delay=60))
+
+
 # ==========================================
 # Council & Accuse Governance Assets & Views
 # ==========================================
