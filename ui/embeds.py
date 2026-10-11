@@ -5,8 +5,10 @@ Centralizes all presentation styling, layout spacing, color palettes,
 and progression information across user commands, admin tools, and scheduled announcements.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, date, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union, Tuple
 import discord
 
 import database as db
