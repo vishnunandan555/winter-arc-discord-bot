@@ -44,7 +44,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 4. **Configure Secrets (`.env`)**:
    - Since `.gitignore` intentionally excludes `.env` and `*.db` for security, open **File Manager** in the panel.
    - Create a `.env` file with your `DISCORD_TOKEN`, `APPLICATION_ID`, etc.
-   - **Tip for Cloud Containers & European VPS**: Cloud container IPs (like Wispbyte / Pterodactyl / Hetzner nodes) may encounter regional restrictions with direct Google Gemini SDK calls (`403 Forbidden` / `400 User location is not supported`). Winter Arc solves this with native OpenRouter integration (`OPEN_ROUTER_KEY=your_key`, free at [openrouter.ai](https://openrouter.ai)), backed by Groq Cloud (`GROQ_API_KEY`) for rapid NLP parsing and automatic failover. This guarantees 100% operational uptime with zero geo-blocking.
+   - **Tip for Cloud Containers & Global/European VPS**: Winter Arc utilizes high-performance OpenRouter integration (`OPEN_ROUTER_KEY=your_key`, free at [openrouter.ai](https://openrouter.ai)), backed by Groq Cloud (`GROQ_API_KEY`) for rapid NLP workout parsing and automatic multi-tier failover. This guarantees 100% operational uptime worldwide with zero regional geofencing or IP restrictions.
     - *Note: Live SQLite databases (`winter_arc.db` and `todo.db`) are ignored by Git, so pulling updates will never overwrite user progress, streaks, or active todos.*
 5. **Verify Startup & Start**:
    - In the **Startup** tab, ensure **Startup Command** is `python bot.py`.

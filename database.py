@@ -214,7 +214,7 @@ def init_db(db_path: str = DB_PATH):
         cursor.execute("UPDATE users SET tips_enabled = 1 WHERE tips_enabled IS NULL;")
         cursor.execute("UPDATE server_settings SET tips_enabled = 1 WHERE tips_enabled IS NULL;")
 
-        # 7. Grind logs table (daily custom workouts & deep work friction logs evaluated by Gemini)
+        # 7. Grind logs table (daily custom workouts & deep work friction logs evaluated by AI reasoning engine)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS grind_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

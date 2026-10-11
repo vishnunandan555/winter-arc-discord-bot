@@ -91,11 +91,22 @@ winter-arc-bot/
 ├── phases.py                 # 4-phase calendar & recap definitions
 ├── helpers.py                # Reusable guards, role resolver, safe reactions
 ├── tips.py                   # Contextual tips engine & rate limits
-├── ai/                       # OpenRouter & Groq AI service integrations
+├── ai/                       # Modular AI reasoning and NLP services
+│   ├── models.py             # Pydantic schemas, payload structures & error types
+│   ├── fallbacks.py          # Curated authentic Stoic & active recovery quotes
+│   ├── prompts.py            # Structured system rubrics & anti-slop prompt engineering
+│   ├── reasoning_service.py  # Tier 1 OpenRouter client & multi-tier reasoning failover
+│   └── groq_service.py       # Tier 2 Lightning-fast NLP workout parser & failover
 ├── ui/
 │   ├── __init__.py
 │   ├── formatters.py         # Visual progress bar & rank badge formatters
-│   ├── embeds.py             # Single-card spacious Discord embeds & Amarok voice
+│   ├── embeds.py             # Backward-compatible embed facade re-exporting all builders
+│   ├── embed_builders/       # Modular domain-specific embed builders
+│   │   ├── common.py         # Theme colors, progress bars, text sanitizer, formatters
+│   │   ├── warrior.py        # Individual workout progress, ranks, profiles, streaks
+│   │   ├── leaderboards.py   # Daily, weekly, monthly, overall, podiums & server records
+│   │   ├── broadcasts.py     # Scheduled kickoff, checkin, recap & ceremony broadcasts
+│   │   └── system.py         # Help directory, streak shields, tips & settings
 │   ├── views.py              # Interactive views (CouncilVotingView, AccuseConfirmView, etc.)
 │   └── todo_views.py         # Interactive 15-item Todo views, alerts, and assignment cards
 ├── cogs/
@@ -107,11 +118,11 @@ winter-arc-bot/
 ├── todo_parser.py            # Natural language schedule & recurrence parser
 ├── todo_reminders.py         # Background reminder dispatcher & maintenance ticker
 ├── dm_templates.py           # Centralized DM announcement & invitation templates
-├── tests/                    # Modular domain test suite (115 tests across 11 modules)
+├── tests/                    # Modular domain test suite (158 tests across 13 modules)
 ├── scheduler.py              # Automated background APScheduler loop with silent broadcasts
 ├── export_web_stats.py       # Exporter utility syncing DB to web JSON
 ├── bot.py                    # Lightweight bot client and gateway runner
-├── test_engine.py            # Automated test discovery runner (115 tests)
+├── test_engine.py            # Automated test discovery runner (158 tests)
 ├── create_deploy_zip.py      # Production deployment packager (bot_deploy.zip)
 ├── Dockerfile                # Production container specification
 ├── docker-compose.yml        # Multi-platform container configuration

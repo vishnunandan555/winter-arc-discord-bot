@@ -40,7 +40,7 @@ from ui.embeds import (
     build_phase_podium_embed,
     build_phase_conclusion_message,
 )
-from ai import gemini_service
+from ai import reasoning_service
 from phases import is_last_day_of_phase, get_next_phase, get_current_phase, get_phase_progress, is_recovery_day
 
 logger = logging.getLogger("winter_arc.scheduler")
@@ -311,7 +311,7 @@ class WinterArcScheduler:
         quote = override_quote or ""
         if not quote:
             try:
-                quote = await gemini_service.generate_reminder_motivation(
+                quote = await reasoning_service.generate_reminder_motivation(
                     reminder_type="morning_recovery" if today_recovery else "morning",
                     user_context=user_context,
                     recent_history=recent_history,
@@ -357,7 +357,7 @@ class WinterArcScheduler:
         quote = override_quote or ""
         if not quote:
             try:
-                quote = await gemini_service.generate_reminder_motivation(
+                quote = await reasoning_service.generate_reminder_motivation(
                     reminder_type="afternoon_recovery" if today_recovery else "afternoon",
                     user_context=user_context,
                     recent_history=recent_history,
@@ -415,7 +415,7 @@ class WinterArcScheduler:
             stoic_quote = override_quote or ""
             if not stoic_quote:
                 try:
-                    stoic_quote = await gemini_service.generate_reminder_motivation(
+                    stoic_quote = await reasoning_service.generate_reminder_motivation(
                         reminder_type="evening_recovery",
                         user_context={"is_recovery": True},
                     )
@@ -425,7 +425,7 @@ class WinterArcScheduler:
             at_risk_content = ""
             allowed_mentions = discord.AllowedMentions(users=False, roles=False, everyone=False)
         else:
-            callouts, stoic_quote = await gemini_service.generate_evening_alert_data(
+            callouts, stoic_quote = await reasoning_service.generate_evening_alert_data(
                 warriors_data=warriors_data,
                 override_quote=override_quote,
             )
@@ -468,7 +468,7 @@ class WinterArcScheduler:
             active_yesterday = {e["discord_id"] for e in leaderboard if e["points"] > 0}
             slacker_count = 0 if is_recovery_day(yesterday) else max(0, len(enrolled_users) - len(active_yesterday))
 
-            ai_recap = await gemini_service.generate_daily_toast_and_roast(
+            ai_recap = await reasoning_service.generate_daily_toast_and_roast(
                 podium_data=leaderboard,
                 grind_highlights=grind_highlights,
                 slacker_count=slacker_count,
@@ -482,7 +482,7 @@ class WinterArcScheduler:
         # Update web dashboard statistics JSON
         try:
             from export_web_stats import export_stats_to_json
-            export_stats_to_json()
+            export_stats_to_json(db_path=self.db_path)
         except Exception as e:
             logger.warning(f"Could not auto-export web stats: {e}")
 
@@ -551,7 +551,7 @@ class WinterArcScheduler:
         Runs the official End-of-Phase ceremony:
         1. Generates an automated standalone snapshot database for user cards.
         2. Dispatches Phase Podium Embed.
-        3. Dispatches Gemini AI Phase Proclamation (Top 3 praise, bottom roasts, next phase unlock).
+        3. Dispatches AI Phase Proclamation (Top 3 praise, bottom roasts, next phase unlock).
         """
         phase_id = phase_dict["id"]
         logger.info(f"Triggering Phase {phase_id} ({phase_dict['name']}) conclusion ceremony...")
@@ -568,10 +568,10 @@ class WinterArcScheduler:
         next_phase = get_next_phase(phase_id)
         podium_embed = build_phase_podium_embed(phase_dict, phase_lb)
 
-        # 3. Generate Gemini proclamation
+        # 3. Generate AI proclamation
         try:
             bottom_warriors = [w for w in phase_lb if w["total_points"] < 100]
-            ceremony_speech = await gemini_service.generate_phase_ceremony(
+            ceremony_speech = await reasoning_service.generate_phase_ceremony(
                 phase_info=phase_dict,
                 top_warriors=phase_lb[:5],
                 bottom_warriors=bottom_warriors,
@@ -581,7 +581,7 @@ class WinterArcScheduler:
                 clean_speech = ceremony_speech.strip().lstrip(">").strip()
                 podium_embed.description = f"> {clean_speech}\n\n" + (podium_embed.description or "")
         except Exception as e:
-            logger.warning(f"Could not generate Gemini phase ceremony speech: {e}")
+            logger.warning(f"Could not generate AI phase ceremony speech: {e}")
 
         allowed_mentions = discord.AllowedMentions(users=False, roles=True, everyone=False)
 
@@ -658,7 +658,7 @@ class WinterArcScheduler:
             logger.warning(f"Error aggregating weekly stats: {e}")
             ghosts_count = 0
 
-        ai_speech = await gemini_service.generate_weekly_state_of_the_pack(
+        ai_speech = await reasoning_service.generate_weekly_state_of_the_pack(
             weekly_stats=weekly_volume,
             top_warriors=top_warriors,
             weekly_grinds=weekly_grinds,
@@ -704,7 +704,7 @@ class WinterArcScheduler:
                 is_recovery = is_recovery_day(today_str)
                 quote = ""
                 try:
-                    quote = await gemini_service.generate_personalized_morning_briefing(
+                    quote = await reasoning_service.generate_personalized_morning_briefing(
                         briefing_context,
                         is_recovery=is_recovery,
                     )
@@ -820,7 +820,7 @@ class WinterArcScheduler:
                 is_recovery = is_recovery_day(today_str)
                 quote = ""
                 try:
-                    quote = await gemini_service.generate_reminder_motivation(
+                    quote = await reasoning_service.generate_reminder_motivation(
                         reminder_type="evening_recovery" if is_recovery else "evening",
                         user_context={
                             "username": discord_user.display_name,

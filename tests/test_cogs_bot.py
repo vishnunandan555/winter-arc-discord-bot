@@ -48,14 +48,13 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
 
     def test_memory_management_singletons_and_health_metrics(self):
         """Verifies AI client singleton reuse and Wispbyte free tier health metrics."""
-        from ai.gemini_service import get_gemini_client
         from ai.groq_service import get_groq_client
+        from ai.reasoning_service import get_openrouter_candidate_models
         from cogs.admin import get_system_health_metrics, build_health_embed
 
-        # Singleton verification
-        g1 = get_gemini_client()
-        g2 = get_gemini_client()
-        self.assertIs(g1, g2)
+        # OpenRouter fallback list verification
+        cands = get_openrouter_candidate_models()
+        self.assertTrue(len(cands) >= 1)
 
         q1 = get_groq_client()
         q2 = get_groq_client()

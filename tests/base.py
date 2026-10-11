@@ -35,9 +35,17 @@ class WinterArcTestCase(unittest.TestCase):
         db.init_db(cls.test_db)
         db.init_db(db.DB_PATH)
 
+        # Mock export_web_stats to protect docs/stats.json from test pollution
+        try:
+            import export_web_stats
+            cls._orig_export_stats_to_json = export_web_stats.export_stats_to_json
+            export_web_stats.export_stats_to_json = MagicMock(return_value={})
+        except Exception:
+            pass
+
         # Isolate OpenRouter and Groq API keys to prevent unmocked live LLM network calls during unit tests
         try:
-            import ai.gemini_service as gs
+            import ai.reasoning_service as gs
             cls._orig_openrouter_key = gs.OPENROUTER_API_KEY
             cls._orig_groq_key = gs.GROQ_API_KEY
             gs.OPENROUTER_API_KEY = ""
@@ -55,7 +63,14 @@ class WinterArcTestCase(unittest.TestCase):
                 pass
 
         try:
-            import ai.gemini_service as gs
+            import export_web_stats
+            if hasattr(cls, "_orig_export_stats_to_json"):
+                export_web_stats.export_stats_to_json = cls._orig_export_stats_to_json
+        except Exception:
+            pass
+
+        try:
+            import ai.reasoning_service as gs
             gs.OPENROUTER_API_KEY = getattr(cls, "_orig_openrouter_key", "")
             gs.GROQ_API_KEY = getattr(cls, "_orig_groq_key", "")
         except Exception:
@@ -66,7 +81,7 @@ class WinterArcTestCase(unittest.TestCase):
         if not os.path.exists(db.DB_PATH):
             db.init_db(db.DB_PATH)
         try:
-            import ai.gemini_service as gs
+            import ai.reasoning_service as gs
             gs.OPENROUTER_API_KEY = ""
             gs.GROQ_API_KEY = ""
         except Exception:
@@ -74,7 +89,7 @@ class WinterArcTestCase(unittest.TestCase):
 
     def tearDown(self):
         try:
-            import ai.gemini_service as gs
+            import ai.reasoning_service as gs
             gs.OPENROUTER_API_KEY = getattr(self.__class__, "_orig_openrouter_key", "")
             gs.GROQ_API_KEY = getattr(self.__class__, "_orig_groq_key", "")
         except Exception:

@@ -86,13 +86,6 @@ class WinterArcBot(commands.Bot):
         # 1. Initialize SQLite database schemas
         db.init_db()
 
-        # Pre-warm AI client singletons at startup so heavy imports occur BEFORE connecting to gateway
-        try:
-            from ai.gemini_service import get_gemini_client
-            get_gemini_client()
-        except Exception as e:
-            logger.debug(f"Gemini client startup warmup: {e}")
-
         try:
             from ai.groq_service import get_groq_client
             get_groq_client()
@@ -235,7 +228,7 @@ class WinterArcBot(commands.Bot):
 
         # AI models connectivity and status health check
         try:
-            from ai.gemini_service import check_ai_health
+            from ai.reasoning_service import check_ai_health
             await check_ai_health()
         except Exception as ai_err:
             logger.warning(f"AI health check during startup encountered error: {ai_err}")

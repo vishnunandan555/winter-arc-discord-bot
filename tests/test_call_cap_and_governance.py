@@ -459,10 +459,10 @@ class TestCallCapAndGovernance(WinterArcTestCase):
         orig_prob = db.get_grind_probation
         with patch("cogs.warrior.require_enrolled", return_value=True), \
              patch.object(db, "get_grind_probation", side_effect=lambda uid, **kw: orig_prob(uid, db_path=self.test_db)), \
-             patch("cogs.warrior.gemini_service.evaluate_grind") as mock_gemini:
+             patch("cogs.warrior.reasoning_service.evaluate_grind") as mock_ai:
             asyncio.run(cog.grind_cmd.callback(cog, inter, text="Studied theoretical physics and wrote simulations"))
             # AI should never be invoked when blocked
-            self.assertFalse(mock_gemini.called)
+            self.assertFalse(mock_ai.called)
 
         self.assertTrue(inter.response.send_message.called)
         sent_msg = inter.response.send_message.call_args[0][0]

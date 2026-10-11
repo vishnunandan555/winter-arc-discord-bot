@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-162%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-158%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -112,7 +112,7 @@ python bot.py
 
 ## 🧪 Automated Test Suite
  
-The test suite contains **162 comprehensive test cases** organized into 13 domain modules inside the [`tests/`](tests/) directory.
+The test suite contains **158 comprehensive test cases** organized into 13 domain modules inside the [`tests/`](tests/) directory.
  
 ```bash
 # Run the complete test suite via discovery runner
@@ -190,10 +190,10 @@ python create_deploy_zip.py
 
 ```text
 winter-arc-discord-bot/
-├── ai/                      # OpenRouter & Groq AI service integrations
+├── ai/                      # OpenRouter & Groq AI reasoning, prompt & fallback services
 ├── cogs/                    # Discord command extensions (warrior, admin, and todo cogs)
-├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (162 test cases across 13 modules)
+├── ui/                      # Discord embeds facade, embed_builders/, formatters, and views
+├── tests/                   # Modular domain test suite (158 test cases across 13 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

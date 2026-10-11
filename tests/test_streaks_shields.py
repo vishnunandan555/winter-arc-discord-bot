@@ -486,7 +486,7 @@ class TestStreakShields(WinterArcTestCase):
             with patch("database.finalize_daily_summaries", return_value=[entry_a, entry_b, entry_c]), \
                  patch("database.get_enrolled_users", return_value=[{"discord_id": user_a}, {"discord_id": user_b}, {"discord_id": user_c}]), \
                  patch("database.get_daily_grind_highlights", return_value=[]), \
-                 patch("ai.gemini_service.generate_daily_toast_and_roast", new_callable=AsyncMock, return_value=""), \
+                 patch("ai.reasoning_service.generate_daily_toast_and_roast", new_callable=AsyncMock, return_value=""), \
                  patch("export_web_stats.export_stats_to_json"):
                 await scheduler.broadcast_midnight_finalization(target_channel=mock_channel)
 

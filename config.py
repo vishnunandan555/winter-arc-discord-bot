@@ -55,15 +55,6 @@ OPENROUTER_FALLBACK_MODELS = [
     "google/gemma-4-26b-a4b-it:free",
 ]
 
-# Legacy Gemini API references for backward compatibility
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
-GEMINI_FALLBACK_MODELS = [
-    GEMINI_MODEL,
-    "gemini-3.5-flash-lite",
-    "gemini-3.8-flash",
-    "gemini-flash-latest",
-]
 
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
@@ -157,7 +148,8 @@ def setup_logging():
 
     # Apply filters
     logging.getLogger("discord.client").addFilter(VoiceWarningFilter())
-    logging.getLogger("google_genai.models").addFilter(NoisyLibraryFilter())
+    logging.getLogger("httpx").addFilter(NoisyLibraryFilter())
+    logging.getLogger("httpcore").addFilter(NoisyLibraryFilter())
 
     app_logger = logging.getLogger("winter_arc")
     app_logger.setLevel(log_level)

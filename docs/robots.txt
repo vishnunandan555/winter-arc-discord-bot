@@ -25,7 +25,7 @@ Allow: /
 User-agent: anthropic-ai
 Allow: /
 
-# Google Search & Gemini Crawlers
+# Google Search Crawlers
 User-agent: Googlebot
 Allow: /
 

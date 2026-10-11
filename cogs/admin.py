@@ -571,13 +571,13 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "morning_dm":
             from ui.embeds import build_dm_morning_message
             from config import BOT_TZ
-            from ai import gemini_service
+            from ai import reasoning_service
             active_tasks = db.get_active_tasks()
             today_str = datetime.now(BOT_TZ).strftime("%A, %B %d, %Y")
             quote = ""
             try:
                 briefing_context = db.get_user_weekly_briefing_context(interaction.user.id)
-                quote = await gemini_service.generate_personalized_morning_briefing(briefing_context)
+                quote = await reasoning_service.generate_personalized_morning_briefing(briefing_context)
             except Exception as e:
                 logger.debug(f"Could not generate test morning DM quote: {e}")
 
@@ -613,14 +613,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         elif reminder_type == "evening_dm":
             from ui.embeds import build_dm_evening_message
             from config import BOT_TZ
-            from ai import gemini_service
+            from ai import reasoning_service
             today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
             prog = db.get_user_daily_progress(interaction.user.id, today_str)
             shield_status = db.get_user_shield_status(interaction.user.id)
             quote = ""
             try:
                 tester_context["today_points"] = prog.get("total_points", 0)
-                quote = await gemini_service.generate_reminder_motivation(
+                quote = await reasoning_service.generate_reminder_motivation(
                     reminder_type="evening",
                     user_context=tester_context,
                     recent_history=user_history

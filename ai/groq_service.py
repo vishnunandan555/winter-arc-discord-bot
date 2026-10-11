@@ -224,7 +224,7 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         )
         latency = time.time() - start_t
         raw_content = chat_completion.choices[0].message.content or "{}"
-        from ai.gemini_service import clean_ai_thought_leakage
+        from ai.reasoning_service import clean_ai_thought_leakage
         cleaned_json = clean_ai_thought_leakage(raw_content, is_json=True)
         if "{" in cleaned_json and "}" in cleaned_json:
             cleaned_json = cleaned_json[cleaned_json.find("{"):cleaned_json.rfind("}") + 1]
@@ -391,7 +391,7 @@ async def generate_reactive_nudge(
         latency = time.time() - start_t
 
         raw = chat_completion.choices[0].message.content or ""
-        from ai.gemini_service import clean_ai_thought_leakage
+        from ai.reasoning_service import clean_ai_thought_leakage
         txt = clean_ai_thought_leakage(raw) or ""
         txt = txt.strip("*").strip("_").strip('"').strip("'")
         logger.info(f"Groq reactive observation generated in {latency:.2f}s: '{txt}'")

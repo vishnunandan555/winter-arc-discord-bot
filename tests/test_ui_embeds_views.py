@@ -186,25 +186,18 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
 
 
     def test_cleanup_fixes_and_robustness(self):
-        """Verifies no-fallback Gemini error handling, formatted history with grind tags, and retroactive sync."""
+        """Verifies no-fallback AI reasoning error handling, formatted history with grind tags, and retroactive sync."""
         import json
-        from ai.gemini_service import GeminiServiceError, evaluate_grind
+        from ai.reasoning_service import ReasoningServiceError, evaluate_grind
         from ui.embeds import build_history_embed, build_stats_embed, build_profile_embed
 
-        # 1. Verify GeminiServiceError is raised when both AI services fail/are unconfigured
-        with patch("ai.gemini_service.get_gemini_client", return_value=None), \
+        # 1. Verify ReasoningServiceError is raised when both AI services fail/are unconfigured
+        with patch("ai.reasoning_service.OPENROUTER_API_KEY", ""), \
              patch("ai.groq_service.get_groq_client", return_value=None):
-            with self.assertRaises(GeminiServiceError):
+            with self.assertRaises(ReasoningServiceError):
                 asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
 
-        mock_failing_client = MagicMock()
-        mock_failing_client.aio.models.generate_content = AsyncMock(side_effect=RuntimeError("API quota exhausted"))
-        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client), \
-             patch("ai.groq_service.get_groq_client", return_value=None):
-            with self.assertRaises(GeminiServiceError):
-                asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
-
-        # Verify Groq fallback succeeds when Gemini fails
+        # Verify Groq fallback succeeds when OpenRouter fails
         mock_groq = MagicMock()
         mock_groq_resp = MagicMock()
         mock_groq_resp.choices = [MagicMock(message=MagicMock(content=json.dumps({
@@ -215,7 +208,7 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
             "commentary": "Solid deep work session."
         })))]
         mock_groq.chat.completions.create = AsyncMock(return_value=mock_groq_resp)
-        with patch("ai.gemini_service.get_gemini_client", return_value=mock_failing_client), \
+        with patch("ai.reasoning_service.OPENROUTER_API_KEY", ""), \
              patch("ai.groq_service.get_groq_client", return_value=mock_groq):
             res_groq = asyncio.run(evaluate_grind("Studied algorithms for 3 hours"))
             self.assertEqual(res_groq["verdict"], "ACCEPTED")
@@ -275,7 +268,7 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
 
     def test_reminder_motivation_quotes_and_embeds(self):
         """Verifies quotes generation and embed placement across all daily broadcast cards."""
-        from ai import gemini_service
+        from ai import reasoning_service
         from ui.embeds import (
             build_morning_kickoff_embed,
             build_afternoon_checkin_embed,
@@ -284,7 +277,7 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             build_dm_evening_embed,
         )
 
-        quote = asyncio.run(gemini_service.generate_reminder_motivation(reminder_type="morning"))
+        quote = asyncio.run(reasoning_service.generate_reminder_motivation(reminder_type="morning"))
         self.assertIsInstance(quote, str)
         self.assertTrue(len(quote) > 0)
         self.assertLessEqual(len(quote.split()), 35)
@@ -333,7 +326,7 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
     def test_evening_checkin_broadcast_message(self):
         """Verifies humanized evening checkin text generator and authenticated stoic quotes."""
         from ui.embeds import build_evening_checkin_message
-        from ai.gemini_service import generate_evening_alert_data, AUTHENTIC_STOIC_QUOTES
+        from ai.reasoning_service import generate_evening_alert_data, AUTHENTIC_STOIC_QUOTES
 
         warriors = [
             {"discord_id": 1001, "username": "STRANGER", "points": 0, "streak": 3},
@@ -380,7 +373,7 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
     def test_humanized_replies_and_broadcast_embeds(self):
         """Verifies weekly broadcast embed and validates that fallback pools contain zero melodrama tropes."""
         from ui.embeds import build_weekly_state_of_the_pack_embed
-        from ai.gemini_service import CURATED_STOIC_FALLBACKS
+        from ai.reasoning_service import CURATED_STOIC_FALLBACKS
         from ai.groq_service import REACTIVE_STOIC_FALLBACKS
 
         stats = {

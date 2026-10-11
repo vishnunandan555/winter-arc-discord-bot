@@ -77,7 +77,7 @@ from ui.views import (
     CouncilVotingView,
     COUNCIL_SUMMONED_GIFS,
 )
-from ai import gemini_service, groq_service
+from ai import reasoning_service, groq_service
 from tips import dispatch_tip
 
 logger = logging.getLogger("winter_arc.cogs.warrior")
@@ -1173,10 +1173,10 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
 
         await interaction.response.defer()
 
-        # Evaluate via Gemini
+        # Evaluate via AI reasoning engine
         try:
-            evaluation = await gemini_service.evaluate_grind(text)
-        except gemini_service.GeminiServiceError as e:
+            evaluation = await reasoning_service.evaluate_grind(text)
+        except reasoning_service.ReasoningServiceError as e:
             logger.warning(f"/grind evaluation unavailable for {interaction.user}: {e}")
             await interaction.followup.send(
                 f"⚠️ **AI Evaluation Unavailable**\n{str(e)}\n\n"

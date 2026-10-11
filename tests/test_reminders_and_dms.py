@@ -19,7 +19,7 @@ from ui.embeds import (
     build_settings_embed,
 )
 from ui.views import RemindersView, SettingsView
-from ai.gemini_service import generate_personalized_morning_briefing
+from ai.reasoning_service import generate_personalized_morning_briefing
 
 
 class TestRemindersAndDMs(WinterArcTestCase):
@@ -112,25 +112,16 @@ class TestRemindersAndDMs(WinterArcTestCase):
         self.assertTrue(any("Push-ups" in d for d in context["top_disciplines"]))
         self.assertEqual(len(context["recent_grinds"]), 1)
 
-        # Test briefing generation with mocked Gemini response
-        mock_briefing = "You dominated heavy pulls yesterday. Keep this unbroken standard into day 4."
-        mock_client = MagicMock()
-        mock_resp = MagicMock()
-        mock_resp.text = mock_briefing
-        mock_client.aio.models.generate_content = AsyncMock(return_value=mock_resp)
-        with patch("ai.gemini_service.is_gemini_available", return_value=True):
-            with patch("ai.gemini_service.get_gemini_client", return_value=mock_client):
-                briefing = asyncio.run(generate_personalized_morning_briefing(context))
-                self.assertEqual(briefing, mock_briefing)
-
         # Test briefing generation with OpenRouter mock
-        with patch("ai.gemini_service.OPENROUTER_API_KEY", "test-key"), \
-             patch("ai.gemini_service.safe_openrouter_chat_completion", new=AsyncMock(return_value=mock_briefing)):
+        mock_briefing = "You dominated heavy pulls yesterday. Keep this unbroken standard into day 4."
+        with patch("ai.reasoning_service.OPENROUTER_API_KEY", "test-key"), \
+             patch("ai.reasoning_service.safe_openrouter_chat_completion", new=AsyncMock(return_value=mock_briefing)):
             briefing_or = asyncio.run(generate_personalized_morning_briefing(context))
             self.assertEqual(briefing_or, mock_briefing)
 
         # Test fallback when API client is not configured
-        with patch("ai.gemini_service.get_gemini_client", return_value=None):
+        with patch("ai.reasoning_service.OPENROUTER_API_KEY", ""), \
+             patch("ai.groq_service.get_groq_client", return_value=None):
             fallback_briefing = asyncio.run(generate_personalized_morning_briefing(context))
             self.assertTrue(len(fallback_briefing) > 10)
 
@@ -266,9 +257,9 @@ class TestRemindersAndDMs(WinterArcTestCase):
         # Mock _get_target_channel_and_ping to return channel and a role ping
         with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
             with patch("scheduler.is_recovery_day", return_value=False):
-                with patch("ai.gemini_service.generate_reminder_motivation", return_value="Keep the standard high."):
-                    with patch("ai.gemini_service.generate_evening_alert_data", return_value=([], "Endure.")):
-                        with patch("ai.gemini_service.generate_daily_toast_and_roast", return_value="Great work today."):
+                with patch("ai.reasoning_service.generate_reminder_motivation", return_value="Keep the standard high."):
+                    with patch("ai.reasoning_service.generate_evening_alert_data", return_value=([], "Endure.")):
+                        with patch("ai.reasoning_service.generate_daily_toast_and_roast", return_value="Great work today."):
                             # 1. Morning Kickoff
                             asyncio.run(scheduler.broadcast_morning_kickoff())
                         self.assertTrue(mock_channel.send.called)
@@ -310,7 +301,7 @@ class TestRemindersAndDMs(WinterArcTestCase):
         active_tasks = db.get_active_tasks(db_path=self.test_db)
 
         # 1. Successful DM dispatches
-        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
+        with patch("ai.reasoning_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
             res_m = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
             self.assertTrue(res_m)
             self.assertTrue(mock_discord_user.send.called)
@@ -318,20 +309,20 @@ class TestRemindersAndDMs(WinterArcTestCase):
         res_a = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
         self.assertTrue(res_a)
 
-        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Defend the streak."):
+        with patch("ai.reasoning_service.generate_reminder_motivation", return_value="Defend the streak."):
             res_e = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
             self.assertTrue(res_e)
 
         # 2. Closed DMs (discord.Forbidden)
         mock_discord_user.send.side_effect = discord.Forbidden(MagicMock(), "Cannot send messages to this user")
-        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
+        with patch("ai.reasoning_service.generate_personalized_morning_briefing", return_value="Rise and grind."):
             res_m_forbidden = asyncio.run(scheduler._send_single_morning_dm(user_record, active_tasks, today_str, "Today"))
         self.assertFalse(res_m_forbidden)
 
         res_a_forbidden = asyncio.run(scheduler._send_single_afternoon_dm(user_record, today_str))
         self.assertFalse(res_a_forbidden)
 
-        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Defend the streak."):
+        with patch("ai.reasoning_service.generate_reminder_motivation", return_value="Defend the streak."):
             res_e_forbidden = asyncio.run(scheduler._send_single_evening_dm(user_record, today_str))
             self.assertFalse(res_e_forbidden)
 
@@ -379,7 +370,7 @@ class TestRemindersAndDMs(WinterArcTestCase):
         inter.user.send = AsyncMock()
 
         # Morning DM preview
-        with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Test morning reflection."):
+        with patch("ai.reasoning_service.generate_personalized_morning_briefing", return_value="Test morning reflection."):
             asyncio.run(cog.test_reminder.callback(cog, inter, reminder_type="morning_dm"))
             self.assertTrue(inter.user.send.called)
             inter.followup.send.assert_called()
@@ -394,7 +385,7 @@ class TestRemindersAndDMs(WinterArcTestCase):
         # Evening DM preview
         inter.user.send.reset_mock()
         inter.followup.send.reset_mock()
-        with patch("ai.gemini_service.generate_reminder_motivation", return_value="Test evening alert."):
+        with patch("ai.reasoning_service.generate_reminder_motivation", return_value="Test evening alert."):
             asyncio.run(cog.test_reminder.callback(cog, inter, reminder_type="evening_dm"))
             self.assertTrue(inter.user.send.called)
             inter.followup.send.assert_called()
@@ -489,7 +480,7 @@ class TestRemindersAndDMs(WinterArcTestCase):
 
         async def run_sunday_test():
             with patch("scheduler.get_now_ist", return_value=sunday_dt):
-                with patch("scheduler.gemini_service.generate_weekly_state_of_the_pack", new=AsyncMock(return_value="Solid week.")):
+                with patch("scheduler.reasoning_service.generate_weekly_state_of_the_pack", new=AsyncMock(return_value="Solid week.")):
                     await sched.broadcast_sunday_state_of_the_pack(target_channel=mock_channel, role_ping="<@&999111>")
 
             mock_channel.send.assert_called()
