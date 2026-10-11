@@ -47,12 +47,12 @@ MAX_SINGLE_SET_LIMITS = {
 # AI Configuration
 # OpenRouter API: Primary high-reasoning engine (/grind evaluation, Toast & Roast, Sunday address, quotes)
 OPENROUTER_API_KEY = os.getenv("OPEN_ROUTER_KEY") or os.getenv("OPENROUTER_API_KEY") or ""
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free").strip() or "nvidia/nemotron-3.5-lightning:free"
 OPENROUTER_FALLBACK_MODELS = [
     OPENROUTER_MODEL,
-    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
+    "openrouter/free",
 ]
 
 
