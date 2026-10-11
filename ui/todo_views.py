@@ -110,6 +110,7 @@ class TodoListView(discord.ui.View):
     """
     Interactive View displaying up to 15 tasks per page with navigation,
     trash toggling, task completion, silencing, and quick add.
+    Pagination buttons are hidden when all tasks fit on a single page.
     """
     PAGE_SIZE = 15
 
@@ -131,6 +132,7 @@ class TodoListView(discord.ui.View):
         self.priority_filter = priority_filter
         self.with_reminders_only = with_reminders_only
         self.db_path = db_path
+        self._pagination_visible = True  # tracks whether pagination row is currently in the view
         self._update_buttons()
 
     def _get_current_items(self) -> Tuple[List[Dict[str, Any]], int, int]:
@@ -158,13 +160,31 @@ class TodoListView(discord.ui.View):
         return page_items, total_pages, total_items
 
     def _update_buttons(self):
-        """Updates button labels, states, and pagination controls."""
-        page_items, total_pages, _ = self._get_current_items()
+        """Updates button labels, states, and pagination controls.
 
-        # Update Prev/Next states
-        self.btn_prev.disabled = (self.page <= 1)
-        self.btn_next.disabled = (self.page >= total_pages)
-        self.btn_page_num.label = f"Page {self.page}/{total_pages}"
+        Pagination buttons (◀️, Page X/X, ▶️) are hidden entirely when all
+        tasks fit on a single page, and shown again if multiple pages exist.
+        """
+        page_items, total_pages, _ = self._get_current_items()
+        needs_pagination = total_pages > 1
+
+        # Show or hide pagination row based on whether multiple pages are needed
+        if needs_pagination and not self._pagination_visible:
+            # Re-insert pagination buttons before the other buttons
+            self.add_item(self.btn_prev)
+            self.add_item(self.btn_page_num)
+            self.add_item(self.btn_next)
+            self._pagination_visible = True
+        elif not needs_pagination and self._pagination_visible:
+            self.remove_item(self.btn_prev)
+            self.remove_item(self.btn_page_num)
+            self.remove_item(self.btn_next)
+            self._pagination_visible = False
+
+        if needs_pagination:
+            self.btn_prev.disabled = (self.page <= 1)
+            self.btn_next.disabled = (self.page >= total_pages)
+            self.btn_page_num.label = f"Page {self.page}/{total_pages}"
 
         # Update View Trash / Active List toggle button
         if self.is_trash:
