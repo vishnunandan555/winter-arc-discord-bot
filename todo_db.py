@@ -11,7 +11,7 @@ import json
 import time
 import sqlite3
 import logging
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
 from typing import Dict, Any, List, Optional, Tuple
 from config import TODO_DB_PATH, BOT_TZ
@@ -61,6 +61,12 @@ def init_todo_db(db_path: Optional[str] = None):
                 user_id INTEGER NOT NULL,
                 task_text TEXT NOT NULL,
                 priority TEXT DEFAULT 'normal',
+                current_count INTEGER DEFAULT 0,
+                target_count INTEGER DEFAULT 1,
+                reset_period TEXT DEFAULT 'none',
+                reset_interval_days INTEGER DEFAULT 0,
+                last_reset_date TEXT,
+                next_reset_ts INTEGER,
                 remind_spec TEXT,
                 remind_type TEXT,
                 remind_interval_mins INTEGER,
@@ -90,6 +96,22 @@ def init_todo_db(db_path: Optional[str] = None):
         if "incognito" not in cols:
             cursor.execute("ALTER TABLE todo_user_settings ADD COLUMN incognito BOOLEAN DEFAULT 0;")
             logger.info("Added 'incognito' column to todo_user_settings.")
+
+        # Migration: Ensure counter & reset columns exist in todos
+        cursor.execute("PRAGMA table_info(todos);")
+        t_cols = [c[1] for c in cursor.fetchall()]
+        if "current_count" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN current_count INTEGER DEFAULT 0;")
+        if "target_count" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN target_count INTEGER DEFAULT 1;")
+        if "reset_period" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN reset_period TEXT DEFAULT 'none';")
+        if "reset_interval_days" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN reset_interval_days INTEGER DEFAULT 0;")
+        if "last_reset_date" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN last_reset_date TEXT;")
+        if "next_reset_ts" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN next_reset_ts INTEGER;")
 
         conn.commit()
     logger.info("Initialized isolated todo.db schema.")
@@ -217,6 +239,105 @@ def is_user_in_dnd(user_id: int, check_dt: Optional[datetime] = None, db_path: O
 
 
 # =====================================================================
+# Reset Calculation & Lazy Reset Engine
+# =====================================================================
+
+def compute_next_midnight_reset(
+    reset_period: str,
+    reset_interval_days: int = 0,
+    from_dt: Optional[datetime] = None,
+) -> Optional[int]:
+    """
+    Calculates Unix timestamp of the next midnight (00:00:00 IST) for the reset period.
+    - 'daily': Next midnight (00:00 IST tomorrow).
+    - 'weekly': Upcoming Sunday midnight (00:00 IST).
+    - 'custom_days': N days from now at 00:00 IST.
+    - 'none': None.
+    """
+    if not reset_period or reset_period == "none":
+        return None
+
+    now = from_dt if from_dt is not None else datetime.now(BOT_TZ)
+    today = now.date()
+
+    if reset_period == "daily":
+        next_date = today + timedelta(days=1)
+    elif reset_period == "weekly":
+        # Days until next Sunday (Monday=0 ... Sunday=6)
+        days_ahead = 6 - today.weekday()
+        if days_ahead <= 0:  # If today is Sunday, next reset is next Sunday
+            days_ahead += 7
+        next_date = today + timedelta(days=days_ahead)
+    elif reset_period == "custom_days":
+        interval = max(1, reset_interval_days)
+        next_date = today + timedelta(days=interval)
+    else:
+        next_date = today + timedelta(days=1)
+
+    next_dt = datetime(next_date.year, next_date.month, next_date.day, 0, 0, 0, tzinfo=BOT_TZ)
+    return int(next_dt.timestamp())
+
+
+def apply_all_due_lazy_resets(db_path: Optional[str] = None):
+    """Evaluates all recurring tasks across all users and resets any whose next_reset_ts has passed."""
+    now_ts = int(time.time())
+    now_dt = datetime.now(BOT_TZ)
+    today_str = now_dt.strftime("%Y-%m-%d")
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, reset_period, reset_interval_days
+            FROM todos
+            WHERE reset_period != 'none' 
+              AND next_reset_ts IS NOT NULL 
+              AND next_reset_ts <= ?
+        """, (now_ts,))
+        due = cursor.fetchall()
+        for t in due:
+            new_ts = compute_next_midnight_reset(t["reset_period"], t["reset_interval_days"], from_dt=now_dt)
+            cursor.execute("""
+                UPDATE todos
+                SET current_count = 0,
+                    status = 'active',
+                    last_reset_date = ?,
+                    next_reset_ts = ?
+                WHERE id = ?
+            """, (today_str, new_ts, t["id"]))
+        if due:
+            conn.commit()
+
+
+def apply_lazy_resets_for_user(user_id: int, db_path: Optional[str] = None):
+    """Evaluates recurring tasks for a specific user and rolls over counts/status if reset window passed."""
+    now_ts = int(time.time())
+    now_dt = datetime.now(BOT_TZ)
+    today_str = now_dt.strftime("%Y-%m-%d")
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, reset_period, reset_interval_days
+            FROM todos
+            WHERE user_id = ? 
+              AND reset_period != 'none' 
+              AND next_reset_ts IS NOT NULL 
+              AND next_reset_ts <= ?
+        """, (user_id, now_ts))
+        due = cursor.fetchall()
+        for t in due:
+            new_ts = compute_next_midnight_reset(t["reset_period"], t["reset_interval_days"], from_dt=now_dt)
+            cursor.execute("""
+                UPDATE todos
+                SET current_count = 0,
+                    status = 'active',
+                    last_reset_date = ?,
+                    next_reset_ts = ?
+                WHERE id = ?
+            """, (today_str, new_ts, t["id"]))
+        if due:
+            conn.commit()
+
+
+# =====================================================================
 # Task CRUD with Relative Sequential Numbering (#1..#N and T1..TN)
 # =====================================================================
 
@@ -235,10 +356,16 @@ def add_task(
     origin_channel_id: Optional[int] = None,
     assigned_by_user_id: Optional[int] = None,
     next_reminder_at: Optional[int] = None,
+    current_count: int = 0,
+    target_count: int = 1,
+    reset_period: str = "none",
+    reset_interval_days: int = 0,
     db_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Adds a new task and returns its dict representation with its relative task number."""
     now_ts = int(time.time())
+    now_dt = datetime.now(BOT_TZ)
+    today_str = now_dt.strftime("%Y-%m-%d")
     fixed_json = json.dumps(remind_fixed_times) if remind_fixed_times else None
 
     # Priority normalization
@@ -246,20 +373,30 @@ def add_task(
     if p_norm not in ["high", "medium", "low", "normal"]:
         p_norm = "normal"
 
+    tgt = max(1, int(target_count))
+    cur = max(0, int(current_count))
+    r_period = reset_period.lower().strip() if reset_period else "none"
+    r_days = max(0, int(reset_interval_days))
+    next_reset = compute_next_midnight_reset(r_period, r_days, from_dt=now_dt)
+
+    status = "completed" if cur >= tgt else "active"
+
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO todos (
-                user_id, task_text, priority, remind_spec, remind_type,
-                remind_interval_mins, remind_fixed_times, remind_window_start,
-                until_spec, until_timestamp, dm_only, origin_channel_id,
-                assigned_by_user_id, status, next_reminder_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+                user_id, task_text, priority, current_count, target_count,
+                reset_period, reset_interval_days, last_reset_date, next_reset_ts,
+                remind_spec, remind_type, remind_interval_mins, remind_fixed_times,
+                remind_window_start, until_spec, until_timestamp, dm_only,
+                origin_channel_id, assigned_by_user_id, status, next_reminder_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            user_id, task_text.strip(), p_norm, remind_spec, remind_type,
-            remind_interval_mins, fixed_json, remind_window_start,
-            until_spec, until_timestamp, int(dm_only), origin_channel_id,
-            assigned_by_user_id, next_reminder_at, now_ts
+            user_id, task_text.strip(), p_norm, cur, tgt,
+            r_period, r_days, today_str, next_reset,
+            remind_spec, remind_type, remind_interval_mins, fixed_json,
+            remind_window_start, until_spec, until_timestamp, int(dm_only),
+            origin_channel_id, assigned_by_user_id, status, next_reminder_at, now_ts
         ))
         conn.commit()
         task_id = cursor.lastrowid
@@ -270,7 +407,13 @@ def add_task(
         if t["id"] == task_id:
             return t
 
-    return {"id": task_id, "num": len(active_tasks), "task_text": task_text}
+    # If it completed immediately, retrieve directly
+    t_obj = get_task_by_id(task_id, db_path=db_path)
+    if t_obj:
+        t_obj["num"] = 1
+        return t_obj
+
+    return {"id": task_id, "num": len(active_tasks) or 1, "task_text": task_text}
 
 
 def get_active_tasks(
@@ -283,6 +426,7 @@ def get_active_tasks(
     Returns active tasks for user ordered by priority (high -> medium -> normal -> low)
     and creation time, annotated with dynamic relative 1-based sequential numbers (#1, #2, ...).
     """
+    apply_lazy_resets_for_user(user_id, db_path=db_path)
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         # Custom priority ordering: high = 1, medium = 2, normal = 3, low = 4
@@ -323,9 +467,38 @@ def get_active_tasks(
     return filtered
 
 
+def get_completed_cycle_tasks(user_id: int, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Returns recurring tasks that have completed their goal for the current cycle
+    (they sleep until next midnight reset, NOT sent to 7-day trash).
+    """
+    apply_lazy_resets_for_user(user_id, db_path=db_path)
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM todos
+            WHERE user_id = ? 
+              AND reset_period != 'none' 
+              AND status = 'completed'
+            ORDER BY completed_at DESC
+        """, (user_id,))
+        rows = [dict(r) for r in cursor.fetchall()]
+
+    for item in rows:
+        if item.get("remind_fixed_times"):
+            try:
+                item["fixed_times_list"] = json.loads(item["remind_fixed_times"])
+            except Exception:
+                item["fixed_times_list"] = []
+        else:
+            item["fixed_times_list"] = []
+
+    return rows
+
+
 def get_trashed_tasks(user_id: int, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Returns tasks in trash (completed or deleted within the 7-day retention window),
+    Returns tasks in trash (deleted tasks, or completed one-off tasks within the 7-day retention window),
     annotated with sequential Trash IDs (T1, T2, ...).
     """
     purge_expired_trash(days=7, db_path=db_path)
@@ -333,7 +506,8 @@ def get_trashed_tasks(user_id: int, db_path: Optional[str] = None) -> List[Dict[
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM todos
-            WHERE user_id = ? AND status IN ('completed', 'deleted')
+            WHERE user_id = ? 
+              AND (status = 'deleted' OR (reset_period = 'none' AND status = 'completed'))
             ORDER BY trashed_at DESC
         """, (user_id,))
         rows = [dict(r) for r in cursor.fetchall()]
@@ -346,12 +520,36 @@ def get_trashed_tasks(user_id: int, db_path: Optional[str] = None) -> List[Dict[
 
 
 def get_task_by_relative_num(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Finds an active task by its current relative number (#1..#N)."""
+    """Finds an active task by relative number (#1..#N), or looks in completed cycle tasks."""
     tasks = get_active_tasks(user_id, db_path=db_path)
     for t in tasks:
         if t["num"] == num:
             return t
+    completed = get_completed_cycle_tasks(user_id, db_path=db_path)
+    for idx, t in enumerate(completed, start=len(tasks) + 1):
+        if idx == num or t["id"] == num:
+            t["num"] = idx
+            return t
     return None
+
+
+def get_task_by_id(task_id: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Finds any task by its primary database ID."""
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM todos WHERE id = ?", (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        res = dict(row)
+        if res.get("remind_fixed_times"):
+            try:
+                res["fixed_times_list"] = json.loads(res["remind_fixed_times"])
+            except Exception:
+                res["fixed_times_list"] = []
+        else:
+            res["fixed_times_list"] = []
+        return res
 
 
 def get_trash_by_relative_num(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -363,25 +561,177 @@ def get_trash_by_relative_num(user_id: int, num: int, db_path: Optional[str] = N
     return None
 
 
-def mark_task_done(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Marks task completed, clears pending reminder, moves to trash, and returns the modified task."""
+def adjust_task_count(
+    user_id: int,
+    num: int,
+    delta: int = 1,
+    db_path: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Adjusts current_count by delta (+1 or -1) for a task.
+    Clamps at minimum 0.
+    Updates status:
+      - If current_count >= target_count: status becomes 'completed'.
+      - If current_count < target_count: status reverts to 'active'.
+    Returns the updated task dict.
+    """
     task = get_task_by_relative_num(user_id, num, db_path=db_path)
     if not task:
-        return None
+        # Check by id directly
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
 
+    task_id = task["id"]
+    old_cur = int(task.get("current_count") or 0)
+    target = max(1, int(task.get("target_count") or 1))
+    new_cur = max(0, old_cur + delta)
+    is_recurring = (task.get("reset_period", "none") != "none")
+
+    new_status = "completed" if new_cur >= target else "active"
     now_ts = int(time.time())
+    trashed = None if is_recurring else (now_ts if new_status == "completed" else None)
+
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE todos
-            SET status = 'completed', completed_at = ?, trashed_at = ?, next_reminder_at = NULL
+            SET current_count = ?,
+                status = ?,
+                completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END,
+                trashed_at = ?
             WHERE id = ?
-        """, (now_ts, now_ts, task["id"]))
+        """, (new_cur, new_status, new_status, now_ts, trashed, task_id))
+        conn.commit()
+
+    task["current_count"] = new_cur
+    task["status"] = new_status
+    return task
+
+
+def adjust_task_count_by_id(
+    task_id: int,
+    delta: int = 1,
+    db_path: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Adjusts count directly by task primary database ID (used by reminder button callbacks)."""
+    task = get_task_by_id(task_id, db_path=db_path)
+    if not task:
+        return None
+
+    old_cur = int(task.get("current_count") or 0)
+    target = max(1, int(task.get("target_count") or 1))
+    new_cur = max(0, old_cur + delta)
+    is_recurring = (task.get("reset_period", "none") != "none")
+
+    new_status = "completed" if new_cur >= target else "active"
+    now_ts = int(time.time())
+    trashed = None if is_recurring else (now_ts if new_status == "completed" else None)
+
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE todos
+            SET current_count = ?,
+                status = ?,
+                completed_at = CASE WHEN ? = 'completed' THEN ? ELSE completed_at END,
+                trashed_at = ?
+            WHERE id = ?
+        """, (new_cur, new_status, new_status, now_ts, trashed, task_id))
+        conn.commit()
+
+    task["current_count"] = new_cur
+    task["status"] = new_status
+    return task
+
+
+def toggle_task_done(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Toggles task between active and completed for easy undo/completion in Control Center."""
+    task = get_task_by_relative_num(user_id, num, db_path=db_path)
+    if not task:
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
+
+    task_id = task["id"]
+    target = max(1, int(task.get("target_count") or 1))
+    is_recurring = (task.get("reset_period", "none") != "none")
+    now_ts = int(time.time())
+
+    if task["status"] == "completed":
+        # Undo completion
+        new_status = "active"
+        new_cur = 0
+        trashed = None
+    else:
+        # Mark done
+        new_status = "completed"
+        new_cur = target
+        trashed = None if is_recurring else now_ts
+
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE todos
+            SET status = ?,
+                current_count = ?,
+                completed_at = CASE WHEN ? = 'completed' THEN ? ELSE NULL END,
+                trashed_at = ?
+            WHERE id = ?
+        """, (new_status, new_cur, new_status, now_ts, trashed, task_id))
+        conn.commit()
+
+    task["status"] = new_status
+    task["current_count"] = new_cur
+    return task
+
+
+def mark_task_done(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Marks task completed.
+    - If recurring (reset_period != 'none'):
+      sets current_count = target_count, status = 'completed', trashed_at = NULL (completes this cycle).
+    - If one-off (reset_period == 'none'):
+      sets current_count = target_count, status = 'completed', trashed_at = now_ts, next_reminder_at = NULL (moves to trash).
+    """
+    task = get_task_by_relative_num(user_id, num, db_path=db_path)
+    if not task:
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
+
+    now_ts = int(time.time())
+    is_recurring = (task.get("reset_period", "none") != "none")
+    target = max(1, int(task.get("target_count") or 1))
+    trashed = None if is_recurring else now_ts
+
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        if is_recurring:
+            cursor.execute("""
+                UPDATE todos
+                SET status = 'completed',
+                    current_count = ?,
+                    completed_at = ?,
+                    trashed_at = NULL
+                WHERE id = ?
+            """, (target, now_ts, task["id"]))
+        else:
+            cursor.execute("""
+                UPDATE todos
+                SET status = 'completed',
+                    current_count = ?,
+                    completed_at = ?,
+                    trashed_at = ?,
+                    next_reminder_at = NULL
+                WHERE id = ?
+            """, (target, now_ts, trashed, task["id"]))
         conn.commit()
 
     task["status"] = "completed"
+    task["current_count"] = target
     task["completed_at"] = now_ts
-    task["trashed_at"] = now_ts
+    task["trashed_at"] = trashed
     return task
 
 
@@ -389,7 +739,9 @@ def silence_task(user_id: int, num: int, db_path: Optional[str] = None) -> Optio
     """Silences reminders for a task while keeping it on the active task list."""
     task = get_task_by_relative_num(user_id, num, db_path=db_path)
     if not task:
-        return None
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
 
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -405,11 +757,38 @@ def silence_task(user_id: int, num: int, db_path: Optional[str] = None) -> Optio
     return task
 
 
+def unsilence_task(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Unsilences reminders for a task, returning its status to active and restoring next reminder timestamp."""
+    task = get_task_by_relative_num(user_id, num, db_path=db_path)
+    if not task:
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
+
+    import todo_parser as parser
+    next_ts = parser.compute_next_reminder(task) if task.get("remind_spec") else None
+
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE todos
+            SET status = 'active', next_reminder_at = ?
+            WHERE id = ?
+        """, (next_ts, task["id"]))
+        conn.commit()
+
+    task["status"] = "active"
+    task["next_reminder_at"] = next_ts
+    return task
+
+
 def delete_task(user_id: int, num: int, db_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Moves an active task directly to trash."""
     task = get_task_by_relative_num(user_id, num, db_path=db_path)
     if not task:
-        return None
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
 
     now_ts = int(time.time())
     with get_todo_connection(db_path) as conn:
@@ -462,12 +841,18 @@ def edit_task(
     remind_window_start: Optional[str] = None,
     until_spec: Optional[str] = None,
     until_timestamp: Optional[int] = None,
+    current_count: Optional[int] = None,
+    target_count: Optional[int] = None,
+    reset_period: Optional[str] = None,
+    reset_interval_days: Optional[int] = None,
     db_path: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Edits an active task's description, priority, or reminder parameters."""
+    """Edits an active task's description, priority, counter, or reminder parameters."""
     task = get_task_by_relative_num(user_id, num, db_path=db_path)
     if not task:
-        return None
+        task = get_task_by_id(num, db_path=db_path)
+        if not task or task.get("user_id") != user_id:
+            return None
 
     task_id = task["id"]
     text = new_task_text.strip() if new_task_text else task["task_text"]
@@ -475,47 +860,67 @@ def edit_task(
     if priority not in ["high", "medium", "low", "normal"]:
         priority = task["priority"]
 
+    cur = int(current_count) if current_count is not None else int(task.get("current_count") or 0)
+    cur = max(0, cur)
+    tgt = int(target_count) if target_count is not None else int(task.get("target_count") or 1)
+    tgt = max(1, tgt)
+
+    r_period = reset_period.lower().strip() if reset_period is not None else (task.get("reset_period") or "none")
+    r_days = int(reset_interval_days) if reset_interval_days is not None else int(task.get("reset_interval_days") or 0)
+
+    now_dt = datetime.now(BOT_TZ)
+    new_reset_ts = compute_next_midnight_reset(r_period, r_days, from_dt=now_dt)
+
+    new_status = "completed" if cur >= tgt else "active"
+
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         if remove_reminder:
             cursor.execute("""
                 UPDATE todos
-                SET task_text = ?, priority = ?, remind_spec = NULL, remind_type = NULL,
-                    remind_interval_mins = NULL, remind_fixed_times = NULL, remind_window_start = NULL,
-                    until_spec = NULL, until_timestamp = NULL, next_reminder_at = NULL, status = 'active'
+                SET task_text = ?, priority = ?, current_count = ?, target_count = ?,
+                    reset_period = ?, reset_interval_days = ?, next_reset_ts = ?,
+                    remind_spec = NULL, remind_type = NULL, remind_interval_mins = NULL,
+                    remind_fixed_times = NULL, remind_window_start = NULL,
+                    until_spec = NULL, until_timestamp = NULL, next_reminder_at = NULL, status = ?
                 WHERE id = ?
-            """, (text, priority, task_id))
+            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, new_status, task_id))
         elif new_remind_spec:
             fixed_json = json.dumps(remind_fixed_times) if remind_fixed_times else None
             cursor.execute("""
                 UPDATE todos
-                SET task_text = ?, priority = ?, remind_spec = ?, remind_type = ?,
-                    remind_interval_mins = ?, remind_fixed_times = ?, remind_window_start = ?,
-                    until_spec = ?, until_timestamp = ?, next_reminder_at = ?, status = 'active'
+                SET task_text = ?, priority = ?, current_count = ?, target_count = ?,
+                    reset_period = ?, reset_interval_days = ?, next_reset_ts = ?,
+                    remind_spec = ?, remind_type = ?, remind_interval_mins = ?,
+                    remind_fixed_times = ?, remind_window_start = ?,
+                    until_spec = ?, until_timestamp = ?, next_reminder_at = ?, status = ?
                 WHERE id = ?
             """, (
-                text, priority, new_remind_spec, remind_type,
-                remind_interval_mins, fixed_json, remind_window_start,
-                until_spec, until_timestamp, next_reminder_at, task_id
+                text, priority, cur, tgt, r_period, r_days, new_reset_ts,
+                new_remind_spec, remind_type, remind_interval_mins, fixed_json,
+                remind_window_start, until_spec, until_timestamp, next_reminder_at,
+                new_status, task_id
             ))
         else:
             cursor.execute("""
                 UPDATE todos
-                SET task_text = ?, priority = ?
+                SET task_text = ?, priority = ?, current_count = ?, target_count = ?,
+                    reset_period = ?, reset_interval_days = ?, next_reset_ts = ?, status = ?
                 WHERE id = ?
-            """, (text, priority, task_id))
+            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, new_status, task_id))
         conn.commit()
 
-    return get_task_by_relative_num(user_id, num, db_path=db_path)
+    return get_task_by_id(task_id, db_path=db_path)
 
 
 def clear_trash(user_id: int, db_path: Optional[str] = None) -> int:
-    """Instantly purges all trashed/completed tasks for a user."""
+    """Instantly purges all trashed/completed one-off tasks for a user (never deletes active recurring habits)."""
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM todos
-            WHERE user_id = ? AND status IN ('completed', 'deleted')
+            WHERE user_id = ? 
+              AND (status = 'deleted' OR (reset_period = 'none' AND status = 'completed'))
         """, (user_id,))
         count = cursor.rowcount
         conn.commit()
@@ -523,13 +928,15 @@ def clear_trash(user_id: int, db_path: Optional[str] = None) -> int:
 
 
 def purge_expired_trash(days: int = 7, db_path: Optional[str] = None) -> int:
-    """Removes trashed tasks that exceed the retention window (default 7 days)."""
+    """Removes trashed one-off/deleted tasks exceeding the retention window (default 7 days)."""
     cutoff_ts = int(time.time()) - (days * 86400)
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             DELETE FROM todos
-            WHERE status IN ('completed', 'deleted') AND trashed_at < ?
+            WHERE (status = 'deleted' OR (reset_period = 'none' AND status = 'completed'))
+              AND trashed_at IS NOT NULL
+              AND trashed_at < ?
         """, (cutoff_ts,))
         count = cursor.rowcount
         conn.commit()
@@ -543,12 +950,13 @@ def purge_expired_trash(days: int = 7, db_path: Optional[str] = None) -> int:
 # =====================================================================
 
 def get_due_reminders(now_ts: int, db_path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Returns all active tasks where next_reminder_at has arrived."""
+    """Returns all active or completed-cycle recurring tasks where next_reminder_at has arrived."""
+    apply_all_due_lazy_resets(db_path=db_path)
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM todos
-            WHERE status = 'active' 
+            WHERE status IN ('active', 'completed') 
               AND next_reminder_at IS NOT NULL 
               AND next_reminder_at <= ?
             ORDER BY next_reminder_at ASC

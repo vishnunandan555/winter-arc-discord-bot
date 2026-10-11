@@ -13,7 +13,7 @@ Verifies:
 import os
 import asyncio
 from datetime import date, datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import discord
 from tests.base import WinterArcTestCase
@@ -430,6 +430,44 @@ class TestActiveRecoverySystem(WinterArcTestCase):
         p1_row = next((r for r in p1_lb if r["discord_id"] == test_uid), None)
         self.assertIsNotNone(p1_row)
         self.assertEqual(p1_row["total_points"], 100)
+
+    def test_ard_presence_rotation(self):
+        """Verifies that maintenance_and_presence_loop cycles ARD-specific statuses on recovery days."""
+        mock_bot = MagicMock()
+        mock_bot.change_presence = AsyncMock()
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+
+        # 1. On an Active Recovery Day:
+        with patch("scheduler.is_recovery_day", return_value=True):
+            scheduler._presence_index = 0
+            # Cycle 4 times to check all 4 ARD statuses
+            for expected_name in [
+                "/help • Winter Arc",
+                "Enrolled Warriors",
+                "Recovery Mode 🧘",
+                "Active Recovery ❤️"
+            ]:
+                asyncio.run(scheduler.maintenance_and_presence_loop.coro(scheduler))
+                call_args = mock_bot.change_presence.call_args
+                self.assertIsNotNone(call_args)
+                activity = call_args.kwargs.get("activity")
+                self.assertIn(expected_name, activity.name)
+
+        # 2. On a Standard Training Day:
+        with patch("scheduler.is_recovery_day", return_value=False):
+            scheduler._presence_index = 0
+            for expected_name in [
+                "/help • Winter Arc",
+                "Enrolled Warriors",
+                "Winter Arc (500 pts daily)",
+                "Defend the Flame | /streak"
+            ]:
+                asyncio.run(scheduler.maintenance_and_presence_loop.coro(scheduler))
+                call_args = mock_bot.change_presence.call_args
+                self.assertIsNotNone(call_args)
+                activity = call_args.kwargs.get("activity")
+                self.assertIn(expected_name, activity.name)
+
 
 
 

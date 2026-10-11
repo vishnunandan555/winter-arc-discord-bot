@@ -253,13 +253,20 @@ class WinterArcBot(commands.Bot):
             except Exception as e:
                 logger.warning(f"Could not check/purge guild commands for {g.name}: {e}")
 
-        await self.change_presence(
-            activity=discord.Activity(
+        now = db.get_today_date()
+        today_str = now.strftime("%Y-%m-%d")
+        from phases import is_recovery_day
+        if is_recovery_day(today_str):
+            initial_activity = discord.Activity(
+                type=discord.ActivityType.competing,
+                name="Active Recovery ❤️"
+            )
+        else:
+            initial_activity = discord.Activity(
                 type=discord.ActivityType.competing,
                 name="Winter Arc (500 pts daily)"
-            ),
-            status=discord.Status.online
-        )
+            )
+        await self.change_presence(activity=initial_activity, status=discord.Status.online)
 
         if self.scheduler:
             self.scheduler.start()

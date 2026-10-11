@@ -118,7 +118,66 @@ def parse_remind_spec(
     until_desc = f" until {until_spec}" if until_spec and until_spec != "done" else " until marked done"
 
     # =====================================================================
-    # 1. Smart Frequencies ('3 times a day', '5 times a day')
+    # 1a. Spaced within Waking Window ('7 times between 7am and 10pm')
+    # =====================================================================
+    m_between = re.search(r"(\d+)\s*(?:times?|x)?\s*(?:every\s*day|daily)?\s*between\s+(.+?)\s+and\s+(.+)", low)
+    if m_between:
+        count = int(m_between.group(1))
+        count = max(1, min(count, 12))
+        start_str = m_between.group(2).strip()
+        end_str = m_between.group(3).strip()
+
+        start_time = parse_time_component(start_str) or (7, 0)
+        end_time = parse_time_component(end_str) or (22, 0)
+
+        start_mins = start_time[0] * 60 + start_time[1]
+        end_mins = end_time[0] * 60 + end_time[1]
+        if end_mins <= start_mins:
+            end_mins = start_mins + (14 * 60)  # default 14-hour span
+
+        if count == 1:
+            times = [f"{start_time[0]:02d}:{start_time[1]:02d}"]
+        else:
+            step = (end_mins - start_mins) / (count - 1)
+            times = []
+            for i in range(count):
+                tot_m = int(round(start_mins + i * step))
+                th = (tot_m // 60) % 24
+                tm = tot_m % 60
+                times.append(f"{th:02d}:{tm:02d}")
+
+        # Find first next reminder timestamp
+        next_ts = None
+        for t_str in times:
+            h, m = [int(p) for p in t_str.split(":", 1)]
+            cand_dt = datetime(now.year, now.month, now.day, h, m, tzinfo=tz)
+            if cand_dt > now:
+                next_ts = int(cand_dt.timestamp())
+                break
+
+        if not next_ts:
+            tom = now.date() + timedelta(days=1)
+            h, m = [int(p) for p in times[0].split(":", 1)]
+            cand_dt = datetime(tom.year, tom.month, tom.day, h, m, tzinfo=tz)
+            next_ts = int(cand_dt.timestamp())
+
+        readable_schedule = ", ".join(f"**{t}**" for t in times)
+        conf = f"🔔 Reminders scheduled **{count} times a day** between {times[0]} and {times[-1]} ({readable_schedule}){until_desc}."
+        return {
+            "remind_spec": raw,
+            "remind_type": "smart_frequency",
+            "remind_interval_mins": None,
+            "remind_fixed_times": times,
+            "remind_window_start": times[0],
+            "until_spec": until_spec,
+            "until_timestamp": until_ts,
+            "next_reminder_at": next_ts,
+            "confirmation_msg": conf,
+            "frequency_count": count,
+        }
+
+    # =====================================================================
+    # 1b. Smart Frequencies ('3 times a day', '5 times a day')
     # =====================================================================
     m_freq = re.search(r"(\d+)\s*(?:times?|x)\s*(?:a|per)?\s*day", low)
     if m_freq:
@@ -169,7 +228,96 @@ def parse_remind_spec(
             "until_timestamp": until_ts,
             "next_reminder_at": next_ts,
             "confirmation_msg": conf,
+            "frequency_count": count,
         }
+
+    # =====================================================================
+    # 1c. Multi-Day Intervals ('every 4 days at 10am', 'every 2 days at 2pm')
+    # =====================================================================
+    m_multi_days = re.search(r"every\s+(\d+)\s+days?(?:\s+at\s+(.+))?", low)
+    if m_multi_days:
+        days_qty = int(m_multi_days.group(1))
+        time_part_raw = m_multi_days.group(2)
+        if not time_part_raw or not time_part_raw.strip():
+            raise ValueError(f"Please specify an alert time for multi-day reminders (e.g. 'every {days_qty} days at 10am').")
+        parsed_t = parse_time_component(time_part_raw.strip())
+        if not parsed_t:
+            raise ValueError(f"Could not parse alert time '{time_part_raw}'. Please use format like '10am' or '14:00'.")
+        dh, dm = parsed_t
+        time_str = f"{dh:02d}:{dm:02d}"
+        today_dt = datetime(now.year, now.month, now.day, dh, dm, tzinfo=tz)
+        if today_dt > now:
+            next_ts = int(today_dt.timestamp())
+        else:
+            next_ts = int((today_dt + timedelta(days=days_qty)).timestamp())
+        conf = f"🔔 Recurring reminder scheduled **every {days_qty} days at {time_str}**{until_desc}."
+        return {
+            "remind_spec": raw,
+            "remind_type": "custom_days",
+            "remind_interval_mins": None,
+            "remind_interval_days": days_qty,
+            "remind_fixed_times": [time_str],
+            "remind_window_start": None,
+            "until_spec": until_spec,
+            "until_timestamp": until_ts,
+            "next_reminder_at": next_ts,
+            "confirmation_msg": conf,
+            "frequency_count": 1,
+        }
+
+    # =====================================================================
+    # 1d. Specific Weekdays ('sun, wed, thu, sat at 6am')
+    # =====================================================================
+    m_weekdays = re.search(r"(?:every\s+)?([a-z,\s]+?)\s+at\s+(.+)", low)
+    if m_weekdays:
+        days_candidate = m_weekdays.group(1).strip()
+        time_candidate = m_weekdays.group(2).strip()
+        w_map = {
+            "mon": 0, "monday": 0,
+            "tue": 1, "tues": 1, "tuesday": 1,
+            "wed": 2, "web": 2, "wednesday": 2,
+            "thu": 3, "thur": 3, "thurs": 3, "thursday": 3,
+            "fri": 4, "friday": 4,
+            "sat": 5, "saturday": 5,
+            "sun": 6, "sunday": 6,
+        }
+        tokens = [re.sub(r'[^a-z]', '', tok) for tok in re.split(r'[, ]+', days_candidate)]
+        matched_w_days = [w_map[tok] for tok in tokens if tok in w_map]
+        parsed_t = parse_time_component(time_candidate)
+        if matched_w_days and parsed_t:
+            matched_w_days = sorted(list(set(matched_w_days)))
+            dh, dm = parsed_t
+            time_str = f"{dh:02d}:{dm:02d}"
+            # Find next upcoming occurrence
+            next_ts = None
+            today_weekday = now.weekday()
+            today_dt = datetime(now.year, now.month, now.day, dh, dm, tzinfo=tz)
+            if today_weekday in matched_w_days and today_dt > now:
+                next_ts = int(today_dt.timestamp())
+            else:
+                for offset in range(1, 8):
+                    cand_date = now.date() + timedelta(days=offset)
+                    if cand_date.weekday() in matched_w_days:
+                        cand_dt = datetime(cand_date.year, cand_date.month, cand_date.day, dh, dm, tzinfo=tz)
+                        next_ts = int(cand_dt.timestamp())
+                        break
+
+            day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            schedule_str = ", ".join(day_names[d] for d in matched_w_days)
+            conf = f"🔔 Recurring reminder scheduled on **{schedule_str} at {time_str}**{until_desc}."
+            return {
+                "remind_spec": raw,
+                "remind_type": "weekdays",
+                "remind_interval_mins": None,
+                "remind_fixed_times": [time_str],
+                "remind_window_start": None,
+                "until_spec": until_spec,
+                "until_timestamp": until_ts,
+                "next_reminder_at": next_ts,
+                "confirmation_msg": conf,
+                "weekdays_list": matched_w_days,
+                "frequency_count": len(matched_w_days),
+            }
 
     # =====================================================================
     # 2. Windowed Interval ('every hour after 6 PM', 'every 30 mins after 18:00')
@@ -267,7 +415,7 @@ def parse_remind_spec(
     # =====================================================================
     # 4b. Daily Recurring Times ('every day at 10:00', 'every day 10:00', 'daily at 18:00')
     # =====================================================================
-    m_daily = re.search(r"(?:every\s+day|daily)(?:\s+at)?\s+(.+)", low)
+    m_daily = re.search(r"(?:every\s*day|daily)(?:\s+at)?\s+(.+)", low)
     if m_daily:
         time_part = m_daily.group(1).strip()
         parsed_daily_time = parse_time_component(time_part)
@@ -424,4 +572,110 @@ def compute_next_reminder(
             return None
         return next_ts
 
+    # 3. Multi-day custom intervals ('custom_days')
+    if remind_type == "custom_days":
+        interval_days = task.get("remind_interval_days") or 1
+        fixed_times = task.get("fixed_times_list")
+        if not fixed_times and task.get("remind_fixed_times"):
+            try:
+                fixed_times = json.loads(task["remind_fixed_times"]) if isinstance(task["remind_fixed_times"], str) else task["remind_fixed_times"]
+            except Exception:
+                fixed_times = []
+        t_str = fixed_times[0] if fixed_times else "10:00"
+        h, m = [int(p) for p in t_str.split(":", 1)]
+        next_date = now.date() + timedelta(days=interval_days)
+        cand_dt = datetime(next_date.year, next_date.month, next_date.day, h, m, tzinfo=tz)
+        next_ts = int(cand_dt.timestamp())
+        if until_ts and next_ts > until_ts:
+            return None
+        return next_ts
+
+    # 4. Specific weekdays ('weekdays')
+    if remind_type == "weekdays":
+        fixed_times = task.get("fixed_times_list")
+        if not fixed_times and task.get("remind_fixed_times"):
+            try:
+                fixed_times = json.loads(task["remind_fixed_times"]) if isinstance(task["remind_fixed_times"], str) else task["remind_fixed_times"]
+            except Exception:
+                fixed_times = []
+        t_str = fixed_times[0] if fixed_times else "10:00"
+        h, m = [int(p) for p in t_str.split(":", 1)]
+        w_days = task.get("weekdays_list") or [0, 1, 2, 3, 4, 5, 6]
+        for offset in range(1, 8):
+            cand_date = now.date() + timedelta(days=offset)
+            if cand_date.weekday() in w_days:
+                cand_dt = datetime(cand_date.year, cand_date.month, cand_date.day, h, m, tzinfo=tz)
+                next_ts = int(cand_dt.timestamp())
+                if until_ts and next_ts > until_ts:
+                    return None
+                return next_ts
+
     return None
+
+
+def infer_task_counter_and_reset(
+    remind_result: Dict[str, Any],
+    raw_count: Optional[int] = None,
+    raw_reset: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Determines target_count, reset_period, and reset_interval_days using
+    intelligent defaults and reminder inheritance.
+    Returns a dict with 'target_count', 'reset_period', and 'reset_interval_days'.
+    """
+    reset_period = "none"
+    reset_days = 0
+
+    if raw_reset:
+        norm_reset = raw_reset.strip().lower()
+        if "day" in norm_reset or "daily" in norm_reset:
+            m_days = re.search(r"(\d+)\s*days?", norm_reset)
+            if m_days and int(m_days.group(1)) > 1:
+                reset_period = "custom_days"
+                reset_days = int(m_days.group(1))
+            else:
+                reset_period = "daily"
+                reset_days = 1
+        elif "week" in norm_reset:
+            reset_period = "weekly"
+            reset_days = 7
+        elif norm_reset in ["none", "never"]:
+            reset_period = "none"
+            reset_days = 0
+        else:
+            reset_period = "daily"
+            reset_days = 1
+    else:
+        # Inherit from reminder engine if raw_reset was omitted
+        r_type = remind_result.get("remind_type")
+        if r_type in ["smart_frequency", "daily_fixed"]:
+            reset_period = "daily"
+            reset_days = 1
+        elif r_type == "custom_days":
+            reset_period = "custom_days"
+            reset_days = remind_result.get("remind_interval_days", 1)
+        elif r_type == "weekdays":
+            reset_period = "weekly"
+            reset_days = 7
+        elif r_type == "interval":
+            reset_period = "daily"
+            reset_days = 1
+        else:
+            reset_period = "none"
+            reset_days = 0
+
+    if raw_count is not None and int(raw_count) > 0:
+        target_count = int(raw_count)
+    else:
+        freq_count = remind_result.get("frequency_count")
+        if freq_count and freq_count > 1:
+            target_count = freq_count
+        else:
+            target_count = 0
+
+    return {
+        "target_count": target_count,
+        "reset_period": reset_period,
+        "reset_interval_days": reset_days,
+    }
+

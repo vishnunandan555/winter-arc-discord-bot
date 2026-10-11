@@ -14,6 +14,7 @@ import time
 import shutil
 import tempfile
 import asyncio
+import unittest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
@@ -799,6 +800,164 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         # 4. Active tasks autocomplete
         active_choices = asyncio.run(todo_active_tasks_autocomplete(inter, ""))
         self.assertIsInstance(active_choices, list)
+
+
+class TestTaskCounterAndRoutineEngine(unittest.TestCase):
+    """
+    Exhaustive tests for the unified Task, Routine & Counter System:
+    - Counter inference and inheritance
+    - Between-window parsing
+    - Multi-day strict time enforcement
+    - Weekday schedule parsing
+    - Lazy midnight resets
+    - Counter increments, decrements, clamping, and cycle completion
+    - TaskDetailView Control Center and progress bar
+    """
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_db = os.path.join(self.temp_dir, "test_counter_engine.db")
+        db.init_todo_db(self.test_db)
+        self.user_id = 999888
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_infer_counter_and_reset(self):
+        # Case 1: Pure GTD one-off task
+        p1 = parser.parse_remind_spec(None)
+        c1 = parser.infer_task_counter_and_reset(p1, raw_count=None, raw_reset=None)
+        self.assertEqual(c1["target_count"], 0)
+        self.assertEqual(c1["reset_period"], "none")
+
+        # Case 2: Daily habit
+        p2 = parser.parse_remind_spec("everyday at 10am")
+        c2 = parser.infer_task_counter_and_reset(p2, raw_count=None, raw_reset=None)
+        self.assertEqual(c2["target_count"], 0)
+        self.assertEqual(c2["reset_period"], "daily")
+        self.assertEqual(c2["reset_interval_days"], 1)
+
+        # Case 3: Counter habit with between-window
+        p3 = parser.parse_remind_spec("7 times between 7am and 10pm")
+        self.assertEqual(p3["remind_type"], "smart_frequency")
+        self.assertEqual(p3["frequency_count"], 7)
+        c3 = parser.infer_task_counter_and_reset(p3, raw_count=7, raw_reset="everyday")
+        self.assertEqual(c3["target_count"], 7)
+        self.assertEqual(c3["reset_period"], "daily")
+
+        # Case 4: Weekdays routine
+        p4 = parser.parse_remind_spec("sun, wed, thu, sat at 6am")
+        self.assertEqual(p4["remind_type"], "weekdays")
+        c4 = parser.infer_task_counter_and_reset(p4, raw_count=4, raw_reset="every week")
+        self.assertEqual(c4["target_count"], 4)
+        self.assertEqual(c4["reset_period"], "weekly")
+
+        # Case 5: Multi-day custom reset
+        c5 = parser.infer_task_counter_and_reset(p2, raw_count=4, raw_reset="every 4 days")
+        self.assertEqual(c5["target_count"], 4)
+        self.assertEqual(c5["reset_period"], "custom_days")
+        self.assertEqual(c5["reset_interval_days"], 4)
+
+    def test_multi_day_missing_time_raises_error(self):
+        # Must require explicit time for multi-day reminders (never guess 10am)
+        with self.assertRaises(ValueError) as ctx:
+            parser.parse_remind_spec("every 4 days")
+        self.assertIn("specify an alert time", str(ctx.exception))
+
+        # Explicit time works
+        p = parser.parse_remind_spec("every 4 days at 10am")
+        self.assertEqual(p["remind_type"], "custom_days")
+        self.assertEqual(p["remind_interval_days"], 4)
+
+    def test_counter_adjustments_and_clamping(self):
+        task = db.add_task(
+            user_id=self.user_id,
+            task_text="Drink Water",
+            target_count=3,
+            reset_period="daily",
+            db_path=self.test_db
+        )
+        task_id = task["id"]
+        self.assertEqual(task["current_count"], 0)
+        self.assertEqual(task["target_count"], 3)
+        self.assertEqual(task["status"], "active")
+
+        # +1 -> 1
+        t1 = db.adjust_task_count_by_id(task_id, delta=1, db_path=self.test_db)
+        self.assertEqual(t1["current_count"], 1)
+        self.assertEqual(t1["status"], "active")
+
+        # +2 -> 3 (reaches goal!)
+        t2 = db.adjust_task_count_by_id(task_id, delta=2, db_path=self.test_db)
+        self.assertEqual(t2["current_count"], 3)
+        self.assertEqual(t2["status"], "completed")
+
+        # Over-logging: allows logging beyond target (e.g. 8 glasses) while retaining completed status
+        t3 = db.adjust_task_count_by_id(task_id, delta=5, db_path=self.test_db)
+        self.assertEqual(t3["current_count"], 8)
+        self.assertEqual(t3["status"], "completed")
+
+        # -6 -> 2 (reverts completed status back to active!)
+        t4 = db.adjust_task_count_by_id(task_id, delta=-6, db_path=self.test_db)
+        self.assertEqual(t4["current_count"], 2)
+        self.assertEqual(t4["status"], "active")
+
+        # Clamping: cannot decrement below 0
+        t5 = db.adjust_task_count_by_id(task_id, delta=-10, db_path=self.test_db)
+        self.assertEqual(t5["current_count"], 0)
+
+    def test_lazy_midnight_reset(self):
+        task = db.add_task(
+            user_id=self.user_id,
+            task_text="Daily Exercise",
+            target_count=1,
+            reset_period="daily",
+            db_path=self.test_db
+        )
+        task_id = task["id"]
+        # Mark completed today
+        db.mark_task_done(self.user_id, 1, db_path=self.test_db)
+        t_done = db.get_task_by_id(task_id, db_path=self.test_db)
+        self.assertEqual(t_done["status"], "completed")
+
+        # Simulate past midnight rollover by forcing next_reset_ts into the past
+        past_ts = int(time.time()) - 3600
+        with db.get_todo_connection(self.test_db) as conn:
+            conn.cursor().execute("UPDATE todos SET next_reset_ts = ? WHERE id = ?", (past_ts, task_id))
+            conn.commit()
+
+        # Querying active tasks triggers lazy reset
+        active = db.get_active_tasks(self.user_id, db_path=self.test_db)
+        self.assertEqual(len(active), 1)
+        t_reset = active[0]
+        self.assertEqual(t_reset["id"], task_id)
+        self.assertEqual(t_reset["status"], "active")
+        self.assertEqual(t_reset["current_count"], 0)
+        self.assertGreater(t_reset["next_reset_ts"], int(time.time()))
+
+    def test_progress_bar_and_detail_view(self):
+        from ui.todo_views import make_todo_progress_bar, build_task_detail_embed, TaskDetailView
+
+        bar_half = make_todo_progress_bar(4, 8, length=8)
+        self.assertIn("▰▰▰▰▱▱▱▱", bar_half)
+        self.assertIn("4/8", bar_half)
+
+        bar_full = make_todo_progress_bar(8, 8, length=8)
+        self.assertIn("▰▰▰▰▰▰▰▰", bar_full)
+
+        task = db.add_task(
+            user_id=self.user_id,
+            task_text="Learn Python",
+            target_count=5,
+            reset_period="weekly",
+            db_path=self.test_db
+        )
+        embed = build_task_detail_embed(task)
+        self.assertIn("Progress", embed.description)
+        self.assertIn("weekly", embed.description)
+
+        view = TaskDetailView(task_id=task["id"], user_id=self.user_id, db_path=self.test_db)
+        self.assertIsNotNone(view)
+
 
 
 

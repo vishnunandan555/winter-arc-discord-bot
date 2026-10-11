@@ -26,6 +26,8 @@ from ui.todo_views import (
     build_todo_incognito_embed,
     format_priority_badge,
     build_todo_list_embed,
+    TaskDetailView,
+    build_task_detail_embed,
 )
 from config import BOT_TZ
 
@@ -165,11 +167,13 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
     todo_group = app_commands.Group(name="todo", description="Standalone Todo & Smart Reminder System.")
 
-    @todo_group.command(name="add", description="Add a task to your to-do list with optional smart reminders.")
+    @todo_group.command(name="add", description="Add a task to your to-do list with optional smart reminders & counters.")
     @app_commands.describe(
         task="What needs to be done?",
-        remind="When/how to remind? (e.g. '18:00', 'tomorrow 10:00', 'every hour after 6pm', '3 times a day')",
+        remind="When/how to remind? (e.g. '18:00', 'tomorrow 10:00', '7 times between 7am and 10pm', 'every 4 days at 10am')",
         until="Optional stop condition for recurring reminders (e.g. 'done', 'tomorrow 20:00')",
+        count="Target goal count if tracking a counter or habit (e.g. 7 for 7 times/glasses)",
+        reset="How often the counter resets back to 0",
         priority="Task importance level (High, Medium, Low)",
         dm="Send reminders via private DM (True, default) or in this channel (False)"
     )
@@ -178,6 +182,11 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
+    @app_commands.choices(reset=[
+        app_commands.Choice(name="🔁 Reset Everyday (at 00:00 IST)", value="daily"),
+        app_commands.Choice(name="🔁 Reset Every Week (at 00:00 IST)", value="weekly"),
+        app_commands.Choice(name="🚫 No Reset (Keep count until cleared)", value="none"),
+    ])
     @app_commands.autocomplete(remind=todo_remind_autocomplete, until=todo_until_autocomplete)
     async def todo_add(
         self,
@@ -185,11 +194,14 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         task: str,
         remind: Optional[str] = None,
         until: Optional[str] = None,
+        count: Optional[int] = None,
+        reset: Optional[app_commands.Choice[str]] = None,
         priority: Optional[app_commands.Choice[str]] = None,
         dm: Optional[bool] = True,
     ):
         p_val = priority.value if priority else "normal"
         dm_val = True if dm is None else bool(dm)
+        reset_val = reset.value if reset else None
 
         origin_ch = None
         if interaction.channel_id is not None:
@@ -198,7 +210,12 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             except (ValueError, TypeError):
                 origin_ch = None
 
-        parsed = parser.parse_remind_spec(remind, until_text=until)
+        try:
+            parsed = parser.parse_remind_spec(remind, until_text=until)
+            counter_cfg = parser.infer_task_counter_and_reset(parsed, raw_count=count, raw_reset=reset_val)
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {e}", ephemeral=True)
+            return
 
         new_item = db.add_task(
             user_id=interaction.user.id,
@@ -214,6 +231,9 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             dm_only=dm_val,
             origin_channel_id=origin_ch,
             next_reminder_at=parsed["next_reminder_at"],
+            target_count=counter_cfg["target_count"],
+            reset_period=counter_cfg["reset_period"],
+            reset_interval_days=counter_cfg["reset_interval_days"],
             db_path=self.db_path,
         )
 
@@ -222,11 +242,21 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         p_str = f" {p_badge}" if p_badge else ""
         delivery_str = "🔒 Direct Message" if dm_val else f"💬 <#{interaction.channel_id}>"
 
-        resp = (
-            f"✅ Added task **`#{num}`**: **{task}**{p_str}\n"
-            f"• **Delivery**: {delivery_str}\n"
+        details = [
+            f"• **Delivery**: {delivery_str}",
             f"• **Status**: {parsed['confirmation_msg']}"
-        )
+        ]
+
+        if counter_cfg["target_count"] > 0:
+            details.append(f"• **Counter Goal**: `0/{counter_cfg['target_count']}` (open with `/todo view` or detail buttons)")
+
+        if counter_cfg["reset_period"] != "none":
+            if counter_cfg["reset_interval_days"] > 1:
+                details.append(f"• **Reset Cadence**: Every {counter_cfg['reset_interval_days']} days at 00:00 IST")
+            else:
+                details.append(f"• **Reset Cadence**: {counter_cfg['reset_period'].title()} at 00:00 IST")
+
+        resp = f"✅ Added task **`#{num}`**: **{task}**{p_str}\n" + "\n".join(details)
         await interaction.response.send_message(resp, ephemeral=False)
 
     @todo_group.command(name="list", description="View and manage your active tasks and 7-day trash history.")
@@ -261,18 +291,42 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         is_eph = self._is_ephemeral(interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=is_eph)
 
-    @todo_group.command(name="done", description="Mark a task completed and move it to 7-day trash.")
+    @todo_group.command(name="view", description="Open the interactive Control Center for a task.")
+    @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
+    @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
+    async def todo_view(self, interaction: discord.Interaction, id: int):
+        is_eph = self._is_ephemeral(interaction.user.id)
+        task = db.get_task_by_relative_num(interaction.user.id, id, db_path=self.db_path)
+        if not task:
+            await interaction.response.send_message(
+                f"❌ Task **`#{id}`** not found. Run `/todo list` to check your current task numbers.",
+                ephemeral=is_eph
+            )
+            return
+
+        view = TaskDetailView(task_id=task["id"], user_id=interaction.user.id, parent_view=None, db_path=self.db_path)
+        embed = build_task_detail_embed(task, user=interaction.user)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=is_eph)
+
+    @todo_group.command(name="done", description="Mark a task completed for today or move it to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_done(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
         res = db.mark_task_done(interaction.user.id, id, db_path=self.db_path)
         if res:
-            await interaction.response.send_message(
-                f"✅ **Completed!** Task **`#{id}`** (*{res['task_text']}*) marked done and moved to trash.\n"
-                f"-# All pending reminders cancelled. Kept in trash for 7 days.",
-                ephemeral=is_eph
-            )
+            if res.get("reset_period", "none") != "none":
+                await interaction.response.send_message(
+                    f"✅ **Completed for today!** Task **`#{id}`** (*{res['task_text']}*) marked done.\n"
+                    f"-# Next reminder will fire on schedule. Resets at 00:00 IST.",
+                    ephemeral=is_eph
+                )
+            else:
+                await interaction.response.send_message(
+                    f"✅ **Completed!** Task **`#{id}`** (*{res['task_text']}*) marked done and moved to trash.\n"
+                    f"-# Kept in trash for 7 days. Restore anytime via `/todo restore`.",
+                    ephemeral=is_eph
+                )
         else:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found. Run `/todo list` to check your current task numbers.",
@@ -415,6 +469,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
         p_val = priority.value if priority else "normal"
         parsed = parser.parse_remind_spec(remind)
+        counter_cfg = parser.infer_task_counter_and_reset(parsed)
 
         task_data = {
             "task_text": task,
@@ -427,6 +482,9 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             "until_spec": parsed["until_spec"],
             "until_timestamp": parsed["until_timestamp"],
             "next_reminder_at": parsed["next_reminder_at"],
+            "target_count": counter_cfg["target_count"],
+            "reset_period": counter_cfg["reset_period"],
+            "reset_interval_days": counter_cfg["reset_interval_days"],
             "dm_only": True,
         }
 

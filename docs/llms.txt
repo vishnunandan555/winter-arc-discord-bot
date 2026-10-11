@@ -82,7 +82,7 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - **Interactive UI**: 15-item paginated lists with `◀️ Prev` / `▶️ Next` buttons, inline reminder action buttons (`Done`, `Silence`, `Snooze 30m`), and bilateral assignment modals with `[ ✅ Accept ]` and `[ ❌ Decline ]`.
 
 ## Automated Test Suite
-- **142 comprehensive unit & integration tests** across 12 domain modules inside `tests/` with **100% pass rate** (`python test_engine.py`).
+- **162 comprehensive unit & integration tests** across 13 domain modules inside `tests/` with **100% pass rate** (`python test_engine.py`).
 
 ## Quick Start / Deployment
 ```bash

@@ -112,11 +112,16 @@ class TodoReminderService:
             logger.warning(f"Could not resolve user {user_id} for todo reminder #{task_id}.")
             return False
 
-        view = ReminderAlertView(task_id=task_id, user_id=user_id, db_path=self.db_path)
+        view = ReminderAlertView(task_id=task_id, user_id=user_id, task_data=task, db_path=self.db_path)
+
+        bar_str = ""
+        if task.get("target_count") and task["target_count"] > 0:
+            from ui.todo_views import make_todo_progress_bar
+            bar_str = f"\n📊 {make_todo_progress_bar(task.get('current_count', 0), task['target_count'])}"
 
         embed = discord.Embed(
             title="🔔 To-Do Reminder",
-            description=f"**{task_text}**{p_str}",
+            description=f"**{task_text}**{p_str}{bar_str}",
             color=0x3498DB # Clean neutral blue
         )
 

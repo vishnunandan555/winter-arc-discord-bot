@@ -156,13 +156,23 @@ class WinterArcScheduler:
         try:
             enrolled_users = db.get_enrolled_users(db_path=self.db_path)
             count = len(enrolled_users)
+            now = get_now_ist()
+            today_str = now.strftime("%Y-%m-%d")
 
-            statuses = [
-                discord.Activity(type=discord.ActivityType.listening, name="/help • Winter Arc"),
-                discord.Activity(type=discord.ActivityType.watching, name=f"{count} Enrolled Warriors"),
-                discord.Activity(type=discord.ActivityType.competing, name="Winter Arc (500 pts daily)"),
-                discord.Activity(type=discord.ActivityType.playing, name="Defend the Flame | /streak"),
-            ]
+            if is_recovery_day(today_str):
+                statuses = [
+                    discord.Activity(type=discord.ActivityType.listening, name="/help • Winter Arc"),
+                    discord.Activity(type=discord.ActivityType.watching, name=f"{count} Enrolled Warriors"),
+                    discord.Activity(type=discord.ActivityType.playing, name="Recovery Mode 🧘"),
+                    discord.Activity(type=discord.ActivityType.competing, name="Active Recovery ❤️"),
+                ]
+            else:
+                statuses = [
+                    discord.Activity(type=discord.ActivityType.listening, name="/help • Winter Arc"),
+                    discord.Activity(type=discord.ActivityType.watching, name=f"{count} Enrolled Warriors"),
+                    discord.Activity(type=discord.ActivityType.competing, name="Winter Arc (500 pts daily)"),
+                    discord.Activity(type=discord.ActivityType.playing, name="Defend the Flame | /streak"),
+                ]
             activity = statuses[self._presence_index % len(statuses)]
             self._presence_index += 1
             await self.bot.change_presence(activity=activity, status=discord.Status.online)
