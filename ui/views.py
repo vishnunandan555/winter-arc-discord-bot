@@ -230,13 +230,13 @@ class HelpView(RobustView):
         min_values=1,
         max_values=1,
         options=[
-            discord.SelectOption(label="Manual Overview", value="overview", description="Rules, 4 phases, 500 daily targets & schedule", emoji="📜"),
-            discord.SelectOption(label="Workout & AI Logging", value="logging", description="/quick, /log, /set, /grind", emoji="⚡"),
-            discord.SelectOption(label="Progress & Analytics", value="progress", description="/today, /streak, /profile, /leaderboard, /stats, /recap, /ranks", emoji="📊"),
-            discord.SelectOption(label="Streak Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
-            discord.SelectOption(label="Todo & Smart Reminders", value="todo", description="/todo add, list, done, assign, dnd quiet hours", emoji="📋"),
-            discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /tips, /enroll, /leave_arc", emoji="⚙️"),
-            discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
+            discord.SelectOption(label="Overview & Quick Start", value="overview", description="New here? Start here — rules, phases & command map", emoji="❄️"),
+            discord.SelectOption(label="Log Your Work", value="logging", description="/quick, /log, /set, /grind & AI coach", emoji="📝"),
+            discord.SelectOption(label="Progress & Rankings", value="progress", description="/today, /streak, /profile, /leaderboard, /stats, /recap", emoji="📊"),
+            discord.SelectOption(label="Streaks & Shields", value="shields", description="Shield mechanics, auto-protection & Recovery Days", emoji="🛡️"),
+            discord.SelectOption(label="Todo & Reminders", value="todo", description="/todo add, list, assign, dnd & quiet hours", emoji="✅"),
+            discord.SelectOption(label="Settings & Utilities", value="settings", description="/reminders, /enroll, /leave_arc, /ping, /tips", emoji="⚙️"),
+            discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & system health", emoji="👑"),
         ]
     )
     async def select_category(self, interaction: discord.Interaction, select: discord.ui.Select):

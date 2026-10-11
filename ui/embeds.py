@@ -708,52 +708,45 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed = discord.Embed(
             title="⚡ Workout & AI Logging Engine",
             description=(
-                "Log your physical and mental friction every single day.\n"
-                "Supports natural language AI parsing, rapid set increments, count overrides, and verified deep work."
+                "Log your physical and mental discipline every single day.\n"
+                "Use natural language, shorthand, or direct counts — all supported."
             ),
             color=0x3498DB
         )
         embed.add_field(
-            name="🤖 `/quick [text]` — AI Workout Parser (Ultra-Fast Groq)",
+            name="🤖 `/quick [text]` — AI Workout Parser",
             value=(
-                "Log workouts using natural English. Automatically extracts exercises, aggregates sets, and converts miles to km.\n"
-                "• **Engine**: Powered by Groq AI (`llama-3.3-70b-versatile`) with sub-second inference and regex failover.\n"
-                "• **Example**: `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
-                "• **Example**: `/quick text: 40 squats, 30 situps then 20 more squats`\n"
+                "Log workouts in plain English. AI extracts exercises, aggregates sets, and converts units automatically.\n\n"
+                "> `/quick text: did 50 pushups, 25 pullups, and ran 3.5 km`\n"
+                "> `/quick text: 40 squats, 30 situps then 20 more squats`\n\n"
                 "🛡️ *Safeguard*: Unrealistic single-set volume (>50 reps / >10 km) is rejected automatically to preserve integrity."
-            ),
-            inline=False
-        )
-        embed.add_field(
-            name="⚡ Shorthand & Multi-Discipline Logging",
-            value=(
-                "Combine multiple exercises in a single `/quick` command: e.g. `/quick 40 pushups, 20 squats, 5km run`.\n"
-                "Groq AI automatically extracts reps, sets, and distances in under a second."
             ),
             inline=False
         )
         embed.add_field(
             name="📝 Traditional Set Logging (`/log` & `/set`)",
             value=(
-                "• `/log [task] [amount]` — Adds reps or km to your current daily count. Realistic single-set limits apply.\n"
-                "• `/set [task] [amount]` — Direct count override. Set to `0` to wipe accidental entries or reset."
+                "• `/log [task] [amount]` — Add reps or km to your current daily count\n"
+                "• `/set [task] [amount]` — Override today's count directly\n\n"
+                "💡 Use `/set 0` to wipe an accidental entry clean without needing admin help."
             ),
             inline=False
         )
         embed.add_field(
-            name="⚔️ `/grind [text]` — Custom Workouts & Deep Work (AI Evaluation)",
+            name="⚔️ `/grind [text]` — Custom Workouts & Deep Work",
             value=(
-                "Submit custom workouts (Surya Namaskaras, skipping, gym sets, bicep curls, yoga) or heavy cognitive deep work (DSA, systems code, technical study).\n"
-                "• **Reward**: Up to **+50 bonus points** awarded directly to today's score (Limit: 1 entry per day).\n"
-                "• **Example**: `/grind text: Completed 15 Surya Namaskars, 3x12 bicep curls, and solved 2 graph DP problems`\n"
-                "🛡️ *Strict Evaluation*: Powered by dual-model AI (Gemini Flash Lite + Groq Llama 3.3 70B failover with circuit breaker). Core checklist exercises (pushups, squats, pullups, situps, running) are excluded from /grind points to prevent double-counting."
+                "Submit custom workouts or heavy cognitive deep work for up to **+50 bonus pts/day** (limit: 1 entry/day).\n\n"
+                "✅ *Accepted*: gym sets, yoga, Surya Namaskars, DSA problems, technical study\n"
+                "❌ *Excluded*: core 5 disciplines (pushups, squats, pullups, situps, running)\n\n"
+                "> `/grind text: 15 Surya Namaskars, 3×12 bicep curls, solved 2 graph DP problems`"
             ),
             inline=False
         )
         embed.add_field(
             name="⚖️ `/accuse [target]` — Community Council Verification",
             value=(
-                "Challenge a suspect `/grind` claim. Triggers an ephemeral Honor Code verification prompt, then initiates a 10-minute public Council trial in the channel.\n"
+                "Challenge a suspicious `/grind` claim.\n"
+                "Triggers an Honor Code prompt, then a 10-minute public council vote in the channel.\n"
                 "If the brotherhood rules guilty, the suspect's grind points for today are stripped."
             ),
             inline=False
@@ -761,14 +754,14 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="⚡ Reactive AI Coach & Bot Tips",
             value=(
-                "When you run commands or log volume (`/today`, `/tasks`, `/log`, `/quick`, `/profile`, `/ranks`, "
-                "`/leaderboard`, `/stats`, `/history`, `/recap`, `/streak`, `/shield status`, `/shield use`, `/grind`), "
-                "the AI coach Amarok analyzes your results and speaks with sharp accountability (strictly excludes `/set`).\n"
-                "Helpful bot usage tips are also shared periodically across non-admin commands on a 10-minute timer."
+                "After most commands, Amarok (the AI coach) reacts with sharp accountability.\n"
+                "Commands that trigger coaching: `/today`, `/tasks`, `/log`, `/quick`, `/profile`, `/ranks`,\n"
+                "`/leaderboard`, `/stats`, `/history`, `/recap`, `/streak`, `/shield status`, `/shield use`, `/grind`.\n\n"
+                "Coaching strictly excludes `/set`. Bot usage tips also appear periodically on a 10-minute timer."
             ),
             inline=False
         )
-        embed.set_footer(text="Use the dropdown menu below to navigate categories • Day resets at 00:00 IST")
+        embed.set_footer(text="Use the dropdown below to navigate categories • Day resets at 00:00 IST")
         return embed
 
     elif category == "progress":
@@ -780,28 +773,35 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🎯 Daily & Habit Tracking",
             value=(
-                "• `/today [member]` — Live daily progress card with individual emoji progress bars, points breakdown, and live streak status.\n"
-                "• `/tasks [member]` — Extended disciplines overview with targets, units, muscle groups, and live progress bars.\n"
-                "• `/streak [member]` — Habit consistency overview & streak dashboard with status tags (🟩 30+ pts, ⭐ Perfect Days (100%), 🛡️ Streak Shield, 🟥 Missed, ▫️ Upcoming) and an interactive button to switch to the full calendar.\n"
-                "• `/calendar [member]` — Direct 3-phase campaign habit calendar view (Oct 1 – Dec 31, 92 days) with an interactive button to switch back to streak overview."
+                "• `/today [member]` — Live daily progress card with progress bars, points breakdown & streak status\n"
+                "• `/tasks [member]` — Full discipline targets, units, muscle groups & live progress bars\n"
+                "• `/history [days]` — Point breakdown and completion rates over the past 7, 14, or 30 days"
             ),
             inline=False
         )
         embed.add_field(
-            name="🎖️ 12-Tier Discipline Hierarchy",
+            name="📅 Streak & Calendar",
             value=(
-                "• `/profile [member]` — Complete member profile with All-Time Standing (#X of Y), Discipline Tier badge, XP to next rank, and daily status.\n"
-                "• `/ranks` — Inspect the full 12-tier discipline roadmap from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**."
+                "• `/streak [member]` — Habit consistency dashboard with an interactive button to switch to calendar view\n"
+                "• `/calendar [member]` — Full 3-phase campaign habit calendar (Oct 1 – Dec 31, 92 days)\n\n"
+                "Status tags: 🟩 Active day (30+ pts) · ⭐ Perfect Day (100%) · 🛡️ Shield used · 🟥 Missed · ▫️ Upcoming"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="🎖️ Profile & 12-Tier Rank System",
+            value=(
+                "• `/profile [member]` — Complete profile: All-Time Standing, Discipline Tier badge & XP to next rank\n"
+                "• `/ranks` — Full 12-tier discipline roadmap from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000+ pts)**"
             ),
             inline=False
         )
         embed.add_field(
             name="🏆 Standings, Benchmarks & Analytics",
             value=(
-                "• `/leaderboard` — Interactive podium view featuring **📆 Weekly (Sun–Sat)**, **🗓️ Monthly (Phase Standings)**, and **🌐 All-Time** rankings (top 10).\n"
-                "• `/stats [phase]` — **Server Records & Benchmarks**! Explore server-wide PRs, longest streaks, single-day peak maxers, most Perfect Days, and community volume with interactive buttons for Overall, Phase 1, Phase 2, and Phase 3.\n"
-                "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active phases and overall campaign with training volume breakdown.\n"
-                "• `/history [days]` — View point breakdown and completion rates over the past 7, 14, or 30 days."
+                "• `/leaderboard` — Weekly, Monthly & All-Time top 10 with interactive buttons\n"
+                "• `/stats [phase]` — **Server Records & Benchmarks**: server PRs, longest streaks, single-day peak maxers, most Perfect Days & community volume\n"
+                "• `/recap [member]` — Interactive Phase Explorer with dynamic buttons for active phases & overall campaign training volume breakdown"
             ),
             inline=False
         )
@@ -818,22 +818,29 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             color=0x00D2FF
         )
         embed.add_field(
-            name="❄️ How Streak Shields Work & Streaks",
+            name="❄️ How Streak Shields Work",
             value=(
-                f"• **Daily Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day (e.g. 5 push-ups, 5 sit-ups, 5 squats, 5 pull-ups, 1 km run) to maintain your streak.\n"
-                "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone** (cap of 2 shields max).\n"
-                "• **Inventory Cap**: You can hold a maximum of **2 Streak Shields** at any time.\n"
-                "• **Automatic Midnight Usage**: If you miss a day (< 30 pts), an available shield is automatically used at midnight (00:00 IST).\n"
-                "• **❤️ Active Recovery Day (Sundays)**: Every Sunday is an Active Recovery Day with a **0 pt daily requirement**. Your streak is preserved automatically without burning shields, allowing rest, mobility, and reflection.\n"
-                "• **Safety Rule**: A streak is broken only if you miss on a normal day and have zero Streak Shields remaining!"
+                f"• **Streak Threshold**: Earn at least **{MIN_STREAK_POINTS} points** per day to maintain your streak\n"
+                "• **Earning Shields**: +1 Shield earned at every **7-day streak milestone** (max 2 shields)\n"
+                "• **Auto-Protection**: If you miss a day (< 30 pts), a shield is used automatically at midnight (00:00 IST)\n"
+                "• **Safety Rule**: A streak breaks only if you miss on a normal day with zero shields remaining"
+            ),
+            inline=False
+        )
+        embed.add_field(
+            name="❤️ Active Recovery Days (Sundays)",
+            value=(
+                "Every Sunday is an **Active Recovery Day** with a **0 pt daily requirement**.\n"
+                "Your streak is preserved automatically — no shields burned.\n\n"
+                "Rest, stretch, reflect. Rebuild your energy for the week ahead."
             ),
             inline=False
         )
         embed.add_field(
             name="🎮 Shield Commands",
             value=(
-                "• `/shield status` — View your current shield count (e.g. `1/2`), auto-protection status, and countdown to next shield.\n"
-                "• `/shield use` — Learn how automated streak protection keeps your streak alive without manual intervention."
+                "• `/shield status` — View your shield count (e.g. `1/2`), auto-protection status & countdown to next shield\n"
+                "• `/shield use` — Learn how automated streak protection keeps your streak alive without manual intervention"
             ),
             inline=False
         )
@@ -844,69 +851,67 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed = discord.Embed(
             title="📋 Todo & Smart Reminders Addon",
             description=(
-                "Standalone personal and team task management with intelligent natural language reminders.\n"
-                "Completely isolated in `todo.db` with a clean, distraction-free aesthetic."
+                "Personal and team task management with intelligent natural language reminders.\n"
+                "Completely isolated in `todo.db` with a clean, distraction-free interface."
             ),
             color=0x3498DB
         )
         embed.add_field(
-            name="➕ `/todo add [task] [when] [remind_me] [until] [dm] [priority]`",
+            name="➕ `/todo add [task] [when] [remind_me]`",
             value=(
-                "Create a new task with flexible scheduling and natural language reminders:\n"
-                "• **One-time**: `when:tomorrow 6pm` or `remind_me:2026-10-15 09:30`\n"
-                "• **Intervals**: `remind_me:every 2 hours` or `remind_me:every 30m`\n"
-                "• **Windowed**: `remind_me:every hour after 6 PM` or `every 2h before 10 PM`\n"
-                "• **Smart Cadence**: `remind_me:3 times a day` (09:00, 14:00, 20:00) or `5 times a day`\n"
-                "• **Optional Until**: Habit reminders repeat indefinitely unless an `until` date is set.\n"
-                "• **Delivery**: Set `dm:True` (default) for private DMs or `False` for the current channel."
+                "Create a task with flexible scheduling and natural language reminders:\n\n"
+                "> `remind_me:tomorrow 6pm`\n"
+                "> `remind_me:every 2 hours`\n"
+                "> `remind_me:every hour after 6 PM`\n"
+                "> `remind_me:3 times a day` (09:00, 14:00, 20:00)\n\n"
+                "Set `dm:True` (default) for private DMs or `False` for the current channel."
             ),
             inline=False
         )
         embed.add_field(
-            name="📜 `/todo list [filter]` — 15-Item Paginated View",
+            name="📜 `/todo list [filter]` — Paginated Task View",
             value=(
-                "• View tasks with 15 items per page and interactive `◀️ Prev` / `▶️ Next` pagination.\n"
-                "• Features relative task numbering (`#1, #2, #3...`). If task #1 is done, remaining tasks dynamically re-index.\n"
-                "• Toggle between **Active Tasks** and **Trash Archive** (`T1, T2...`).\n"
-                "• Quick inline select menus to Mark Done, Silence, or Restore tasks directly from the list."
+                "View tasks with 15 items per page and `◀️ Prev` / `▶️ Next` pagination.\n"
+                "Toggle between **Active Tasks** and **Trash Archive** (`T1, T2...`).\n"
+                "Inline select menus to Mark Done, Silence, or Restore tasks directly from the list."
             ),
             inline=False
         )
         embed.add_field(
-            name="⚡ Quick Actions & Maintenance",
+            name="⚡ Quick Actions",
             value=(
-                "• `/todo done [id]` — Mark a task complete (moved to 7-day trash archive).\n"
-                "• `/todo silence [id]` — Disable all reminder alerts for this task while keeping it active.\n"
-                "• `/todo delete [id]` — Move a task to the 7-day trash archive.\n"
-                "• `/todo restore [id]` — Restore a trashed task back to active list (e.g. `T1` or `1`).\n"
-                "• `/todo edit [id] [description] [clear_reminders]` — Update task details or remove reminders.\n"
-                "• `/todo clear [which]` — Wipe `active`, `trash`, or `all` tasks with confirmation."
+                "• `/todo done [id]` — Mark complete (moved to 7-day trash archive)\n"
+                "• `/todo silence [id]` — Disable reminders while keeping the task active\n"
+                "• `/todo delete [id]` — Move to trash archive\n"
+                "• `/todo restore [id]` — Restore from trash (e.g. `T1` or `1`)\n"
+                "• `/todo edit [id]` — Update description or remove reminders\n"
+                "• `/todo clear [which]` — Wipe `active`, `trash`, or `all` tasks"
             ),
             inline=False
         )
         embed.add_field(
-            name="🕵🏻 `/todo incognito [mode] [user]` — Incognito Privacy Mode",
+            name="🤝 `/todo assign [member] [task]` — Team Delegation",
             value=(
-                "Toggle the visibility of your `/todo` actions in server channels:\n"
-                "• **OFF (Public)** *(Default)*: All to-do actions (`/todo list`, `/todo done`, `/todo delete`, etc.) are posted publicly in the channel.\n"
-                "• **ON (Private)**: Personal to-do actions are visible only to you (ephemeral), keeping channels uncluttered. Shared actions (`/todo add`, `/todo assign`) remain public.\n"
-                "• **Interactive Toggle**: Running `/todo incognito` posts an interactive card with `Turn On` and `Turn Off` buttons. You can also specify `mode: on`, `mode: off`, or `mode: check`."
+                "Assign a task to a server peer.\n"
+                "They get a channel ping + private DM with `[ ✅ Accept Task ]` and `[ ❌ Decline ]` buttons.\n"
+                "Upon acceptance, the task enters their active queue."
             ),
             inline=False
         )
         embed.add_field(
-            name="🤝 Team Delegation: `/todo assign [member] [task]`",
+            name="🌙 `/todo dnd [start_time] [end_time]` — Quiet Hours",
             value=(
-                "Assign a task to a server peer. Sends a channel ping and private DM notification with interactive "
-                "`[ ✅ Accept Task ]` and `[ ❌ Decline ]` buttons. Upon acceptance, the task enters their active `#1..#N` queue."
+                "Configure Do Not Disturb hours (e.g. `22:00` to `06:00`).\n"
+                "Reminders triggered during quiet hours are quietly postponed by 30 minutes — not lost."
             ),
             inline=False
         )
         embed.add_field(
-            name="🌙 Quiet Hours: `/todo dnd [start_time] [end_time] [enable]`",
+            name="🕵🏻 `/todo incognito [mode]` — Privacy Mode",
             value=(
-                "Configure Do Not Disturb quiet hours (e.g. `22:00` to `06:00`). Reminders triggered during "
-                "quiet hours are quietly postponed by 30 minutes without waking you."
+                "• **OFF (Public)** *(Default)*: Todo actions are posted publicly in the channel\n"
+                "• **ON (Private)**: Personal actions are visible only to you (ephemeral)\n"
+                "• Shared actions (`/todo add`, `/todo assign`) remain public regardless of mode"
             ),
             inline=False
         )
@@ -915,29 +920,28 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
 
     elif category == "settings":
         embed = discord.Embed(
-            title="⚙️ Accountability, Settings & Utilities",
-            description="Manage personal reminder alerts and challenge lifecycle commands.",
+            title="⚙️ Settings & Utilities",
+            description="Manage your personal reminder alerts, notifications, and challenge lifecycle.",
             color=0x2ECC71
         )
         embed.add_field(
-            name="🔔 `/reminders` & `/settings` — Personal Direct Messages",
+            name="🔔 `/reminders` & `/settings` — Personal DM Notifications",
             value=(
-                "Configure automated private DM alerts sent directly to your inbox with 1-click toggles.\n"
-                "• **Public Channel Response**: Posts a card in the channel with guarded buttons only you can toggle.\n"
-                "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets, motivation quote, and clean slate.\n"
-                "• ☀️ **Afternoon Standings DM (16:30 IST)**: Mid-day pulse check and active pack standings.\n"
-                "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you are below 30 points.\n"
-                "💡 *Default: Morning, afternoon, and evening DMs are all active upon enrollment. Ensure your Discord privacy settings allow DMs from server members.*"
+                "Toggle your automated daily DMs with interactive 1-click buttons:\n\n"
+                "🌅 **05:00 IST** — Morning Kickoff: daily targets, motivation & clean slate\n"
+                "☀️ **16:30 IST** — Afternoon Check-in: mid-day pulse & active standings\n"
+                "⚠️ **21:00 IST** — Evening Streak Warning: fires only if you're below 30 pts\n\n"
+                "💡 All three are ON by default. Ensure Discord allows DMs from server members."
             ),
             inline=False
         )
         embed.add_field(
             name="⚔️ Enrollment & Utilities",
             value=(
-                "• `/enroll` — Join the Winter Arc challenge and establish your warrior profile.\n"
-                "• `/leave_arc` — Unenroll from active server rosters (lifetime stats and points preserved).\n"
-                "• `/tips [on|off]` — Enable or disable periodic bot usage tips and guidance.\n"
-                "• `/ping` — Check bot response time, gateway latency, and timezone synchronization."
+                "• `/enroll` — Join the Winter Arc and establish your warrior profile\n"
+                "• `/leave_arc` — Unenroll from active rosters (lifetime stats & points preserved)\n"
+                "• `/tips [on|off]` — Toggle periodic bot usage tips\n"
+                "• `/ping` — Check bot latency, gateway response & timezone sync"
             ),
             inline=False
         )
@@ -947,38 +951,38 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
     elif category == "admin":
         embed = discord.Embed(
             title="👑 Server Administration & Maintenance",
-            description="Server controls for administrators to configure broadcast channels, roles, disciplines, backups, and system health.",
+            description="Server controls for administrators to configure channels, roles, disciplines, backups, and system health.",
             color=0xE67E22
         )
         embed.add_field(
             name="📢 Broadcast Configuration",
             value=(
-                "• `/admin set_channel [channel]` — Set the server channel for automated 05:00, 16:30, 21:00, and 00:00 broadcasts.\n"
-                "• `/admin set_role [role]` — Set the role to mention during scheduled announcements.\n"
-                "• `/admin overview` — View server channel, role ping, active disciplines, and enrolled roster."
+                "• `/admin set_channel [channel]` — Set the channel for automated 05:00, 16:30, 21:00 & 00:00 broadcasts\n"
+                "• `/admin set_role [role]` — Set the role to mention during scheduled announcements\n"
+                "• `/admin overview` — View server channel, role ping, active disciplines & enrolled roster"
             ),
             inline=False
         )
         embed.add_field(
             name="🏋️ Discipline Management",
             value=(
-                "• `/admin tasks_list` — List all challenge disciplines in the database.\n"
-                "• `/admin task_add` — Add a new discipline with custom targets, units, and point limits.\n"
-                "• `/admin task_toggle` — Temporarily enable or disable an existing discipline.\n"
-                "• `/admin grind [what] [member] [days] [reason]` — Disciplinary control: block or unlock a member's `/grind` access."
+                "• `/admin tasks_list` — List all disciplines in the database\n"
+                "• `/admin task_add` — Add a new discipline with custom targets, units & point limits\n"
+                "• `/admin task_toggle` — Enable or disable an existing discipline\n"
+                "• `/admin grind [what] [member]` — Block or unlock a member's `/grind` access"
             ),
             inline=False
         )
         embed.add_field(
-            name="🖥️ System Diagnostics, Backups & Maintenance",
+            name="🖥️ System Diagnostics & Maintenance",
             value=(
-                "• `/admin backup` — Create a WAL-safe SQLite database backup snapshot and download it directly as an attached `.db` file.\n"
-                "• `/admin sync [guild_only] [clean]` — Synchronize application commands globally or guild-specific with zero duplicate risk.\n"
-                "• `/admin health` — Live RSS RAM monitor, SQLite file sizes, uptime, and one-click **🧹 Collect GC & Free RAM** button.\n"
-                "• `/admin dm [member] [message]` — Send administrative DM notifications to enrolled members.\n"
-                "• `/admin finalize_day` — Manually trigger midnight point locks, streak rolls, and daily summaries.\n"
-                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, Sunday, DM briefings, or reactive Groq observations (`groq_nudge`).\n"
-                "• `/nuke` — Emergency factory database reset with double confirmation modal."
+                "• `/admin backup` — Create a WAL-safe SQLite backup and download as `.db` file\n"
+                "• `/admin sync [guild_only] [clean]` — Synchronize slash commands globally or guild-specific\n"
+                "• `/admin health` — Live RAM monitor, SQLite sizes, uptime & **🧹 Collect GC & Free RAM** button\n"
+                "• `/admin dm [member] [message]` — Send administrative DMs to enrolled members\n"
+                "• `/admin finalize_day` — Manually trigger midnight point locks & streak rolls\n"
+                "• `/test_reminder [type]` — Preview morning, afternoon, evening, midnight, or DM briefings\n"
+                "• `/nuke` — Emergency factory reset with double confirmation modal"
             ),
             inline=False
         )
@@ -991,9 +995,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             title="❄️ Winter Arc — Master Command Manual",
             description=(
                 "**Welcome to the Winter Arc (Oct 1 – Jan 31).**\n"
-                "A 4-phase challenge of daily physical and mental discipline.\n"
-                "Daily Standard: **500 points (Perfect Day)** • **30 pts/day minimum** to keep your streak alive.\n"
-                "Use the interactive dropdown menu below to deep-dive into each subsystem."
+                "A 4-phase challenge of daily physical and mental discipline.\n\n"
+                "🚀 **New here?** `/enroll` → log with `/quick` → check progress with `/today`\n\n"
+                "Daily Standard: **500 points (Perfect Day)** · **30 pts/day minimum** to keep your streak alive.\n"
+                "Use the dropdown below to deep-dive into each system."
             ),
             color=0x2B2D31
         )
@@ -1002,10 +1007,10 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• 💪 **Push-ups**: 100 reps *(1 pt / rep)*\n"
                 "• 🧗 **Pull-ups**: 100 reps *(1 pt / rep)*\n"
-                "• 🦵 **Squats**: 100 reps *(1 pt / rep)*\n"
-                "• 🧘 **Sit-ups**: 100 reps *(1 pt / rep)*\n"
-                "• 🏃 **Running**: 10 km *(1 pt / 100m / 10 pts per km)*\n"
-                "• ⚔️ **Grind Bonus**: Up to +50 pts daily (`/grind`)"
+                "• 🦵 **Squats**:   100 reps *(1 pt / rep)*\n"
+                "• 🧘 **Sit-ups**:  100 reps *(1 pt / rep)*\n"
+                "• 🏃 **Running**:  10 km *(10 pts / km)*\n\n"
+                "• ⚔️ **Grind Bonus**: up to +50 pts/day via `/grind`"
             ),
             inline=False
         )
@@ -1033,20 +1038,18 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="⚡ Command Directory Cheat Sheet",
             value=(
-                "• **Logging**: `/quick` • `/log` • `/set` • `/grind`\n"
-                "• **Progress & Tiers**: `/today` • `/tasks` • `/streak` • `/calendar` • `/profile` • `/ranks`\n"
-                "• **Standings & Benchmarks**: `/leaderboard` • `/stats` • `/history` • `/recap`\n"
-                "• **Governance**: `/accuse`\n"
-                "• **Recovery**: `/shield status` • `/shield use`\n"
-                "• **Productivity Addon**: `/todo add` • `/todo list` • `/todo done` • `/todo silence` • `/todo delete` • `/todo restore` • `/todo edit` • `/todo assign` • `/todo dnd` • `/todo clear`\n"
-                "• **Accountability**: `/reminders` • `/settings` • `/enroll` • `/leave_arc` • `/ping`\n"
-                "• **Admin**: `/admin backup` • `/admin sync` • `/admin health` • `/admin set_channel` • `/admin set_role` • `/admin overview` • `/test_reminder`"
+                "**Logging** · `/quick` · `/log` · `/set` · `/grind`\n"
+                "**Progress** · `/today` · `/tasks` · `/streak` · `/calendar` · `/profile` · `/ranks`\n"
+                "**Standings** · `/leaderboard` · `/stats` · `/history` · `/recap`\n"
+                "**Recovery** · `/shield status` · `/shield use`\n"
+                "**Todo** · `/todo add` · `/todo list` · `/todo done` · `/todo assign` · `/todo dnd`\n"
+                "**Settings** · `/settings` · `/enroll` · `/leave_arc` · `/ping`\n"
+                "**Admin** · `/admin backup` · `/admin sync` · `/admin health` · `/test_reminder`"
             ),
             inline=False
         )
         embed.set_footer(text="Select a category from the dropdown menu below for complete details")
         return embed
-
 
 def build_morning_kickoff_message(
     active_tasks: List[Dict[str, Any]],
