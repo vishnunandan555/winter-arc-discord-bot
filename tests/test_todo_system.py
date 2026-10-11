@@ -766,5 +766,40 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         can_interact = asyncio.run(view.interaction_check(stranger_inter))
         self.assertFalse(can_interact)
 
+    def test_todo_autocomplete_providers(self):
+        """Verifies todo autocomplete providers for remind, until, active tasks, and trash tasks."""
+        from cogs.todo import (
+            todo_remind_autocomplete,
+            todo_until_autocomplete,
+            todo_active_tasks_autocomplete,
+            todo_trash_tasks_autocomplete,
+        )
+        inter = self.create_mock_interaction(user_id=self.user_id)
+
+        # 1. Remind autocomplete
+        remind_choices = asyncio.run(todo_remind_autocomplete(inter, ""))
+        self.assertGreater(len(remind_choices), 0)
+        self.assertTrue(any(c.value == "3 times a day" for c in remind_choices))
+
+        remind_filtered = asyncio.run(todo_remind_autocomplete(inter, "3 times"))
+        self.assertTrue(any("3 times a day" in c.name for c in remind_filtered))
+
+        # 2. Until autocomplete
+        until_choices = asyncio.run(todo_until_autocomplete(inter, ""))
+        self.assertGreater(len(until_choices), 0)
+        self.assertTrue(any(c.value == "done" for c in until_choices))
+
+        until_filtered = asyncio.run(todo_until_autocomplete(inter, "done"))
+        self.assertTrue(any(c.value == "done" for c in until_filtered))
+
+        # 3. Custom text fallback
+        custom_choices = asyncio.run(todo_until_autocomplete(inter, "next friday 5pm"))
+        self.assertTrue(any("next friday 5pm" in c.value for c in custom_choices))
+
+        # 4. Active tasks autocomplete
+        active_choices = asyncio.run(todo_active_tasks_autocomplete(inter, ""))
+        self.assertIsInstance(active_choices, list)
+
+
 
 

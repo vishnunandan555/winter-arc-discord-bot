@@ -470,4 +470,50 @@ class TestOpenRouterIntegration(WinterArcTestCase):
             self.assertIn("ONLINE", results["openrouter"])
             self.assertIn("ONLINE", results["groq"])
 
+    def test_clean_ai_thought_leakage_scenarios(self):
+        """Verifies clean_ai_thought_leakage strips <think> tags, rejects pure leakage, and extracts clean quotes."""
+        from ai.gemini_service import clean_ai_thought_leakage
+
+        # 1. Pure thinking leakage (must be rejected / return None)
+        leaked = "Here's a thinking process: 1. **Analyze User Request:** - **Persona:** Amarok, blunt stoic discipline coach - **Context:** ARD -."
+        self.assertIsNone(clean_ai_thought_leakage(leaked))
+
+        # 2. <think> tag stripped
+        tagged = "<think>The user wants an ARD quote.</think>Movement is medicine. Stay mobile today."
+        self.assertEqual(clean_ai_thought_leakage(tagged), "Movement is medicine. Stay mobile today.")
+
+        # 3. Preamble with actual quote following
+        multi = """Here's a thinking process:
+1. Analyze user request
+- Context: ARD
+
+Light walking stimulates your lymphatic system to flush metabolic waste. Stay mobile and hydrate."""
+        res = clean_ai_thought_leakage(multi)
+        self.assertIsNotNone(res)
+        self.assertIn("lymphatic system", res)
+
+        # 4. JSON with <think> tag
+        json_tagged = "<think>thinking</think>```json\n{\"verdict\": \"ACCEPTED\", \"points\": 35}\n```"
+        self.assertEqual(clean_ai_thought_leakage(json_tagged, is_json=True), '{"verdict": "ACCEPTED", "points": 35}')
+
+        # 5. Normal quote unchanged
+        normal = "Discipline is remembering what you want most."
+        self.assertEqual(clean_ai_thought_leakage(normal), normal)
+
+    def test_generate_reminder_motivation_discards_thought_leakage(self):
+        """Verifies generate_reminder_motivation falls back rather than returning thought leakage."""
+        from ai.gemini_service import generate_reminder_motivation
+
+        leaked_output = "Here's a thinking process: 1. **Analyze User Request:** - **Persona:** Amarok - **Context:** ARD -."
+
+        with patch("ai.gemini_service.OPENROUTER_API_KEY", "test-key"), \
+             patch("ai.gemini_service.safe_openrouter_chat_completion", new=AsyncMock(return_value=leaked_output)), \
+             patch("ai.groq_service.get_groq_client", return_value=None):
+            # Since OpenRouter returned pure leaked thought and Groq is unavailable, it must fall back to static
+            quote = asyncio.run(generate_reminder_motivation(reminder_type="afternoon_recovery"))
+            self.assertNotIn("thinking process", quote.lower())
+            self.assertNotIn("analyze user request", quote.lower())
+            self.assertTrue(len(quote) > 10)
+
+
 

@@ -11,7 +11,7 @@ Completely isolated from Winter Arc. Uses dedicated todo.db with:
 
 import time
 import logging
-from typing import Optional
+from typing import Optional, List
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -30,6 +30,112 @@ from ui.todo_views import (
 from config import BOT_TZ
 
 logger = logging.getLogger("winter_arc.cogs.todo")
+
+
+async def todo_remind_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[str]]:
+    """Contextual autocomplete suggestions for reminder schedule input."""
+    presets = [
+        ("⏰ in 15 mins", "in 15 mins"),
+        ("⏰ in 30 mins", "in 30 mins"),
+        ("⏰ in 1 hour", "in 1 hour"),
+        ("⏰ in 2 hours", "in 2 hours"),
+        ("🔁 3 times a day", "3 times a day"),
+        ("🔁 5 times a day", "5 times a day"),
+        ("🔁 every hour", "every hour"),
+        ("🔁 every 2 hours", "every 2 hours"),
+        ("🔁 every 30 mins", "every 30 mins"),
+        ("🔁 every hour after 6pm", "every hour after 6pm"),
+        ("🌅 tomorrow 9:00 AM", "tomorrow 9:00"),
+        ("🌆 tomorrow 6:00 PM", "tomorrow 18:00"),
+        ("🌙 today 18:00", "today 18:00"),
+        ("🌙 today 21:00", "today 21:00"),
+    ]
+    curr = (current or "").strip().lower()
+    choices = []
+    for label, val in presets:
+        if not curr or curr in label.lower() or curr in val.lower():
+            choices.append(app_commands.Choice(name=label, value=val))
+        if len(choices) >= 24:
+            break
+    if curr and not any(c.value.lower() == curr for c in choices):
+        choices.insert(0, app_commands.Choice(name=f"✍️ Custom: \"{current.strip()}\"", value=current.strip()[:100]))
+    return choices[:25]
+
+
+async def todo_until_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[str]]:
+    """Contextual autocomplete suggestions for 'until' recurring reminder stop conditions."""
+    presets = [
+        ("✅ done (Until marked completed)", "done"),
+        ("🌙 today 20:00 (Today 8:00 PM)", "today 20:00"),
+        ("🌙 today 23:59 (End of today)", "today 23:59"),
+        ("🌅 tomorrow 12:00 (Tomorrow noon)", "tomorrow 12:00"),
+        ("🌅 tomorrow 20:00 (Tomorrow 8:00 PM)", "tomorrow 20:00"),
+        ("🌅 tomorrow 23:59 (End of tomorrow)", "tomorrow 23:59"),
+        ("📅 in 3 days", "in 3 days"),
+        ("📅 in 7 days", "in 7 days"),
+    ]
+    curr = (current or "").strip().lower()
+    choices = []
+    for label, val in presets:
+        if not curr or curr in label.lower() or curr in val.lower():
+            choices.append(app_commands.Choice(name=label, value=val))
+        if len(choices) >= 24:
+            break
+    if curr and not any(c.value.lower() == curr for c in choices):
+        choices.insert(0, app_commands.Choice(name=f"✍️ Custom: \"{current.strip()}\"", value=current.strip()[:100]))
+    return choices[:25]
+
+
+async def todo_active_tasks_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[int]]:
+    """Provides autocomplete dropdown of user's active tasks by relative number."""
+    try:
+        tasks = db.get_active_tasks(interaction.user.id)
+    except Exception:
+        return []
+    curr = (current or "").strip().lower()
+    choices = []
+    for t in tasks:
+        num = t.get("num", 1)
+        text = t.get("task_text", "")
+        prio = t.get("priority", "normal")
+        prio_icon = "🔴 " if prio == "high" else ("🟡 " if prio == "medium" else "")
+        label = f"#{num}: {prio_icon}{text}"
+        if not curr or curr in str(num) or curr in text.lower():
+            choices.append(app_commands.Choice(name=label[:100], value=num))
+        if len(choices) >= 25:
+            break
+    return choices[:25]
+
+
+async def todo_trash_tasks_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[int]]:
+    """Provides autocomplete dropdown of user's trashed tasks for restore."""
+    try:
+        tasks = db.get_trashed_tasks(interaction.user.id)
+    except Exception:
+        return []
+    curr = (current or "").strip().lower()
+    choices = []
+    for t in tasks:
+        num = t.get("num", 1)
+        text = t.get("task_text", "")
+        label = f"T{num}: {text}"
+        if not curr or curr in str(num) or curr in text.lower() or curr in f"t{num}":
+            choices.append(app_commands.Choice(name=label[:100], value=num))
+        if len(choices) >= 25:
+            break
+    return choices[:25]
 
 
 class TodoCog(commands.Cog, name="Todo & Reminders"):
@@ -72,6 +178,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
+    @app_commands.autocomplete(remind=todo_remind_autocomplete, until=todo_until_autocomplete)
     async def todo_add(
         self,
         interaction: discord.Interaction,
@@ -156,6 +263,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
     @todo_group.command(name="done", description="Mark a task completed and move it to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
+    @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_done(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
         res = db.mark_task_done(interaction.user.id, id, db_path=self.db_path)
@@ -173,6 +281,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
     @todo_group.command(name="silence", description="Turn off future reminders for a task while keeping it on your list.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
+    @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_silence(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
         res = db.silence_task(interaction.user.id, id, db_path=self.db_path)
@@ -190,6 +299,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
     @todo_group.command(name="delete", description="Remove an active task directly to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
+    @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_delete(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
         res = db.delete_task(interaction.user.id, id, db_path=self.db_path)
@@ -204,6 +314,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
     @todo_group.command(name="restore", description="Restore a task from 7-day trash back to your active list.")
     @app_commands.describe(trash_id="The trash number (e.g. 1 for T1)")
+    @app_commands.autocomplete(trash_id=todo_trash_tasks_autocomplete)
     async def todo_restore(self, interaction: discord.Interaction, trash_id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
         res = db.restore_task(interaction.user.id, trash_id, db_path=self.db_path)
@@ -231,6 +342,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
+    @app_commands.autocomplete(id=todo_active_tasks_autocomplete, remind=todo_remind_autocomplete)
     async def todo_edit(
         self,
         interaction: discord.Interaction,
@@ -285,6 +397,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
+    @app_commands.autocomplete(remind=todo_remind_autocomplete)
     async def todo_assign(
         self,
         interaction: discord.Interaction,

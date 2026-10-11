@@ -183,6 +183,81 @@ async def safe_gemini_generate_content(client, **kwargs):
 # OpenRouter Client Engine (Tier 1 Primary Reasoning)
 # -------------------------------------------------------------------------
 
+def clean_ai_thought_leakage(text: Optional[str], is_json: bool = False) -> Optional[str]:
+    """
+    Sanitizes LLM outputs by removing reasoning blocks, <think> tags,
+    and analytical preambles (e.g. 'Here's a thinking process:', '1. Analyze User Request:').
+    Returns the cleaned plain output string, or None if the output is pure leaked thought/empty.
+    """
+    if not text:
+        return None
+
+    # 1. Strip XML-like thinking / reasoning tags
+    text = re.sub(r"(?is)<think>.*?</think>", "", text)
+    if "<think>" in text:
+        text = text.split("<think>")[0]
+    text = re.sub(r"(?is)<(thought|reasoning|analysis|scratchpad)>.*?</\1>", "", text)
+    for tag in ["<thought>", "<reasoning>", "<analysis>", "<scratchpad>"]:
+        if tag in text:
+            text = text.split(tag)[0]
+
+    # If JSON is expected, extract json block or raw json
+    if is_json:
+        m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        m_raw = re.search(r"(\{.*\})", text, re.DOTALL)
+        if m_raw:
+            return m_raw.group(1).strip()
+        return text.strip() or None
+
+    # 2. Identify thought leakage patterns and analytical preambles
+    thought_leak_patterns = [
+        r"(?i)\bhere'?s\s+a\s+thinking\s+process\b",
+        r"(?i)\bthinking\s+process\b",
+        r"(?i)\bthought\s+process\b",
+        r"(?i)\banalyze\s+user\s+request\b",
+        r"(?i)\banalyzing\s+the\s+(user\s+)?request\b",
+        r"(?i)\blet'?s\s+analyze\b",
+        r"(?i)\b\*\*persona:\*\*",
+        r"(?i)\b\*\*context:\*\*",
+        r"(?i)\b\*\*instruction:\*\*",
+        r"(?i)\b\*\*guidelines:\*\*",
+        r"(?i)\b\*\*tone:\*\*",
+        r"(?i)\b\*\*target\s+audience:\*\*",
+    ]
+
+    has_leak = any(re.search(p, text) for p in thought_leak_patterns)
+    if has_leak:
+        parts = re.split(r"\n\s*\n", text)
+        candidates = []
+        for part in parts:
+            p_strip = part.strip()
+            if not any(re.search(p, p_strip) for p in thought_leak_patterns) and len(p_strip.split()) >= 4:
+                p_clean = re.sub(r"(?i)^(output|response|final quote|quote|check-?in)\s*:\s*", "", p_strip)
+                candidates.append(p_clean)
+        if candidates:
+            text = candidates[-1]
+        else:
+            logger.warning(f"Discarded AI output due to thought/reasoning leakage: {repr(text)[:120]}")
+            return None
+
+    # 3. Clean leading author/role prefixes
+    text = text.strip().strip('"').strip("'")
+    if ":" in text:
+        prefix = text.split(":", 1)[0].lower().strip()
+        if prefix in ["amarok", "quote", "sentinel", "edict", "response", "output"]:
+            text = text.split(":", 1)[1].strip().strip('"').strip("'")
+
+    # 4. Final verification
+    if any(re.search(p, text) for p in thought_leak_patterns):
+        logger.warning(f"Discarded AI output with residual thought leakage: {repr(text)[:120]}")
+        return None
+
+    text = text.strip().strip('"').strip("'")
+    return text if len(text.split()) >= 3 else None
+
+
 def get_openrouter_candidate_models(requested_model: Optional[str] = None) -> List[str]:
     """Builds an ordered, deduplicated list of fallback models for OpenRouter."""
     primary = requested_model or OPENROUTER_MODEL
@@ -242,9 +317,13 @@ async def safe_openrouter_chat_completion(
                     if choices:
                         content = choices[0].get("message", {}).get("content", "")
                         if content:
-                            if idx > 0:
-                                logger.info(f"✅ OpenRouter fallback SUCCESS: Recovered with model '{cand_model}'.")
-                            return content.strip()
+                            cleaned = clean_ai_thought_leakage(content, is_json=bool(response_format))
+                            if cleaned:
+                                if idx > 0:
+                                    logger.info(f"✅ OpenRouter fallback SUCCESS: Recovered with model '{cand_model}'.")
+                                return cleaned
+                            else:
+                                logger.warning(f"⚠️ OpenRouter model '{cand_model}' returned thought leakage or empty response. Attempting next model...")
                 elif resp.status_code == 429:
                     logger.warning(f"⚠️ OpenRouter model '{cand_model}' rate-limited (429). Attempting next model...")
                 else:
@@ -640,21 +719,28 @@ async def generate_daily_toast_and_roast(
         except Exception as e:
             logger.warning(f"Mocked Gemini toast & roast failed ({e}).")
 
+    toast_sys_prompt = (
+        "You are Amarok, an authentic server mod and coach. Deliver a compact, natural midnight Winter Arc recap. "
+        "Exactly 2 to 3 short sentences under 80 words. "
+        "CRITICAL: Output ONLY the final recap directly. Do NOT output any thinking process, analysis, or preamble."
+    )
+
     # 1. Primary: OpenRouter
     if OPENROUTER_API_KEY:
         try:
             logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for midnight toast & roast...")
             res = await safe_openrouter_chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are Amarok, an authentic server mod and coach. Deliver a compact, natural midnight Winter Arc recap. Exactly 2 to 3 short sentences under 80 words."},
+                    {"role": "system", "content": toast_sys_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_tokens=150,
+                max_tokens=200,
                 timeout=10.0,
             )
-            if res:
-                return res.strip()
+            res = clean_ai_thought_leakage(res)
+            if res and len(res.split()) >= 5:
+                return res
         except Exception as e:
             logger.warning(f"OpenRouter toast & roast failed ({e}). Falling back to Groq...")
 
@@ -668,17 +754,18 @@ async def generate_daily_toast_and_roast(
                 safe_groq_chat_completion(
                     groq_client,
                     messages=[
-                        {"role": "system", "content": "You are Amarok, an authentic server mod and coach. Deliver a compact, natural midnight Winter Arc recap. Exactly 2 to 3 short sentences under 80 words."},
+                        {"role": "system", "content": toast_sys_prompt},
                         {"role": "user", "content": prompt},
                     ],
                     model=GROQ_MODEL,
                     temperature=0.7,
-                    max_tokens=150,
+                    max_tokens=200,
                 ),
                 timeout=6.0
             )
-            txt = completion.choices[0].message.content.strip()
-            if txt:
+            raw = completion.choices[0].message.content or ""
+            txt = clean_ai_thought_leakage(raw)
+            if txt and len(txt.split()) >= 5:
                 logger.info("Groq fallback daily toast & roast generated successfully.")
                 return txt
     except Exception as groq_err:
@@ -748,21 +835,28 @@ async def generate_weekly_state_of_the_pack(
         except Exception as e:
             logger.warning(f"Mocked Gemini weekly state of the pack failed ({e}).")
 
+    recap_sys_prompt = (
+        "You are Amarok, a grounded coach. Deliver short Sunday morning weekly commentary. "
+        "Exactly 2 to 3 sentences under 75 words. No fantasy tropes. "
+        "CRITICAL: Output ONLY the final commentary directly. Do NOT output any thinking process, analysis, or preamble."
+    )
+
     # 1. Primary: OpenRouter
     if OPENROUTER_API_KEY:
         try:
             logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for weekly state of the pack...")
             res = await safe_openrouter_chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are Amarok, a grounded coach. Deliver short Sunday morning weekly commentary. Exactly 2 to 3 sentences under 75 words. No fantasy tropes."},
+                    {"role": "system", "content": recap_sys_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_tokens=150,
+                max_tokens=200,
                 timeout=10.0,
             )
-            if res:
-                return res.strip()
+            res = clean_ai_thought_leakage(res)
+            if res and len(res.split()) >= 5:
+                return res
         except Exception as e:
             logger.warning(f"OpenRouter weekly state of the pack failed ({e}). Falling back to Groq...")
 
@@ -776,17 +870,18 @@ async def generate_weekly_state_of_the_pack(
                 safe_groq_chat_completion(
                     groq_client,
                     messages=[
-                        {"role": "system", "content": "You are Amarok, a grounded coach. Deliver short Sunday morning weekly commentary. Exactly 2 to 3 sentences under 75 words. No fantasy tropes."},
+                        {"role": "system", "content": recap_sys_prompt},
                         {"role": "user", "content": prompt},
                     ],
                     model=GROQ_MODEL,
                     temperature=0.7,
-                    max_tokens=150,
+                    max_tokens=200,
                 ),
                 timeout=6.0
             )
-            txt = completion.choices[0].message.content.strip()
-            if txt:
+            raw = completion.choices[0].message.content or ""
+            txt = clean_ai_thought_leakage(raw)
+            if txt and len(txt.split()) >= 5:
                 logger.info("Groq fallback weekly state of the pack generated successfully.")
                 return txt
     except Exception as groq_err:
@@ -988,26 +1083,44 @@ async def generate_reminder_motivation(
             logger.warning(f"Mocked Gemini reminder quote failed ({e}).")
 
     # 1. Primary: OpenRouter
+    tokens_to_use = 250 if reminder_type in ["afternoon_recovery", "evening_recovery"] else 150
+    word_limit = 65 if reminder_type in ["afternoon_recovery", "evening_recovery"] else 35
+    sys_instruction = (
+        "You are Amarok, an athletic stoic discipline coach for Winter Arc. "
+        "CRITICAL: Output ONLY the final plain message directly. "
+        "Do NOT output any thinking process, analysis, step-by-step reasoning, or preamble. "
+        "Never begin with 'Here's a thinking process' or '1. Analyze'. "
+        "Output ONLY raw text without markdown headers, prefixes, or quotes."
+    )
+
     if OPENROUTER_API_KEY:
         try:
             logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for {reminder_type} reminder quote...")
             txt = await safe_openrouter_chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are Amarok, a blunt stoic discipline coach. Deliver exactly 1 to 2 short sentences (under 30 words). No clichés. Output only plain quote text without markdown or prefixes."},
+                    {"role": "system", "content": sys_instruction},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_tokens=80,
+                max_tokens=tokens_to_use,
                 timeout=8.0,
             )
-            if txt:
-                txt = txt.strip().strip('"').strip("'")
-                if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
-                    txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
-                if len(txt.split()) > 35:
-                    txt = " ".join(txt.split()[:30]) + "."
-                logger.info(f"OpenRouter {reminder_type} quote generated: '{txt}'")
-                return txt
+            txt = clean_ai_thought_leakage(txt)
+            if not txt or len(txt.split()) < 3:
+                raise ValueError("OpenRouter quote rejected due to thought leakage or invalid length.")
+
+            if len(txt.split()) > word_limit:
+                sentences = re.split(r"(?<=[.!?])\s+", txt)
+                accum = []
+                for s in sentences:
+                    if len((" ".join(accum + [s])).split()) <= word_limit:
+                        accum.append(s)
+                    else:
+                        break
+                txt = " ".join(accum) if accum else (" ".join(txt.split()[:word_limit - 5]) + ".")
+
+            logger.info(f"OpenRouter {reminder_type} quote generated: '{txt}'")
+            return txt
         except Exception as e:
             logger.warning(f"OpenRouter {reminder_type} reminder quote failed ({e}). Falling back to Groq...")
 
@@ -1022,23 +1135,32 @@ async def generate_reminder_motivation(
                 safe_groq_chat_completion(
                     groq_client,
                     messages=[
-                        {"role": "system", "content": "You are Amarok, a blunt stoic discipline coach. Deliver exactly 1 to 2 short sentences (under 30 words). No clichés. Output only the plain quote text without markdown or prefixes."},
+                        {"role": "system", "content": sys_instruction},
                         {"role": "user", "content": prompt},
                     ],
                     model=GROQ_MODEL,
                     temperature=0.7,
-                    max_tokens=80,
+                    max_tokens=tokens_to_use,
                 ),
                 timeout=6.0
             )
-            g_txt = completion.choices[0].message.content.strip().strip('"').strip("'")
-            if ":" in g_txt and g_txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "sentinel", "edict"]:
-                g_txt = g_txt.split(":", 1)[1].strip().strip('"').strip("'")
-            if g_txt:
-                if len(g_txt.split()) > 35:
-                    g_txt = " ".join(g_txt.split()[:30]) + "."
-                logger.info(f"Groq fallback {reminder_type} quote generated: '{g_txt}'")
-                return g_txt
+            g_raw = completion.choices[0].message.content or ""
+            g_txt = clean_ai_thought_leakage(g_raw)
+            if not g_txt or len(g_txt.split()) < 3:
+                raise ValueError("Groq quote rejected due to thought leakage or invalid length.")
+
+            if len(g_txt.split()) > word_limit:
+                sentences = re.split(r"(?<=[.!?])\s+", g_txt)
+                accum = []
+                for s in sentences:
+                    if len((" ".join(accum + [s])).split()) <= word_limit:
+                        accum.append(s)
+                    else:
+                        break
+                g_txt = " ".join(accum) if accum else (" ".join(g_txt.split()[:word_limit - 5]) + ".")
+
+            logger.info(f"Groq fallback {reminder_type} quote generated: '{g_txt}'")
+            return g_txt
     except Exception as groq_err:
         logger.warning(f"Groq {reminder_type} quote fallback failed: {groq_err}")
 
@@ -1131,26 +1253,34 @@ async def generate_personalized_morning_briefing(
         except Exception as e:
             logger.warning(f"Mocked Gemini morning briefing failed ({e}).")
 
+    briefing_sys_prompt = (
+        "You are Amarok, a gritty discipline coach for Winter Arc. "
+        "CRITICAL: Output ONLY the final message directly. "
+        "Do NOT output any thinking process, analysis, reasoning steps, or preamble. "
+        "Deliver exactly 1 to 2 short sentences (under 40 words). No clichés. "
+        "Mention their momentum or recent work directly."
+    )
+
     # 1. Primary: OpenRouter
     if OPENROUTER_API_KEY:
         try:
             logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for personalized morning briefing for {u_name}...")
             txt = await safe_openrouter_chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are Amarok, a gritty discipline coach. Deliver exactly 1 to 2 short sentences (under 35 words). No clichés. Mention their momentum or recent work directly."},
+                    {"role": "system", "content": briefing_sys_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_tokens=90,
+                max_tokens=220,
                 timeout=10.0,
             )
-            if txt:
-                txt = txt.strip().strip('"').strip("'")
-                if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
-                    txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
-                if len(txt.split()) <= 70:
-                    logger.info(f"OpenRouter morning briefing generated for {u_name}: '{txt}'")
-                    return txt
+            txt = clean_ai_thought_leakage(txt)
+            if not txt or len(txt.split()) < 3:
+                raise ValueError("OpenRouter morning briefing rejected due to thought leakage or invalid length.")
+
+            if len(txt.split()) <= 70:
+                logger.info(f"OpenRouter morning briefing generated for {u_name}: '{txt}'")
+                return txt
         except Exception as e:
             logger.warning(f"OpenRouter morning briefing failed for {u_name} ({e}). Falling back to Groq...")
 
@@ -1165,19 +1295,21 @@ async def generate_personalized_morning_briefing(
                 safe_groq_chat_completion(
                     groq_client,
                     messages=[
-                        {"role": "system", "content": "You are Amarok, a gritty discipline coach. Deliver exactly 1 to 2 short sentences (under 35 words). No clichés. Mention their momentum or recent work directly."},
+                        {"role": "system", "content": briefing_sys_prompt},
                         {"role": "user", "content": prompt},
                     ],
                     model=GROQ_MODEL,
                     temperature=0.7,
-                    max_tokens=90,
+                    max_tokens=220,
                 ),
                 timeout=6.0
             )
-            g_txt = completion.choices[0].message.content.strip().strip('"').strip("'")
-            if ":" in g_txt and g_txt.split(":", 1)[0].lower().strip() in ["amarok", "quote", "coach", "reflection"]:
-                g_txt = g_txt.split(":", 1)[1].strip().strip('"').strip("'")
-            if g_txt and len(g_txt.split()) <= 70:
+            g_raw = completion.choices[0].message.content or ""
+            g_txt = clean_ai_thought_leakage(g_raw)
+            if not g_txt or len(g_txt.split()) < 3:
+                raise ValueError("Groq morning briefing rejected due to thought leakage or invalid length.")
+
+            if len(g_txt.split()) <= 70:
                 logger.info(f"Groq fallback morning briefing generated: '{g_txt}'")
                 return g_txt
     except Exception as groq_err:

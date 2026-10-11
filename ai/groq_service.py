@@ -327,7 +327,8 @@ async def generate_reactive_nudge(
         "     * Example: 'Four disciplines down. You are too close to a Perfect Day to leave squats unfinished tonight.'\n"
         "5. OCCASIONAL STOIC WISDOM: Roughly 20% of the time, weave in a razor-sharp stoic or warrior truth (Marcus Aurelius, Seneca, Epictetus, Musashi) to cut through excuses.\n"
         "6. NO FANTASY ROLEPLAY: Strictly ban medieval wolf/gothic metaphors ('the moon calls', 'the shadows', 'the crucible'). Keep it raw, modern, and athletic.\n"
-        "7. LENGTH & FORMAT: Exactly 1 to 2 short sentences (STRICTLY under 30 words total). Output ONLY plain text, no quotes, no prefix, no emojis."
+        "7. LENGTH & FORMAT: Exactly 1 to 2 short sentences (STRICTLY under 30 words total). Output ONLY plain text, no quotes, no prefix, no emojis.\n"
+        "8. NO THINKING/PREAMBLE: CRITICAL: Output ONLY the final reaction directly. Do NOT output any thinking process, analysis, reasoning steps, or preamble."
     )
 
     if today_recovery:
@@ -374,19 +375,19 @@ async def generate_reactive_nudge(
                 ],
                 model=GROQ_MODEL,
                 temperature=0.8,
-                max_tokens=80,
+                max_tokens=100,
             ),
             timeout=4.0
         )
         latency = time.time() - start_t
 
-        txt = (chat_completion.choices[0].message.content or "").strip().strip('"').strip("'")
-        if ":" in txt and txt.split(":", 1)[0].lower().strip() in ["amarok", "sentinel", "edict", "observation", "coach"]:
-            txt = txt.split(":", 1)[1].strip().strip('"').strip("'")
+        raw = chat_completion.choices[0].message.content or ""
+        from ai.gemini_service import clean_ai_thought_leakage
+        txt = clean_ai_thought_leakage(raw) or ""
         txt = txt.strip("*").strip("_").strip('"').strip("'")
         logger.info(f"Groq reactive observation generated in {latency:.2f}s: '{txt}'")
 
-        if txt and len(txt.split()) <= 30:
+        if txt and 3 <= len(txt.split()) <= 30:
             return txt
         return random.choice(REACTIVE_STOIC_FALLBACKS)
     except Exception as e:
