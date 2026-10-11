@@ -195,6 +195,7 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         "   - If suspicious: 'Unrealistic single-set volume. Log sets individually.'\n"
         "   - If low_effort: 'Only X reps? Push harder and finish the full volume.'\n"
         "   - If solid: 'Logged. Keep the momentum going.'\n\n"
+        "CRITICAL: Output ONLY a single valid JSON object. Do NOT output any thinking, analysis, reasoning steps, or markdown explanation. Begin response with '{' and end with '}'.\n\n"
         "Return pure JSON format:\n"
         "{\n"
         "  \"matches\": [{\"task_name\": \"<Exact Task Name>\", \"amount\": <number>}],\n"
@@ -217,13 +218,17 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
                 model=GROQ_MODEL,
                 response_format={"type": "json_object"},
                 temperature=0.1,
-                max_tokens=300,
+                max_tokens=400,
             ),
             timeout=7.0
         )
         latency = time.time() - start_t
-        content = chat_completion.choices[0].message.content
-        data = json.loads(content)
+        raw_content = chat_completion.choices[0].message.content or "{}"
+        from ai.gemini_service import clean_ai_thought_leakage
+        cleaned_json = clean_ai_thought_leakage(raw_content, is_json=True)
+        if "{" in cleaned_json and "}" in cleaned_json:
+            cleaned_json = cleaned_json[cleaned_json.find("{"):cleaned_json.rfind("}") + 1]
+        data = json.loads(cleaned_json)
         logger.info(f"Groq parse response received in {latency:.2f}s: {len(data.get('matches', []))} match(es)")
 
         # Validate task_names against active_tasks and enforce single-set limits
@@ -251,11 +256,15 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
                 logger.info(f"Pure-Python fallback rescued {len(fallback_res['matches'])} match(es)")
                 return fallback_res
 
+        comm = clean_ai_thought_leakage(str(data.get("commentary", "Discipline logged."))).strip()
+        if not comm or any(m in comm.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+            comm = "Discipline logged."
+
         return {
             "matches": validated_matches,
             "unrecognized": data.get("unrecognized", []),
             "suspicious": is_suspicious,
-            "commentary": str(data.get("commentary", "Discipline logged.")),
+            "commentary": comm,
         }
     except Exception as e:
         logger.warning(f"Groq API call failed: {e}. Falling back to pure-Python extractor.")

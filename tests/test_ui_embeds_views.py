@@ -894,3 +894,57 @@ class TestAutocompleteAndTipsSystem(WinterArcTestCase):
         notifications_field = [f.value for f in embed.fields if f.name == "🔔 Channel Notifications"][0]
         self.assertIn("<#1554843200814845952>", notifications_field)
         self.assertIn("Only @mentions", notifications_field)
+
+    def test_sanitize_display_text_blocks_leakage(self):
+        """Verifies that sanitize_display_text purges thought leakage and protects UI embeds."""
+        from ui.embeds import (
+            sanitize_display_text,
+            build_afternoon_checkin_message,
+            build_afternoon_checkin_embed,
+            build_evening_checkin_message,
+        )
+
+        leak1 = (
+            "Here's a thinking process: 1. **Analyze User Request:**\n"
+            "- The user wants a motivational quote for ARD check-in.\n"
+            "- Tone must be Stoic and grounded."
+        )
+        self.assertEqual(sanitize_display_text(leak1, "Fallback Quote"), "Fallback Quote")
+
+        leak2 = "<think>\nThinking about workout volume\n</think>\"Movement is medicine.\" — Seneca"
+        self.assertEqual(sanitize_display_text(leak2, "Fallback"), '"Movement is medicine." — Seneca')
+
+        leak_pure = "<think>internal reasoning steps only</think>"
+        self.assertEqual(sanitize_display_text(leak_pure, "Fallback"), "Fallback")
+
+        # Test afternoon ARD checkin message with leaked thought
+        with patch("ui.embeds.is_recovery_day", return_value=True):
+            msg = build_afternoon_checkin_message(
+                enrolled_users=[],
+                today_str="2026-10-11",
+                quote=leak1,
+            )
+            self.assertNotIn("thinking process", msg.lower())
+            self.assertNotIn("analyze user", msg.lower())
+            self.assertIn("Midday check-in, warriors", msg)
+
+            embed = build_afternoon_checkin_embed(
+                enrolled_users=[],
+                today_str="2026-10-11",
+                quote=leak1,
+            )
+            self.assertNotIn("thinking process", embed.description.lower())
+            self.assertIn("Midday check-in, warriors", embed.description)
+
+        # Test evening checkin message with leaked callout and quote
+        callouts = {1001: "Here's a thinking process: user has 10 points"}
+        warriors = [{"discord_id": 1001, "username": "WarriorA", "points": 10, "streak": 3}]
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            eve_msg = build_evening_checkin_message(
+                warriors_data=warriors,
+                callouts=callouts,
+                stoic_quote=leak1,
+            )
+            self.assertNotIn("thinking process", eve_msg.lower())
+            self.assertIn("10 pts on the board. You need 20 more points", eve_msg)
+            self.assertIn("Marcus Aurelius", eve_msg)

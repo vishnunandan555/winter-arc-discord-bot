@@ -243,18 +243,24 @@ def clean_ai_thought_leakage(text: Optional[str], is_json: bool = False) -> Opti
             return None
 
     # 3. Clean leading author/role prefixes
-    text = text.strip().strip('"').strip("'")
+    text = text.strip()
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1].strip()
     if ":" in text:
         prefix = text.split(":", 1)[0].lower().strip()
         if prefix in ["amarok", "quote", "sentinel", "edict", "response", "output"]:
-            text = text.split(":", 1)[1].strip().strip('"').strip("'")
+            text = text.split(":", 1)[1].strip()
+            if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+                text = text[1:-1].strip()
 
     # 4. Final verification
     if any(re.search(p, text) for p in thought_leak_patterns):
         logger.warning(f"Discarded AI output with residual thought leakage: {repr(text)[:120]}")
         return None
 
-    text = text.strip().strip('"').strip("'")
+    text = text.strip()
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1].strip()
     return text if len(text.split()) >= 3 else None
 
 
@@ -486,7 +492,7 @@ async def _evaluate_grind_with_openrouter(raw_text: str, system_prompt: str) -> 
         '  "tracked_disciplines_excluded": ["<excluded core discipline>", ...],\n'
         '  "commentary": "<1 to 2 punchy, authentic sentences as Amarok>"\n'
         "}\n"
-        "Do NOT return markdown formatting or code fences. Return ONLY the raw JSON object."
+        "CRITICAL: Output ONLY a single valid JSON object. Do NOT output any thinking, analysis, reasoning steps, markdown code fences, or preamble."
     )
 
     messages = [
@@ -501,13 +507,14 @@ async def _evaluate_grind_with_openrouter(raw_text: str, system_prompt: str) -> 
             messages=messages,
             response_format={"type": "json_object"},
             temperature=0.2,
-            max_tokens=350,
+            max_tokens=450,
             timeout=12.0
         )
         if not content:
             return None
         latency = time.time() - start_t
-        clean_content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.IGNORECASE)
+        clean_content = clean_ai_thought_leakage(content, is_json=True) or content.strip()
+        clean_content = re.sub(r"^```(?:json)?\s*", "", clean_content, flags=re.IGNORECASE)
         clean_content = re.sub(r"\s*```$", "", clean_content).strip()
         if "{" in clean_content and "}" in clean_content:
             clean_content = clean_content[clean_content.find("{"):clean_content.rfind("}") + 1]
@@ -537,7 +544,7 @@ async def _evaluate_grind_with_groq(raw_text: str, system_prompt: str) -> Dict[s
         '  "tracked_disciplines_excluded": ["<excluded core discipline>", ...],\n'
         '  "commentary": "<1 to 2 punchy, authentic sentences as Amarok>"\n'
         "}\n"
-        "Do NOT return markdown formatting or code fences. Return ONLY the raw JSON object."
+        "CRITICAL: Output ONLY a single valid JSON object. Do NOT output any thinking, analysis, reasoning steps, markdown code fences, or preamble."
     )
 
     try:
@@ -553,14 +560,15 @@ async def _evaluate_grind_with_groq(raw_text: str, system_prompt: str) -> Dict[s
                 model=GROQ_MODEL,
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_tokens=300,
+                max_tokens=400,
             ),
             timeout=8.0
         )
         latency = time.time() - start_t
         used_model = getattr(chat_completion, "model", GROQ_MODEL)
         content = chat_completion.choices[0].message.content or "{}"
-        clean_content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.IGNORECASE)
+        clean_content = clean_ai_thought_leakage(content, is_json=True) or content.strip()
+        clean_content = re.sub(r"^```(?:json)?\s*", "", clean_content, flags=re.IGNORECASE)
         clean_content = re.sub(r"\s*```$", "", clean_content).strip()
         if "{" in clean_content and "}" in clean_content:
             clean_content = clean_content[clean_content.find("{"):clean_content.rfind("}") + 1]
@@ -1372,10 +1380,13 @@ async def generate_evening_alert_data(
         "2. State their points clearly at the start.\n"
         "3. TONE: Human, direct, authentic Discord peer/coach. ZERO corporate speak, ZERO fantasy melodrama.\n"
         "4. The stoic quote MUST be a genuine quote from Marcus Aurelius, Seneca, or Epictetus with author attribution, e.g.:\n"
-        '   "Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius\n\n'
+        '   "Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius\n'
+        "5. Output ONLY a single valid JSON object. Do NOT output any thinking, analysis, reasoning steps, or markdown explanation. Begin response immediately with '{' and end with '}'.\n\n"
         'RESPONSE FORMAT: Single valid JSON object matching:\n'
         '{"callouts": [{"discord_id": int, "callout": str}], "stoic_quote": str}'
     )
+
+    tokens_to_use = min(1500, max(450, len(warriors_data) * 60 + 200))
 
     # 0. Test Mock Check
     gemini_client = get_gemini_client()
@@ -1394,19 +1405,25 @@ async def generate_evening_alert_data(
                 ),
                 timeout=8.0
             )
-            data = json.loads(response.text)
+            cleaned_mock = clean_ai_thought_leakage(response.text, is_json=True)
+            if "{" in cleaned_mock and "}" in cleaned_mock:
+                cleaned_mock = cleaned_mock[cleaned_mock.find("{"):cleaned_mock.rfind("}") + 1]
+            data = json.loads(cleaned_mock)
             result_callouts = dict(fallback_callouts)
             for item in data.get("callouts", []):
                 try:
                     user_id = int(item.get("discord_id"))
-                    callout_text = str(item.get("callout", "")).strip()
-                    if callout_text and user_id in result_callouts:
+                    callout_text = clean_ai_thought_leakage(str(item.get("callout", ""))).strip()
+                    if callout_text and not any(m in callout_text.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]) and user_id in result_callouts:
                         result_callouts[user_id] = callout_text
                 except (ValueError, TypeError):
                     continue
-            chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
-            if not chosen_quote or "—" not in chosen_quote:
-                chosen_quote = fallback_quote
+            if override_quote:
+                chosen_quote = override_quote
+            else:
+                chosen_quote = clean_ai_thought_leakage(str(data.get("stoic_quote", ""))).strip()
+                if not chosen_quote or "—" not in chosen_quote or any(m in chosen_quote.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+                    chosen_quote = fallback_quote
             return result_callouts, chosen_quote
         except Exception as e:
             logger.warning(f"Mocked Gemini evening alert failed ({e}).")
@@ -1422,12 +1439,11 @@ async def generate_evening_alert_data(
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.4,
-                max_tokens=400,
+                max_tokens=tokens_to_use,
                 timeout=12.0,
             )
             if res_content:
-                clean_content = re.sub(r"^```(?:json)?\s*", "", res_content.strip(), flags=re.IGNORECASE)
-                clean_content = re.sub(r"\s*```$", "", clean_content).strip()
+                clean_content = clean_ai_thought_leakage(res_content, is_json=True)
                 if "{" in clean_content and "}" in clean_content:
                     clean_content = clean_content[clean_content.find("{"):clean_content.rfind("}") + 1]
                 data = json.loads(clean_content)
@@ -1435,15 +1451,18 @@ async def generate_evening_alert_data(
                 for item in data.get("callouts", []):
                     try:
                         user_id = int(item.get("discord_id"))
-                        callout_text = str(item.get("callout", "")).strip()
-                        if callout_text and user_id in result_callouts:
+                        callout_text = clean_ai_thought_leakage(str(item.get("callout", ""))).strip()
+                        if callout_text and not any(m in callout_text.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]) and user_id in result_callouts:
                             result_callouts[user_id] = callout_text
                     except (ValueError, TypeError):
                         continue
 
-                chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
-                if not chosen_quote or "—" not in chosen_quote:
-                    chosen_quote = fallback_quote
+                if override_quote:
+                    chosen_quote = override_quote
+                else:
+                    chosen_quote = clean_ai_thought_leakage(str(data.get("stoic_quote", ""))).strip()
+                    if not chosen_quote or "—" not in chosen_quote or any(m in chosen_quote.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+                        chosen_quote = fallback_quote
 
                 logger.info(f"OpenRouter evening alert successfully parsed {len(result_callouts)} callout(s).")
                 return result_callouts, chosen_quote
@@ -1466,13 +1485,12 @@ async def generate_evening_alert_data(
                     model=GROQ_MODEL,
                     response_format={"type": "json_object"},
                     temperature=0.4,
-                    max_tokens=400,
+                    max_tokens=tokens_to_use,
                 ),
                 timeout=8.0
             )
             content = completion.choices[0].message.content or "{}"
-            clean_content = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.IGNORECASE)
-            clean_content = re.sub(r"\s*```$", "", clean_content).strip()
+            clean_content = clean_ai_thought_leakage(content, is_json=True)
             if "{" in clean_content and "}" in clean_content:
                 clean_content = clean_content[clean_content.find("{"):clean_content.rfind("}") + 1]
             data = json.loads(clean_content)
@@ -1481,15 +1499,18 @@ async def generate_evening_alert_data(
             for item in data.get("callouts", []):
                 try:
                     user_id = int(item.get("discord_id"))
-                    callout_text = str(item.get("callout", "")).strip()
-                    if callout_text and user_id in result_callouts:
+                    callout_text = clean_ai_thought_leakage(str(item.get("callout", ""))).strip()
+                    if callout_text and not any(m in callout_text.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]) and user_id in result_callouts:
                         result_callouts[user_id] = callout_text
                 except (ValueError, TypeError):
                     continue
 
-            chosen_quote = override_quote or str(data.get("stoic_quote", "")).strip()
-            if not chosen_quote or "—" not in chosen_quote:
-                chosen_quote = fallback_quote
+            if override_quote:
+                chosen_quote = override_quote
+            else:
+                chosen_quote = clean_ai_thought_leakage(str(data.get("stoic_quote", ""))).strip()
+                if not chosen_quote or "—" not in chosen_quote or any(m in chosen_quote.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+                    chosen_quote = fallback_quote
 
             return result_callouts, chosen_quote
     except Exception as groq_err:
@@ -1529,7 +1550,14 @@ async def generate_phase_ceremony(
         "2. Deliver a sharp, blunt roast to anyone who went ghost or logged zero effort throughout this entire month.\n"
         "3. Announce the transition to the next phase with cold, commanding authority. No excuses roll over.\n"
         "4. TONE: Authoritative, raw, respected coach voice. Real and gritty, NOT corny fantasy roleplay.\n"
-        "5. LENGTH: 3 TO 4 SHORT PARAGRAPHS (UNDER 140 WORDS TOTAL)."
+        "5. LENGTH: 3 TO 4 SHORT PARAGRAPHS (UNDER 140 WORDS TOTAL).\n"
+        "6. CRITICAL: Output ONLY the final speech. Do NOT output any thinking, reasoning, chain-of-thought, or analysis."
+    )
+
+    ceremony_system = (
+        "You are Amarok. Generate the official Discord address marking the end of the phase. "
+        "3 to 4 short paragraphs under 140 words total. "
+        "CRITICAL: Output ONLY the final speech. Do NOT output any thinking, reasoning, chain-of-thought, or analysis."
     )
 
     # 0. Test Mock Check
@@ -1542,13 +1570,16 @@ async def generate_phase_ceremony(
                     model=GEMINI_MODEL,
                     contents=prompt,
                     config=types.GenerateContentConfig(
+                        system_instruction=ceremony_system,
                         temperature=0.75,
-                        max_output_tokens=300,
+                        max_output_tokens=450,
                     ) if types else None,
                 ),
                 timeout=8.0
             )
-            return response.text.strip()
+            mock_text = clean_ai_thought_leakage(response.text).strip()
+            if mock_text and not any(m in mock_text.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+                return mock_text
         except Exception as e:
             logger.warning(f"Mocked Gemini phase ceremony failed ({e}).")
 
@@ -1558,15 +1589,17 @@ async def generate_phase_ceremony(
             logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for phase ceremony address...")
             res = await safe_openrouter_chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are Amarok. Generate the official Discord address marking the end of the phase. 3 to 4 short paragraphs under 140 words total."},
+                    {"role": "system", "content": ceremony_system},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.75,
-                max_tokens=300,
+                max_tokens=450,
                 timeout=12.0,
             )
             if res:
-                return res.strip()
+                clean_res = clean_ai_thought_leakage(res).strip()
+                if clean_res and not any(m in clean_res.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
+                    return clean_res
         except Exception as e:
             logger.warning(f"OpenRouter phase ceremony failed ({e}). Falling back to Groq...")
 
@@ -1580,19 +1613,20 @@ async def generate_phase_ceremony(
                 safe_groq_chat_completion(
                     groq_client,
                     messages=[
-                        {"role": "system", "content": "You are Amarok. Generate the official Discord address marking the end of the phase. 3 to 4 short paragraphs under 140 words total."},
+                        {"role": "system", "content": ceremony_system},
                         {"role": "user", "content": prompt},
                     ],
                     model=GROQ_MODEL,
                     temperature=0.75,
-                    max_tokens=300,
+                    max_tokens=450,
                 ),
                 timeout=8.0
             )
-            txt = completion.choices[0].message.content.strip()
-            if txt:
+            txt = completion.choices[0].message.content or ""
+            clean_txt = clean_ai_thought_leakage(txt).strip()
+            if clean_txt and not any(m in clean_txt.lower() for m in ["thinking process", "analyze user", "reasoning", "thought:"]):
                 logger.info("Groq fallback phase ceremony generated successfully.")
-                return txt
+                return clean_txt
     except Exception as groq_err:
         logger.warning(f"Groq phase ceremony fallback failed ({groq_err}). Using deterministic proclamation.")
 

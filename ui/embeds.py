@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple
+import re
 import discord
 
 import database as db
@@ -27,6 +28,51 @@ def format_num(val: Any) -> Any:
         return int(f) if f.is_integer() else round(f, 2)
     except (ValueError, TypeError):
         return val
+
+
+LEAK_PATTERNS = [
+    r"<\s*(?:think|thought|reasoning|analysis)\b[^>]*>",
+    r"<\s*/\s*(?:think|thought|reasoning|analysis)\s*>",
+    r"(?i)here(?:'s|\s+is)\s+(?:a\s+)?(?:thinking\s+process|thought\s+process|analysis|reasoning)",
+    r"(?i)\b(?:thinking\s+process|thought\s+process)\b",
+    r"(?i)\banalyze\s+user\s+request\b",
+    r"(?i)\banalyzing\s+the\s+request\b",
+    r"(?i)\bthe\s+user\s+wants\s+(?:a|to)\b",
+    r"(?i)\binternal\s+reasoning\b",
+    r"(?i)^\s*(?:thought|reasoning|thinking):\s*",
+]
+
+
+def sanitize_display_text(text: Optional[str], fallback: str = "") -> str:
+    """Sanitizes text meant for Discord display against LLM thought/reasoning leakage."""
+    if not text:
+        return fallback
+    clean = str(text).strip()
+
+    # 1. Strip known XML/HTML tags
+    clean = re.sub(r"<\s*(?:think|thought|reasoning|analysis)\b[^>]*>[\s\S]*?<\s*/\s*(?:think|thought|reasoning|analysis)\s*>", "", clean, flags=re.IGNORECASE).strip()
+    clean = re.sub(r"<\s*/?\s*(?:think|thought|reasoning|analysis)\b[^>]*>", "", clean, flags=re.IGNORECASE).strip()
+
+    # 2. Check for leakage marker patterns
+    has_leak = any(re.search(pat, clean) for pat in LEAK_PATTERNS)
+    if has_leak:
+        match = re.search(r"(?:^|\n)\s*([\"“][^\"”\n]+[\"”]\s*—\s*[^—\n]+)\s*$", clean)
+        if match:
+            clean = match.group(1).strip()
+        else:
+            sections = re.split(r"\n\s*\n", clean)
+            valid_sections = [
+                s.strip() for s in sections
+                if not any(re.search(pat, s) for pat in LEAK_PATTERNS) and len(s.strip()) > 10
+            ]
+            if valid_sections:
+                clean = valid_sections[-1]
+            else:
+                return fallback
+
+    if not clean or any(re.search(pat, clean) for pat in LEAK_PATTERNS):
+        return fallback
+    return clean
 
 
 LEADERBOARD_NAV_GUIDE = ""
@@ -1080,7 +1126,7 @@ def build_morning_kickoff_message(
             "go for a light walk, stretch out tight joints, hydrate with plenty of water, and fuel your body with nutritious food. "
             "Your streak is completely safe today. Rebuild your energy."
         )
-        quote_text = (quote or random.choice(AUTHENTIC_REST_QUOTES)).strip()
+        quote_text = sanitize_display_text(quote, random.choice(AUTHENTIC_REST_QUOTES)).strip()
         quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
         subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Move Lightly"
         return f"{header}\n\n{body}\n\n{quote_section}\n\n{subtext}"
@@ -1096,7 +1142,8 @@ def build_morning_kickoff_message(
         task_lines.append(f"• **{t['name']}**: `{tgt} {t['unit']}` *({t.get('max_points', 100)} pts)*")
     tasks_section = "\n".join(task_lines) if task_lines else "_No active disciplines configured._"
 
-    quote_text = (quote or '"When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love." — Marcus Aurelius').strip()
+    default_morning_q = '"When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love." — Marcus Aurelius'
+    quote_text = sanitize_display_text(quote, default_morning_q).strip()
     quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
 
     subtext = "-# Log with /log or /quick • Deep work with /grind • Rollover at midnight"
@@ -1121,7 +1168,7 @@ def build_afternoon_checkin_message(
             "get a clean meal in, step outside for a 15-minute mobility walk, and loosen up your back and hips. "
             "Keep the blood moving lightly today."
         )
-        body = (quote.strip() if quote else default_body)
+        body = sanitize_display_text(quote, default_body).strip()
         header = f"**Winter Arc — Midday Pulse 🌿**\n\n{body}"
         subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Stay hydrated & mobile"
         return f"{header}\n\n{subtext}"
@@ -1152,7 +1199,7 @@ def build_afternoon_checkin_message(
     members_section = "\n".join(member_lines) if member_lines else "- _No enrolled members yet._"
 
     default_q = '"Active recovery builds the foundation for tomorrow\'s strength." — Amarok' if today_recovery else '"First say to yourself what you would be; and then do what you have to do." — Epictetus'
-    quote_text = (quote or default_q).strip()
+    quote_text = sanitize_display_text(quote, default_q).strip()
     quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
 
     subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Rollover at midnight" if today_recovery else "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
@@ -1178,7 +1225,7 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
             "go for a light walk, stretch out tight joints, hydrate with plenty of water, and fuel your body with nutritious food. "
             "Your streak is completely safe today. Rebuild your energy."
         )
-        quote_text = (quote or random.choice(AUTHENTIC_REST_QUOTES)).strip()
+        quote_text = sanitize_display_text(quote, random.choice(AUTHENTIC_REST_QUOTES)).strip()
         quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
         embed.description = f"{body}\n\n{quote_section}"
         embed.set_footer(text="Active Recovery Day (ARD) ❤️ • Streaks protected • Move Lightly")
@@ -1199,8 +1246,9 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
         prog = get_phase_progress(curr_phase)
         desc_lines.append(f"{curr_phase['badge']} **{curr_phase['name']}** — Day {prog['day_num']} of {prog['total_days']} ({prog['days_remaining']} days left in phase)")
 
-    if quote:
-        clean_quote = quote.strip().lstrip(">").strip()
+    clean_quote = sanitize_display_text(quote, "")
+    if clean_quote:
+        clean_quote = clean_quote.lstrip(">").strip()
         desc_lines.append(f"\n> {clean_quote}")
 
     embed.description = "\n".join(desc_lines)
@@ -1229,7 +1277,7 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
             "get a clean meal in, step outside for a 15-minute mobility walk, and loosen up your back and hips. "
             "Keep the blood moving lightly today."
         )
-        desc = (quote.strip() if quote else default_desc)
+        desc = sanitize_display_text(quote, default_desc).strip()
         embed = discord.Embed(
             title="Winter Arc — Midday Pulse 🌿",
             description=desc,
@@ -1246,8 +1294,9 @@ def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_st
     desc_lines = [
         "Halfway through the day. Check your numbers and get your remaining sets logged before tonight.",
     ]
-    if quote:
-        clean_quote = quote.strip().lstrip(">").strip()
+    clean_quote = sanitize_display_text(quote, "")
+    if clean_quote:
+        clean_quote = clean_quote.lstrip(">").strip()
         desc_lines.append(f"\n> {clean_quote}")
     embed.description = "\n".join(desc_lines)
 
@@ -1303,7 +1352,7 @@ def build_evening_checkin_message(
             "Shut off screens, wind down early, and get 8 hours of deep restorative sleep. "
             "Tomorrow the hunt resumes at 100% intensity — be ready to give it your absolute all."
         )
-        body = (stoic_quote.strip() if stoic_quote else default_body)
+        body = sanitize_display_text(stoic_quote, default_body).strip()
         header = f"**Winter Arc — Evening Wind-Down 🌙**\n\n{body}"
         subtext = "-# Active Recovery Day (ARD) ❤️ • Rest well • Tomorrow we hunt"
         return f"{header}\n\n{subtext}"
@@ -1325,7 +1374,8 @@ def build_evening_checkin_message(
             d_id = int(w["discord_id"])
             pts = w.get("points", 0)
             username = w.get("username", "Warrior")
-            callout = (callouts or {}).get(d_id)
+            raw_c = (callouts or {}).get(d_id)
+            callout = sanitize_display_text(raw_c, "").strip()
             if not callout:
                 if pts == 0:
                     callout = "0 pts on the board. Stop scrolling, drop and get your 30 push-ups in before your streak breaks tonight."
@@ -1340,7 +1390,8 @@ def build_evening_checkin_message(
             lines.append(f"- **{username}** — {callout}")
         warriors_section = "\n".join(lines)
 
-    quote = (stoic_quote or '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius').strip()
+    default_eve_q = '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius'
+    quote = sanitize_display_text(stoic_quote, default_eve_q).strip()
     if quote.startswith(">"):
         quote_section = quote
     else:
@@ -1365,7 +1416,7 @@ def build_evening_checkin_embed(
             "Shut off screens, wind down early, and get 8 hours of deep restorative sleep. "
             "Tomorrow the hunt resumes at 100% intensity — be ready to give it your absolute all."
         )
-        desc = (quote.strip() if quote else default_desc)
+        desc = sanitize_display_text(quote, default_desc).strip()
         embed = discord.Embed(
             title="Winter Arc — Evening Wind-Down 🌙",
             description=desc,
@@ -1390,7 +1441,8 @@ def build_evening_checkin_embed(
             secured_lines.append(f"• **{username}** — **{pts} / {max_pts} pts** (Streak Secured ✅ • {streak}d streak)")
         else:
             needed = MIN_STREAK_POINTS - pts
-            callout = (callouts or {}).get(u["discord_id"])
+            raw_c = (callouts or {}).get(u["discord_id"])
+            callout = sanitize_display_text(raw_c, "").strip()
             extra = f" — {callout}" if callout else f" — {needed} pts needed before midnight"
             at_risk_lines.append(f"• <@{u['discord_id']}> — **{pts} / {max_pts} pts**{extra}")
 
@@ -1408,8 +1460,9 @@ def build_evening_checkin_embed(
     if not at_risk_lines and not secured_lines:
         desc += "No enrolled warriors yet.\n\n"
 
-    if quote:
-        clean_quote = quote.strip().lstrip(">").strip()
+    clean_quote = sanitize_display_text(quote, "")
+    if clean_quote:
+        clean_quote = clean_quote.lstrip(">").strip()
         desc += f"> {clean_quote}\n\n"
 
     embed = discord.Embed(
@@ -1443,9 +1496,10 @@ def build_midnight_finalization_message(
     )
 
     recap_section = ""
-    if ai_recap:
-        clean_recap = ai_recap.strip()
-        recap_section = clean_recap if clean_recap.startswith(">") else f"> {clean_recap}"
+    clean_recap = sanitize_display_text(ai_recap, "").strip()
+    if clean_recap:
+        clean_recap = clean_recap.lstrip(">").strip()
+        recap_section = f"> {clean_recap}"
 
     podium_lines = []
     perfect_count = 0
@@ -1502,8 +1556,9 @@ def build_podium_embed(
     if curr_phase:
         desc_lines.append(f"{curr_phase['badge']} **{curr_phase['name']}**")
 
-    if ai_recap:
-        clean_recap = ai_recap.strip().lstrip(">").strip()
+    clean_recap = sanitize_display_text(ai_recap, "").strip()
+    if clean_recap:
+        clean_recap = clean_recap.lstrip(">").strip()
         desc_lines.append(f"\n> {clean_recap}")
 
     embed.description = "\n".join(desc_lines)
@@ -1714,7 +1769,8 @@ def build_dm_morning_message(
         rest_emoji = random.choice(["🌱", "🌿", "🍃", "🪴", "🧘"])
         mention_prefix = f"{user_mention}\n" if user_mention else ""
         rest_quote = random.choice(AUTHENTIC_REST_QUOTES)
-        advice = (quote or "Movement is medicine today. Don't sit idle; take a light 20-minute walk, hydrate deeply, and mobilize tight joints to actively rebuild.").strip()
+        default_dm_adv = "Movement is medicine today. Don't sit idle; take a light 20-minute walk, hydrate deeply, and mobilize tight joints to actively rebuild."
+        advice = sanitize_display_text(quote, default_dm_adv).strip()
         subtext = "-# Active Recovery Day (ARD) ❤️ • Streak automatically preserved • Disable anytime using /reminders"
         return f"{mention_prefix}**Today is Rest Day! {rest_emoji}**\n\n> {rest_quote}\n\n{advice}\n\n{subtext}"
 
@@ -1725,7 +1781,8 @@ def build_dm_morning_message(
 
     streak_line = f"🔥 **Active Streak**: **{streak} days**"
 
-    quote_text = (quote or "When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love. — Marcus Aurelius").strip()
+    default_dm_m_q = "When you arise in the morning think of what a privilege it is to be alive: to think, to enjoy, to love. — Marcus Aurelius"
+    quote_text = sanitize_display_text(quote, default_dm_m_q).strip()
     quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
 
     task_lines = []
@@ -1810,7 +1867,7 @@ def build_dm_evening_message(
             "Good work taking care of your recovery today. Turn off notifications, stay off your screen, "
             "and get to bed early tonight. Tomorrow we go full throttle — make sure you're well-rested and ready to crush your sets."
         )
-        body = (quote.strip() if quote else default_body)
+        body = sanitize_display_text(quote, default_body).strip()
         subtext = "-# Active Recovery Day (ARD) ❤️ • Rest well • Tomorrow we hunt"
         return f"{mention_prefix}{header}\n\n{body}\n\n{subtext}"
 
@@ -1840,7 +1897,8 @@ def build_dm_evening_message(
             f"Get your reps in now and log with `/log` before the board resets!"
         )
 
-    quote_section = f"\n\n> {quote.strip()}" if quote else ""
+    clean_dm_q = sanitize_display_text(quote, "").strip()
+    quote_section = f"\n\n> {clean_dm_q}" if clean_dm_q else ""
     subtext = "-# Log sets with /log • Rollover at 00:00 IST • Disable anytime using /reminders"
 
     return f"{header}\n\n{body}{quote_section}\n\n{subtext}"
@@ -1891,7 +1949,10 @@ def build_dm_morning_embed(tasks: List[Dict[str, Any]], streak: int, date_displa
         for t in tasks
     ]
 
-    quote_section = f"\n\n**Focus**:\n> {quote}" if quote else ""
+    clean_quote = sanitize_display_text(quote, "").strip()
+    if clean_quote:
+        clean_quote = clean_quote.lstrip(">").strip()
+    quote_section = f"\n\n**Focus**:\n> {clean_quote}" if clean_quote else ""
 
     desc = (
         f"📅 **{date_display}**\n\n"
@@ -1916,7 +1977,10 @@ def build_dm_evening_embed(user: discord.User, progress: Dict[str, Any], streak:
     pts = progress["total_points"]
     max_pts = progress["max_possible_points"]
     pct = int(progress["overall_completion_rate"] * 100)
-    quote_section = f"\n\n**Evening Note**:\n> {quote}" if quote else ""
+    clean_quote = sanitize_display_text(quote, "").strip()
+    if clean_quote:
+        clean_quote = clean_quote.lstrip(">").strip()
+    quote_section = f"\n\n**Evening Note**:\n> {clean_quote}" if clean_quote else ""
 
     if progress["perfect_day"]:
         title = "⭐ Winter Arc — Perfect Day Secured!"
@@ -2110,9 +2174,10 @@ def build_weekly_recap_message(
     header = "### Winter Arc | Weekly Recap"
 
     ai_section = ""
-    if ai_speech:
-        clean_ai = ai_speech.strip()
-        ai_section = clean_ai if clean_ai.startswith(">") else f"> {clean_ai}"
+    clean_ai = sanitize_display_text(ai_speech, "").strip()
+    if clean_ai:
+        clean_ai = clean_ai.lstrip(">").strip()
+        ai_section = f"> {clean_ai}"
 
     podium_lines = []
     badges = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
@@ -2171,7 +2236,10 @@ def build_weekly_state_of_the_pack_embed(
         pts = w.get("points", w.get("total_points", 0))
         podium_lines.append(f"{badge} **{w.get('username', 'Warrior')}** — **{pts:,} pts**")
 
-    ai_block = f"> {ai_speech.strip()}\n\n" if ai_speech else ""
+    clean_speech = sanitize_display_text(ai_speech, "").strip()
+    if clean_speech:
+        clean_speech = clean_speech.lstrip(">").strip()
+    ai_block = f"> {clean_speech}\n\n" if clean_speech else ""
     desc = (
         ai_block
         + "**Weekly Top Warriors**\n"
