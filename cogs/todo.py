@@ -114,7 +114,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             f"• **Delivery**: {delivery_str}\n"
             f"• **Status**: {parsed['confirmation_msg']}"
         )
-        await interaction.response.send_message(resp, ephemeral=True)
+        await interaction.response.send_message(resp, ephemeral=False)
 
     @todo_group.command(name="list", description="View and manage your active tasks and 7-day trash history.")
     @app_commands.describe(filter="Filter tasks by status or priority")
@@ -187,7 +187,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             await interaction.response.send_message(
                 f"🗑️ Task **`#{id}`** (*{res['task_text']}*) moved to trash.\n"
                 f"-# You can restore it from trash within 7 days via `/todo restore`.",
-                ephemeral=True
+                ephemeral=False
             )
         else:
             await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=True)
