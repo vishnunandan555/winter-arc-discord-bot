@@ -1003,6 +1003,11 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
         broken_streak_count = 0
 
         target_is_recovery = is_recovery_day(target_date_str)
+        if target_is_recovery:
+            # Active Recovery Days are strictly 0 points and non-competitive
+            points = 0
+            completion = 0.0
+            perfect = 0
 
         if not streak_qualifies and not shielded:
             if target_is_recovery:
@@ -1093,6 +1098,16 @@ def get_daily_leaderboard(target_date_str: Optional[str] = None, db_path: str = 
     if not users:
         return []
 
+    if is_recovery_day(target_date_str):
+        # Competition is strictly paused on Active Recovery Days
+        return [{
+            "discord_id": u["discord_id"],
+            "username": u["username"],
+            "points": 0,
+            "completion_rate": 0.0,
+            "perfect_day": False,
+        } for u in users]
+
     active_tasks = get_active_tasks(db_path)
     total_max_points = sum(t["max_points"] for t in active_tasks)
 
@@ -1176,16 +1191,24 @@ def get_weekly_leaderboard(start_date_str: Optional[str] = None, end_date_str: O
     with get_connection(actual_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT
-                user_id,
-                COALESCE(SUM(points), 0) AS total_points,
-                COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                COUNT(DISTINCT date) AS recorded_days
+            SELECT user_id, date, points, perfect_day, is_rest_day
             FROM daily_summaries
-            WHERE date >= ? AND date <= ? AND date != ?
-            GROUP BY user_id;
+            WHERE date >= ? AND date <= ? AND date != ?;
         """, (start_date_str, end_date_str, today_str))
-        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+        rows = cursor.fetchall()
+        past_map: Dict[int, Dict[str, int]] = {}
+        for r in rows:
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            u_id = r["user_id"]
+            if u_id not in past_map:
+                past_map[u_id] = {"total_points": 0, "perfect_days": 0, "recorded_days": 0}
+            pts = int(r["points"])
+            past_map[u_id]["total_points"] += pts
+            if r["perfect_day"]:
+                past_map[u_id]["perfect_days"] += 1
+            if pts > 0:
+                past_map[u_id]["recorded_days"] += 1
 
     today_standings = {}
     if start_date_str <= today_str <= end_date_str:
@@ -1233,16 +1256,24 @@ def get_monthly_leaderboard(year: int, month: int, db_path: str = DB_PATH) -> Li
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT
-                user_id,
-                COALESCE(SUM(points), 0) AS total_points,
-                COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                COUNT(DISTINCT date) AS recorded_days
+            SELECT user_id, date, points, perfect_day, is_rest_day
             FROM daily_summaries
-            WHERE date LIKE ? AND date != ?
-            GROUP BY user_id;
+            WHERE date LIKE ? AND date != ?;
         """, (month_prefix, today_str))
-        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+        rows = cursor.fetchall()
+        past_map: Dict[int, Dict[str, int]] = {}
+        for r in rows:
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            u_id = r["user_id"]
+            if u_id not in past_map:
+                past_map[u_id] = {"total_points": 0, "perfect_days": 0, "recorded_days": 0}
+            pts = int(r["points"])
+            past_map[u_id]["total_points"] += pts
+            if r["perfect_day"]:
+                past_map[u_id]["perfect_days"] += 1
+            if pts > 0:
+                past_map[u_id]["recorded_days"] += 1
 
     today_standings = {}
     if today_str.startswith(f"{year:04d}-{month:02d}"):
@@ -1290,16 +1321,24 @@ def get_overall_leaderboard(db_path: str = DB_PATH) -> List[Dict[str, Any]]:
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT
-                user_id,
-                COALESCE(SUM(points), 0) AS total_points,
-                COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                COUNT(DISTINCT date) AS recorded_days
+            SELECT user_id, date, points, perfect_day, is_rest_day
             FROM daily_summaries
-            WHERE date != ?
-            GROUP BY user_id;
+            WHERE date != ?;
         """, (today_str,))
-        past_map = {r["user_id"]: r for r in cursor.fetchall()}
+        rows = cursor.fetchall()
+        past_map: Dict[int, Dict[str, int]] = {}
+        for r in rows:
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            u_id = r["user_id"]
+            if u_id not in past_map:
+                past_map[u_id] = {"total_points": 0, "perfect_days": 0, "recorded_days": 0}
+            pts = int(r["points"])
+            past_map[u_id]["total_points"] += pts
+            if r["perfect_day"]:
+                past_map[u_id]["perfect_days"] += 1
+            if pts > 0:
+                past_map[u_id]["recorded_days"] += 1
 
     today_standings = {d["discord_id"]: d for d in get_daily_leaderboard(today_str, db_path)}
 
@@ -1346,7 +1385,7 @@ def get_user_all_time_rank(discord_id: int, db_path: str = DB_PATH) -> Tuple[int
 
 
 def get_user_lifetime_points(discord_id: int, db_path: str = DB_PATH) -> int:
-    """Returns the user's live all-time total points (finalized days + today's points)."""
+    """Returns the user's live all-time total points (finalized non-rest days + today's points)."""
     user = get_user_by_discord_id(discord_id, db_path)
     if not user:
         return 0
@@ -1355,15 +1394,23 @@ def get_user_lifetime_points(discord_id: int, db_path: str = DB_PATH) -> int:
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT COALESCE(SUM(points), 0) AS past_points
+            SELECT date, points, is_rest_day
             FROM daily_summaries
             WHERE user_id = ? AND date != ?;
         """, (user["id"], today_str))
-        row = cursor.fetchone()
-        past_points = int(row["past_points"]) if row else 0
+        rows = cursor.fetchall()
+        past_points = sum(
+            int(r["points"]) for r in rows
+            if not r["is_rest_day"] and not is_recovery_day(r["date"])
+        )
 
-    today_prog = get_user_daily_progress(discord_id, today_str, db_path)
-    return past_points + today_prog["total_points"]
+    if is_recovery_day(today_str):
+        today_points = 0
+    else:
+        today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+        today_points = today_prog["total_points"]
+
+    return past_points + today_points
 
 
 def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
@@ -1380,33 +1427,47 @@ def get_user_stats(discord_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT
-                COALESCE(SUM(points), 0) AS past_points,
-                COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                COUNT(DISTINCT date) AS past_active_days
+            SELECT date, points, perfect_day, is_rest_day
             FROM daily_summaries
             WHERE user_id = ? AND date != ?;
         """, (user["id"], today_str))
-        summary = cursor.fetchone()
-        past_points = int(summary["past_points"]) if summary else 0
-        perfect_days = int(summary["perfect_days"]) if summary else 0
-        active_days = int(summary["past_active_days"]) if summary else 0
+        rows = cursor.fetchall()
+        valid_rows = [r for r in rows if not r["is_rest_day"] and not is_recovery_day(r["date"])]
+        past_points = sum(int(r["points"]) for r in valid_rows)
+        perfect_days = sum(int(r["perfect_day"]) for r in valid_rows)
+        active_days = len({r["date"] for r in valid_rows if int(r["points"]) > 0})
 
         cursor.execute("""
-            SELECT t.name, t.unit, COALESCE(SUM(l.amount), 0) as total_volume
-            FROM tasks t
-            LEFT JOIN daily_logs l ON t.id = l.task_id AND l.user_id = ?
-            GROUP BY t.id
-            ORDER BY t.id ASC;
+            SELECT l.task_id, l.amount, l.date
+            FROM daily_logs l
+            WHERE l.user_id = ?;
         """, (user["id"],))
-        task_totals = [dict(r) for r in cursor.fetchall()]
+        all_logs = cursor.fetchall()
+        t_vol: Dict[int, float] = {}
+        for l in all_logs:
+            if is_recovery_day(l["date"]):
+                continue
+            t_vol[l["task_id"]] = t_vol.get(l["task_id"], 0.0) + float(l["amount"])
 
-    today_prog = get_user_daily_progress(discord_id, today_str, db_path)
-    total_lifetime_points = past_points + today_prog["total_points"]
-    if today_prog["perfect_day"]:
-        perfect_days += 1
-    if today_prog["total_points"] > 0:
-        active_days += 1
+        cursor.execute("SELECT id, name, unit FROM tasks ORDER BY id ASC;")
+        task_totals = [
+            {"name": t["name"], "unit": t["unit"], "total_volume": t_vol.get(t["id"], 0.0)}
+            for t in cursor.fetchall()
+        ]
+
+    if is_recovery_day(today_str):
+        today_points = 0
+        today_perfect = 0
+        today_active = 0
+    else:
+        today_prog = get_user_daily_progress(discord_id, today_str, db_path)
+        today_points = today_prog["total_points"]
+        today_perfect = 1 if today_prog["perfect_day"] else 0
+        today_active = 1 if today_points > 0 else 0
+
+    total_lifetime_points = past_points + today_points
+    perfect_days += today_perfect
+    active_days += today_active
 
     streak = calculate_streak(discord_id, db_path=db_path)
 
@@ -1437,7 +1498,7 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT date, points, completion_rate, perfect_day
+            SELECT date, points, completion_rate, perfect_day, is_rest_day
             FROM daily_summaries
             WHERE user_id = ? AND date >= ? AND date < ?;
         """, (user["id"], start_d_str, today_str))
@@ -1452,6 +1513,22 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
 
     for i in range(days):
         d_str = (today - timedelta(days=i)).isoformat()
+        is_rest = is_recovery_day(d_str)
+        if not is_rest and d_str in past_summaries:
+            is_rest = bool(past_summaries[d_str].get("is_rest_day"))
+
+        if is_rest:
+            history.append({
+                "date": d_str,
+                "points": 0,
+                "max_points": 500,
+                "completion_rate": 0.0,
+                "perfect_day": False,
+                "grind_entry": None,
+                "is_rest_day": True,
+            })
+            continue
+
         day_grind = grinds_by_date.get(d_str)
         if d_str in past_summaries:
             s = past_summaries[d_str]
@@ -1462,6 +1539,7 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
                 "completion_rate": float(s["completion_rate"]),
                 "perfect_day": bool(s["perfect_day"]),
                 "grind_entry": day_grind,
+                "is_rest_day": False,
             })
         else:
             prog = get_user_daily_progress(discord_id, d_str, db_path)
@@ -1472,6 +1550,7 @@ def get_user_history(discord_id: int, days: int = 7, db_path: str = DB_PATH) -> 
                 "completion_rate": prog["overall_completion_rate"],
                 "perfect_day": prog["perfect_day"],
                 "grind_entry": day_grind or prog.get("grind_entry"),
+                "is_rest_day": False,
             })
 
     return history
@@ -2043,15 +2122,24 @@ def get_phase_leaderboard(phase_id: int, db_path: str = DB_PATH) -> List[Dict[st
         cursor = conn.cursor()
         exclude_date = today_str if include_today else ""
         cursor.execute("""
-            SELECT user_id, 
-                   COALESCE(SUM(points), 0) AS total_pts, 
-                   COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                   COUNT(DISTINCT date) AS active_days
+            SELECT user_id, date, points, perfect_day, is_rest_day
             FROM daily_summaries
-            WHERE date >= ? AND date <= ? AND date != ?
-            GROUP BY user_id;
+            WHERE date >= ? AND date <= ? AND date != ?;
         """, (start_date, end_date, exclude_date))
-        summary_map = {r["user_id"]: dict(r) for r in cursor.fetchall()}
+        rows = cursor.fetchall()
+        summary_map: Dict[int, Dict[str, int]] = {}
+        for r in rows:
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            u_id = r["user_id"]
+            if u_id not in summary_map:
+                summary_map[u_id] = {"total_pts": 0, "perfect_days": 0, "active_days": 0}
+            pts = int(r["points"])
+            summary_map[u_id]["total_pts"] += pts
+            if r["perfect_day"]:
+                summary_map[u_id]["perfect_days"] += 1
+            if pts > 0:
+                summary_map[u_id]["active_days"] += 1
 
     leaderboard = []
     for u in enrolled:
@@ -2062,7 +2150,7 @@ def get_phase_leaderboard(phase_id: int, db_path: str = DB_PATH) -> List[Dict[st
         perfect = int(sm["perfect_days"])
         active = int(sm["active_days"])
 
-        if include_today:
+        if include_today and not is_recovery_day(today_str):
             today_prog = get_user_daily_progress(d_id, today_str, db_path)
             today_pts = int(today_prog.get("total_points", 0))
             pts += today_pts
@@ -2118,26 +2206,42 @@ def get_user_phase_stats(discord_id: int, phase_id: int, db_path: str = DB_PATH)
         cursor = conn.cursor()
         exclude_date = today_str if include_today else ""
         cursor.execute("""
-            SELECT COALESCE(SUM(points), 0) AS total_pts,
-                   COALESCE(SUM(perfect_day), 0) AS perfect_days,
-                   COUNT(DISTINCT date) AS active_days
+            SELECT date, points, perfect_day, is_rest_day
             FROM daily_summaries
             WHERE user_id = ? AND date >= ? AND date <= ? AND date != ?;
         """, (user["id"], start_date, end_date, exclude_date))
-        row = cursor.fetchone()
-        past_pts = int(row["total_pts"]) if row else 0
-        perfect_days = int(row["perfect_days"]) if row else 0
-        active_days = int(row["active_days"]) if row else 0
+        rows = cursor.fetchall()
+        past_pts = 0
+        perfect_days = 0
+        active_days = 0
+        for r in rows:
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            pts = int(r["points"])
+            past_pts += pts
+            if r["perfect_day"]:
+                perfect_days += 1
+            if pts > 0:
+                active_days += 1
 
-        # Discipline volume strictly within phase
+        # Discipline volume strictly within phase, ignoring recovery days
         cursor.execute("""
-            SELECT t.name, t.unit, COALESCE(SUM(l.amount), 0) as total_volume
-            FROM tasks t
-            LEFT JOIN daily_logs l ON t.id = l.task_id AND l.user_id = ? AND l.date >= ? AND l.date <= ?
-            GROUP BY t.id
-            ORDER BY t.id ASC;
+            SELECT l.task_id, l.amount, l.date
+            FROM daily_logs l
+            WHERE l.user_id = ? AND l.date >= ? AND l.date <= ?;
         """, (user["id"], start_date, end_date))
-        task_totals = [dict(r) for r in cursor.fetchall()]
+        phase_logs = cursor.fetchall()
+        t_vol_phase: Dict[int, float] = {}
+        for l in phase_logs:
+            if is_recovery_day(l["date"]):
+                continue
+            t_vol_phase[l["task_id"]] = t_vol_phase.get(l["task_id"], 0.0) + float(l["amount"])
+
+        cursor.execute("SELECT id, name, unit FROM tasks ORDER BY id ASC;")
+        task_totals = [
+            {"name": tr["name"], "unit": tr["unit"], "total_volume": t_vol_phase.get(tr["id"], 0.0)}
+            for tr in cursor.fetchall()
+        ]
 
         # Shields used in phase
         cursor.execute("""
@@ -2148,18 +2252,19 @@ def get_user_phase_stats(discord_id: int, phase_id: int, db_path: str = DB_PATH)
         s_row = cursor.fetchone()
         shields_used = int(s_row["shields_used"]) if s_row else 0
 
-        # Grind logs in phase
+        # Grind logs in phase (excluding recovery days)
         cursor.execute("""
-            SELECT COUNT(*) AS grind_count, COALESCE(SUM(points_awarded), 0) AS grind_points
+            SELECT date, points_awarded
             FROM grind_logs
             WHERE user_id = ? AND date >= ? AND date <= ?;
         """, (user["id"], start_date, end_date))
-        grind_row = cursor.fetchone()
-        grind_count = int(grind_row["grind_count"]) if grind_row else 0
-        grind_points = int(grind_row["grind_points"]) if grind_row else 0
+        grind_rows = cursor.fetchall()
+        valid_grinds = [g for g in grind_rows if not is_recovery_day(g["date"]) and int(g["points_awarded"]) > 0]
+        grind_count = len(valid_grinds)
+        grind_points = sum(int(g["points_awarded"]) for g in valid_grinds)
 
     total_points = past_pts
-    if include_today:
+    if include_today and not is_recovery_day(today_str):
         today_prog = get_user_daily_progress(discord_id, today_str, db_path)
         today_pts = int(today_prog.get("total_points", 0))
         total_points += today_pts
@@ -2304,17 +2409,20 @@ def get_server_records(phase_id: Optional[int] = None, db_path: str = DB_PATH) -
 
         # 2. Daily Maxers (Highest single day score and who hit it)
         cursor.execute(f"""
-            SELECT u.discord_id, u.username, s.points, s.date
+            SELECT u.discord_id, u.username, s.points, s.date, s.is_rest_day
             FROM daily_summaries s
             JOIN users u ON s.user_id = u.id
             {date_clause_summ}
             ORDER BY s.points DESC
-            LIMIT 50;
+            LIMIT 100;
         """, date_params_summ)
-        summ_pts = cursor.fetchall()
+        summ_pts = [
+            dict(r) for r in cursor.fetchall()
+            if not r["is_rest_day"] and not is_recovery_day(r["date"])
+        ][:50]
 
         live_pts_map: Dict[int, Dict[str, Any]] = {}
-        if include_today:
+        if include_today and not is_recovery_day(today_str):
             active_enrolled = get_enrolled_users(db_path)
             for u in active_enrolled:
                 prog = get_user_daily_progress(u["discord_id"], today_str, db_path)
@@ -2339,71 +2447,80 @@ def get_server_records(phase_id: Optional[int] = None, db_path: str = DB_PATH) -
                         seen_uids.add(r["discord_id"])
                         max_users.append({"discord_id": r["discord_id"], "username": r["username"]})
 
-        # 3. Most Perfect Days
+        # 3. Most Perfect Days (excluding recovery days)
         cursor.execute(f"""
-            SELECT u.discord_id, u.username, SUM(s.perfect_day) AS perfect_count
+            SELECT u.discord_id, u.username, s.date, s.perfect_day, s.is_rest_day
             FROM daily_summaries s
             JOIN users u ON s.user_id = u.id
-            {date_clause_summ}
-            GROUP BY s.user_id
-            ORDER BY perfect_count DESC
-            LIMIT 1;
+            {date_clause_summ};
         """, date_params_summ)
-        perf_row = cursor.fetchone()
+        perf_map: Dict[int, Dict[str, Any]] = {}
+        for r in cursor.fetchall():
+            if r["is_rest_day"] or is_recovery_day(r["date"]):
+                continue
+            if r["perfect_day"]:
+                d_id = r["discord_id"]
+                if d_id not in perf_map:
+                    perf_map[d_id] = {"discord_id": d_id, "username": r["username"], "count": 0}
+                perf_map[d_id]["count"] += 1
         most_perfect_record = None
-        if perf_row and int(perf_row["perfect_count"]) > 0:
-            most_perfect_record = {
-                "discord_id": perf_row["discord_id"],
-                "username": perf_row["username"],
-                "count": int(perf_row["perfect_count"]),
-            }
+        if perf_map:
+            best_perf = max(perf_map.values(), key=lambda x: x["count"])
+            if best_perf["count"] > 0:
+                most_perfect_record = best_perf
 
-        # 4. Most Grinded Member
+        # 4. Most Grinded Member (excluding recovery days)
         grind_date_clause = "WHERE g.date >= ? AND g.date <= ?" if (start_date and end_date) else ""
         grind_params = [start_date, end_date] if (start_date and end_date) else []
         cursor.execute(f"""
-            SELECT u.discord_id, u.username, COUNT(g.id) AS sessions, COALESCE(SUM(g.points_awarded), 0) AS total_pts
+            SELECT u.discord_id, u.username, g.date, g.points_awarded
             FROM grind_logs g
             JOIN users u ON g.user_id = u.id
             {grind_date_clause}
-            {'AND' if grind_date_clause else 'WHERE'} g.points_awarded > 0
-            GROUP BY g.user_id
-            ORDER BY sessions DESC, total_pts DESC
-            LIMIT 1;
+            {'AND' if grind_date_clause else 'WHERE'} g.points_awarded > 0;
         """, grind_params)
-        grind_row = cursor.fetchone()
+        grind_user_map: Dict[int, Dict[str, Any]] = {}
+        for r in cursor.fetchall():
+            if is_recovery_day(r["date"]):
+                continue
+            d_id = r["discord_id"]
+            if d_id not in grind_user_map:
+                grind_user_map[d_id] = {"discord_id": d_id, "username": r["username"], "sessions": 0, "points": 0}
+            grind_user_map[d_id]["sessions"] += 1
+            grind_user_map[d_id]["points"] += int(r["points_awarded"])
         most_grinded_record = None
-        if grind_row and int(grind_row["sessions"]) > 0:
-            most_grinded_record = {
-                "discord_id": grind_row["discord_id"],
-                "username": grind_row["username"],
-                "sessions": int(grind_row["sessions"]),
-                "points": int(grind_row["total_pts"]),
-            }
+        if grind_user_map:
+            best_g = max(grind_user_map.values(), key=lambda x: (x["sessions"], x["points"]))
+            if best_g["sessions"] > 0:
+                most_grinded_record = best_g
 
-        # 5. Single Day Peaks (per exercise)
+        # 5. Single Day Peaks (per exercise, excluding recovery days)
         active_tasks = get_active_tasks(db_path)
         single_day_peaks = []
         for t in active_tasks:
             t_params = list(date_params_logs) + [t["id"]]
             cursor.execute(f"""
-                SELECT u.discord_id, u.username, SUM(l.amount) AS day_total, l.date
+                SELECT u.discord_id, u.username, l.date, SUM(l.amount) AS day_total
                 FROM daily_logs l
                 JOIN users u ON l.user_id = u.id
                 {date_clause_logs} {'AND' if date_clause_logs else 'WHERE'} l.task_id = ?
                 GROUP BY l.user_id, l.date
-                ORDER BY day_total DESC
-                LIMIT 1;
+                ORDER BY day_total DESC;
             """, t_params)
-            p_row = cursor.fetchone()
-            if p_row and float(p_row["day_total"]) > 0:
+            peak_rows = cursor.fetchall()
+            valid_p_row = None
+            for p_row in peak_rows:
+                if not is_recovery_day(p_row["date"]):
+                    valid_p_row = p_row
+                    break
+            if valid_p_row and float(valid_p_row["day_total"]) > 0:
                 single_day_peaks.append({
                     "task_name": t["name"],
                     "unit": t["unit"],
-                    "amount": float(p_row["day_total"]),
-                    "discord_id": p_row["discord_id"],
-                    "username": p_row["username"],
-                    "date": p_row["date"],
+                    "amount": float(valid_p_row["day_total"]),
+                    "discord_id": valid_p_row["discord_id"],
+                    "username": valid_p_row["username"],
+                    "date": valid_p_row["date"],
                 })
             else:
                 single_day_peaks.append({
@@ -2415,17 +2532,17 @@ def get_server_records(phase_id: Optional[int] = None, db_path: str = DB_PATH) -
                     "date": None,
                 })
 
-        # 6. Server Totals
+        # 6. Server Totals (excluding recovery days)
         cursor.execute(f"""
-            SELECT COALESCE(SUM(points), 0) AS total_pts, COALESCE(SUM(perfect_day), 0) AS total_perfect
+            SELECT date, points, perfect_day, is_rest_day
             FROM daily_summaries s
             {date_clause_summ};
         """, date_params_summ)
-        tot_row = cursor.fetchone()
-        server_total_pts = int(tot_row["total_pts"]) if tot_row else 0
-        server_perfect_days = int(tot_row["total_perfect"]) if tot_row else 0
+        valid_summ = [r for r in cursor.fetchall() if not r["is_rest_day"] and not is_recovery_day(r["date"])]
+        server_total_pts = sum(int(r["points"]) for r in valid_summ)
+        server_perfect_days = sum(int(r["perfect_day"]) for r in valid_summ)
 
-        if include_today:
+        if include_today and not is_recovery_day(today_str):
             for l_item in live_pts_map.values():
                 server_total_pts += l_item["points"]
 
@@ -2441,24 +2558,24 @@ def get_server_records(phase_id: Optional[int] = None, db_path: str = DB_PATH) -
         active_contributors = int(active_contrib_row["cnt"]) if active_contrib_row else 0
 
         cursor.execute(f"""
-            SELECT COUNT(id) AS cnt, COALESCE(SUM(points_awarded), 0) AS pts
+            SELECT g.date, g.points_awarded
             FROM grind_logs g
             {grind_date_clause} {'AND' if grind_date_clause else 'WHERE'} g.points_awarded > 0;
         """, grind_params)
-        g_tot_row = cursor.fetchone()
-        total_grind_sessions = int(g_tot_row["cnt"]) if g_tot_row else 0
-        total_grind_pts = int(g_tot_row["pts"]) if g_tot_row else 0
+        valid_grinds_list = [r for r in cursor.fetchall() if not is_recovery_day(r["date"])]
+        total_grind_sessions = len(valid_grinds_list)
+        total_grind_pts = sum(int(r["points_awarded"]) for r in valid_grinds_list)
 
         server_task_totals = []
         for t in active_tasks:
             t_params = [t["id"]] + list(date_params_logs)
             cursor.execute(f"""
-                SELECT COALESCE(SUM(l.amount), 0) AS total_volume
+                SELECT l.date, l.amount
                 FROM daily_logs l
                 WHERE l.task_id = ? {'AND l.date >= ? AND l.date <= ?' if start_date and end_date else ''};
             """, t_params)
-            vol_row = cursor.fetchone()
-            total_vol = float(vol_row["total_volume"]) if vol_row else 0.0
+            logs_for_t = cursor.fetchall()
+            total_vol = sum(float(l["amount"]) for l in logs_for_t if not is_recovery_day(l["date"]))
             server_task_totals.append({
                 "name": t["name"],
                 "unit": t["unit"],
@@ -2793,57 +2910,67 @@ def get_user_monthly_consistency(
 
         if d_obj == today:
             summary_today = summaries.get(d_str, {})
-            pts = max(today_prog.get("total_points", 0), summary_today.get("points", 0))
-            is_perfect = today_prog.get("perfect_day", False) or bool(summary_today.get("perfect_day", 0))
             is_shielded = today_shielded or bool(summary_today.get("is_shielded", 0))
-            if is_shielded:
-                status = "🛡️"
-                completed = True
-            elif is_perfect:
-                status = "⭐"
-                completed = True
-            elif pts >= MIN_STREAK_POINTS:
-                status = "🟩"
-                completed = True
-            elif is_scheduled_rest:
+            if is_scheduled_rest:
+                pts = 0
+                is_perfect = False
                 status = "❤️"
                 completed = True
+            elif is_shielded:
+                pts = max(today_prog.get("total_points", 0), summary_today.get("points", 0))
+                is_perfect = today_prog.get("perfect_day", False) or bool(summary_today.get("perfect_day", 0))
+                status = "🛡️"
+                completed = True
             else:
-                status = "⏳"
-                completed = False
+                pts = max(today_prog.get("total_points", 0), summary_today.get("points", 0))
+                is_perfect = today_prog.get("perfect_day", False) or bool(summary_today.get("perfect_day", 0))
+                if is_perfect:
+                    status = "⭐"
+                    completed = True
+                elif pts >= MIN_STREAK_POINTS:
+                    status = "🟩"
+                    completed = True
+                else:
+                    status = "⏳"
+                    completed = False
 
             day_details[d] = {
                 "status": status,
                 "points": pts,
                 "completed": completed,
                 "is_perfect": is_perfect,
-                "is_shielded": today_shielded,
+                "is_shielded": is_shielded,
                 "is_rest_day": is_scheduled_rest
             }
         elif d_str in summaries or d_str in shield_records:
             # Recorded day in summaries or shield records
             summ = summaries.get(d_str)
             sh = shield_records.get(d_str)
-            pts = summ["points"] if summ else 0
-            is_shielded = bool(sh or (summ and summ["is_shielded"]))
-            is_perfect = bool(summ and summ["perfect_day"])
             is_day_rest = bool(summ and summ.get("is_rest_day")) or is_scheduled_rest
+            is_shielded = bool(sh or (summ and summ["is_shielded"]))
 
-            if is_shielded:
-                status = "🛡️"
-                completed = True
-            elif is_perfect:
-                status = "⭐"
-                completed = True
-            elif pts >= MIN_STREAK_POINTS:
-                status = "🟩"
-                completed = True
-            elif is_day_rest:
+            if is_day_rest:
+                pts = 0
+                is_perfect = False
                 status = "❤️"
                 completed = True
+            elif is_shielded:
+                pts = summ["points"] if summ else 0
+                is_perfect = bool(summ and summ["perfect_day"])
+                status = "🛡️"
+                completed = True
             else:
-                status = "🟥"
-                completed = False
+                pts = summ["points"] if summ else 0
+                is_perfect = bool(summ and summ["perfect_day"])
+                if is_perfect:
+                    status = "⭐"
+                    completed = True
+                elif pts >= MIN_STREAK_POINTS:
+                    status = "🟩"
+                    completed = True
+                else:
+                    status = "🟥"
+                    completed = False
 
             day_details[d] = {
                 "status": status,

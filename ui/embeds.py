@@ -609,17 +609,23 @@ def build_stats_embed(target_user: discord.Member, data: Dict[str, Any]) -> disc
 
 def build_history_embed(user: discord.Member, hist: List[Dict[str, Any]]) -> discord.Embed:
     """Builds the point, completion, and grind history card with human-formatted dates."""
+    from phases import is_recovery_day
+
     lines = []
     for d in reversed(hist):
-        pct = int(round(d["completion_rate"] * 100))
-        star = " ⭐" if d["perfect_day"] else ""
-
         raw_date = d["date"]
         try:
             d_obj = date.fromisoformat(raw_date)
             date_display = d_obj.strftime("%a, %b %d")
         except Exception:
             date_display = raw_date
+
+        if d.get("is_rest_day") or is_recovery_day(raw_date):
+            lines.append(f"• **{date_display}** — 🌿 **Active Recovery Day** *(Streak Protected ❤️)*")
+            continue
+
+        pct = int(round(d["completion_rate"] * 100))
+        star = " ⭐" if d["perfect_day"] else ""
 
         grind_note = ""
         g = d.get("grind_entry")

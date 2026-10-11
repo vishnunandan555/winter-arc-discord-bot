@@ -2,7 +2,7 @@
 tests/test_leaderboards_phases.py - Leaderboards, Phases, Recaps, and Server Records Tests
 """
 from datetime import date, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import os
 import asyncio
 import sqlite3
@@ -85,31 +85,32 @@ class TestLeaderboardRankings(WinterArcTestCase):
         yesterday = (today - timedelta(days=1)).isoformat()
         today_str = today.isoformat()
 
-        # Finalized day yesterday: u1 got 500 pts, u2 got 200 pts
-        db.log_activity(u1, "LeaderOne", "Push-ups", 100, yesterday, self.test_db)
-        db.log_activity(u1, "LeaderOne", "Pull-ups", 100, yesterday, self.test_db)
-        db.log_activity(u1, "LeaderOne", "Squats", 100, yesterday, self.test_db)
-        db.log_activity(u1, "LeaderOne", "Sit-ups", 100, yesterday, self.test_db)
-        db.log_activity(u1, "LeaderOne", "Running", 10.0, yesterday, self.test_db)
+        with patch("database.is_recovery_day", return_value=False):
+            # Finalized day yesterday: u1 got 500 pts, u2 got 200 pts
+            db.log_activity(u1, "LeaderOne", "Push-ups", 100, yesterday, self.test_db)
+            db.log_activity(u1, "LeaderOne", "Pull-ups", 100, yesterday, self.test_db)
+            db.log_activity(u1, "LeaderOne", "Squats", 100, yesterday, self.test_db)
+            db.log_activity(u1, "LeaderOne", "Sit-ups", 100, yesterday, self.test_db)
+            db.log_activity(u1, "LeaderOne", "Running", 10.0, yesterday, self.test_db)
 
-        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, yesterday, self.test_db)
-        db.log_activity(u2, "LeaderTwo", "Pull-ups", 100, yesterday, self.test_db)
-        db.finalize_daily_summaries(yesterday, self.test_db)
+            db.log_activity(u2, "LeaderTwo", "Push-ups", 100, yesterday, self.test_db)
+            db.log_activity(u2, "LeaderTwo", "Pull-ups", 100, yesterday, self.test_db)
+            db.finalize_daily_summaries(yesterday, self.test_db)
 
-        # Live day today: u1 got 100 pts, u2 got 300 pts
-        db.log_activity(u1, "LeaderOne", "Push-ups", 100, today_str, self.test_db)
-        db.log_activity(u2, "LeaderTwo", "Push-ups", 100, today_str, self.test_db)
-        db.log_activity(u2, "LeaderTwo", "Squats", 100, today_str, self.test_db)
-        db.log_activity(u2, "LeaderTwo", "Sit-ups", 100, today_str, self.test_db)
+            # Live day today: u1 got 100 pts, u2 got 300 pts
+            db.log_activity(u1, "LeaderOne", "Push-ups", 100, today_str, self.test_db)
+            db.log_activity(u2, "LeaderTwo", "Push-ups", 100, today_str, self.test_db)
+            db.log_activity(u2, "LeaderTwo", "Squats", 100, today_str, self.test_db)
+            db.log_activity(u2, "LeaderTwo", "Sit-ups", 100, today_str, self.test_db)
 
-        # Overall leaderboard: u1 (500 + 100 = 600) vs u2 (200 + 300 = 500)
-        overall = db.get_overall_leaderboard(self.test_db)
-        u1_entry = next((entry for entry in overall if entry["discord_id"] == u1), None)
-        u2_entry = next((entry for entry in overall if entry["discord_id"] == u2), None)
-        self.assertIsNotNone(u1_entry)
-        self.assertIsNotNone(u2_entry)
-        self.assertEqual(u1_entry["total_points"], 600)
-        self.assertEqual(u2_entry["total_points"], 500)
+            # Overall leaderboard: u1 (500 + 100 = 600) vs u2 (200 + 300 = 500)
+            overall = db.get_overall_leaderboard(self.test_db)
+            u1_entry = next((entry for entry in overall if entry["discord_id"] == u1), None)
+            u2_entry = next((entry for entry in overall if entry["discord_id"] == u2), None)
+            self.assertIsNotNone(u1_entry)
+            self.assertIsNotNone(u2_entry)
+            self.assertEqual(u1_entry["total_points"], 600)
+            self.assertEqual(u2_entry["total_points"], 500)
 
     def test_leaderboard_slash_command_choices_and_interactive_view(self):
         """Verifies /leaderboard timeframe choices (weekly, monthly, overall) and 3-button view navigation."""
@@ -226,7 +227,7 @@ class TestWinterArcPhases(WinterArcTestCase):
         db.log_activity(u_phase, "PhaseWarrior", "Squats", 100, d_oct2, self.test_db)
         db.finalize_daily_summaries(d_oct2, self.test_db)
 
-        d_nov = "2026-11-05"
+        d_nov = "2026-11-06"
         db.log_activity(u_phase, "PhaseWarrior", "Sit-ups", 100, d_nov, self.test_db)
         db.finalize_daily_summaries(d_nov, self.test_db)
 

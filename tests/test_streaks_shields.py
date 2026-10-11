@@ -56,33 +56,34 @@ class TestStreakCalculation(WinterArcTestCase):
         db.enroll_user(user_id, "ThirtyPtWarrior", self.test_db)
         today = date.today().isoformat()
 
-        self.assertEqual(db.calculate_streak(user_id, today, self.test_db), 0)
+        with patch("database.is_recovery_day", return_value=False):
+            self.assertEqual(db.calculate_streak(user_id, today, self.test_db), 0)
 
-        # Log exactly 5 reps of 4 exercises (20 pts) + 1 km run (10 pts) = 30 pts
-        db.log_activity(user_id, "ThirtyPtWarrior", "Push-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Pull-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Squats", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Sit-ups", 5, today, self.test_db)
-        db.log_activity(user_id, "ThirtyPtWarrior", "Running", 1.0, today, self.test_db)
+            # Log exactly 5 reps of 4 exercises (20 pts) + 1 km run (10 pts) = 30 pts
+            db.log_activity(user_id, "ThirtyPtWarrior", "Push-ups", 5, today, self.test_db)
+            db.log_activity(user_id, "ThirtyPtWarrior", "Pull-ups", 5, today, self.test_db)
+            db.log_activity(user_id, "ThirtyPtWarrior", "Squats", 5, today, self.test_db)
+            db.log_activity(user_id, "ThirtyPtWarrior", "Sit-ups", 5, today, self.test_db)
+            db.log_activity(user_id, "ThirtyPtWarrior", "Running", 1.0, today, self.test_db)
 
-        prog = db.get_user_daily_progress(user_id, today, self.test_db)
-        self.assertEqual(prog["total_points"], 30)
+            prog = db.get_user_daily_progress(user_id, today, self.test_db)
+            self.assertEqual(prog["total_points"], 30)
 
-        streak = db.calculate_streak(user_id, today, self.test_db)
-        self.assertEqual(streak, 1)
+            streak = db.calculate_streak(user_id, today, self.test_db)
+            self.assertEqual(streak, 1)
 
-        with db.get_connection(self.test_db) as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
-            conn.commit()
+            with db.get_connection(self.test_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET frost_shields = 1 WHERE discord_id = ?;", (user_id,))
+                conn.commit()
 
-        summaries = db.finalize_daily_summaries(today, self.test_db)
-        user_summary = next(s for s in summaries if s["discord_id"] == user_id)
-        self.assertFalse(user_summary["is_shielded"])
-        self.assertEqual(user_summary["points"], 30)
+            summaries = db.finalize_daily_summaries(today, self.test_db)
+            user_summary = next(s for s in summaries if s["discord_id"] == user_id)
+            self.assertFalse(user_summary["is_shielded"])
+            self.assertEqual(user_summary["points"], 30)
 
-        shield_status = db.get_user_shield_status(user_id, self.test_db)
-        self.assertEqual(shield_status["frost_shields"], 1)
+            shield_status = db.get_user_shield_status(user_id, self.test_db)
+            self.assertEqual(shield_status["frost_shields"], 1)
 
     def test_streak_optimized_database_calculation_without_n_plus_one(self):
         """Verifies single-query historical streak calculation and live today addition."""

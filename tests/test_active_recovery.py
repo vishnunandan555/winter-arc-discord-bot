@@ -381,4 +381,55 @@ class TestActiveRecoverySystem(WinterArcTestCase):
         self.assertEqual(prog_after["total_points"], 0)
         self.assertIsNone(db.get_user_daily_grind(test_uid, ard_date, db_path=self.test_db))
 
+    def test_history_and_calculations_ignore_rest_day_points_and_tasks(self):
+        """Verifies that rest day points/tasks are strictly ignored in calculations and /history."""
+        test_uid = 998877
+        ard_date = f"{phases.BASE_YEAR}-10-11"
+        workout_date = f"{phases.BASE_YEAR}-10-10"
+
+        db.enroll_user(test_uid, "RestDayWarrior", self.test_db)
+
+        # Log real workout on workout_date
+        db.log_activity(test_uid, "RestDayWarrior", "Push-ups", 100, workout_date, db_path=self.test_db)
+        db.finalize_daily_summaries(workout_date, db_path=self.test_db)
+
+        # Even if logs existed on recovery day:
+        db.log_activity(test_uid, "RestDayWarrior", "Pull-ups", 50, ard_date, db_path=self.test_db)
+        db.record_grind_entry(test_uid, ard_date, "Leetcode study", "ACCEPTED", 35, "Algorithms", "Nice", db_path=self.test_db)
+
+        # 1. /history DAO check
+        hist = db.get_user_history(test_uid, days=3, db_path=self.test_db)
+        ard_entry = next((h for h in hist if h["date"] == ard_date), None)
+        self.assertIsNotNone(ard_entry)
+        self.assertTrue(ard_entry["is_rest_day"])
+        self.assertEqual(ard_entry["points"], 0)
+
+        # 2. /history Embed UI check
+        from ui.embeds import build_history_embed
+        mock_member = self.create_mock_member(test_uid, "RestDayWarrior")
+        embed = build_history_embed(mock_member, hist)
+        self.assertIn("Active Recovery Day", embed.description)
+        self.assertIn("Streak Protected ❤️", embed.description)
+        # Should not display points or grind for ARD
+        self.assertNotIn("+35 pts grind", embed.description)
+
+        # 3. get_user_stats check: lifetime points and task volume must ignore recovery day
+        stats = db.get_user_stats(test_uid, db_path=self.test_db)
+        self.assertEqual(stats["lifetime_points"], 100)  # Only 100 pts from Oct 10
+        pullup_vol = next((t["total_volume"] for t in stats["task_totals"] if t["name"] == "Pull-ups"), 0.0)
+        self.assertEqual(pullup_vol, 0.0)  # Oct 11 pull-ups ignored
+
+        # 4. Overall leaderboard check
+        overall = db.get_overall_leaderboard(db_path=self.test_db)
+        user_row = next((r for r in overall if r["discord_id"] == test_uid), None)
+        self.assertIsNotNone(user_row)
+        self.assertEqual(user_row["total_points"], 100)
+
+        # 5. Phase leaderboard check
+        p1_lb = db.get_phase_leaderboard(1, db_path=self.test_db)
+        p1_row = next((r for r in p1_lb if r["discord_id"] == test_uid), None)
+        self.assertIsNotNone(p1_row)
+        self.assertEqual(p1_row["total_points"], 100)
+
+
 

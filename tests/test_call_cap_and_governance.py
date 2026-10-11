@@ -82,33 +82,34 @@ class TestCallCapAndGovernance(WinterArcTestCase):
 
     def test_database_cap_user_grind(self):
         """Verifies capping zeroes out today's grind entry points and subtracts from user lifetime points."""
-        db.record_grind_entry(
-            discord_id=self.user_a_id,
-            date_str=self.today_str,
-            raw_input="Studied compiler optimization for 4 hours",
-            verdict="ACCEPTED",
-            points=45,
-            key_learning="Compiler AST",
-            commentary="Solid friction.",
-            db_path=self.test_db
-        )
+        with patch("database.is_recovery_day", return_value=False):
+            db.record_grind_entry(
+                discord_id=self.user_a_id,
+                date_str=self.today_str,
+                raw_input="Studied compiler optimization for 4 hours",
+                verdict="ACCEPTED",
+                points=45,
+                key_learning="Compiler AST",
+                commentary="Solid friction.",
+                db_path=self.test_db
+            )
 
-        stats_before = db.get_user_stats(self.user_a_id, db_path=self.test_db)
-        self.assertGreaterEqual(stats_before["lifetime_points"], 45)
+            stats_before = db.get_user_stats(self.user_a_id, db_path=self.test_db)
+            self.assertGreaterEqual(stats_before["lifetime_points"], 45)
 
-        grind_entry = db.get_user_daily_grind(self.user_a_id, self.today_str, db_path=self.test_db)
-        self.assertEqual(grind_entry["points"], 45)
+            grind_entry = db.get_user_daily_grind(self.user_a_id, self.today_str, db_path=self.test_db)
+            self.assertEqual(grind_entry["points"], 45)
 
-        # Cap the user
-        capped = db.cap_user_grind(self.user_a_id, date_str=self.today_str, db_path=self.test_db)
-        self.assertIsNotNone(capped)
+            # Cap the user
+            capped = db.cap_user_grind(self.user_a_id, date_str=self.today_str, db_path=self.test_db)
+            self.assertIsNotNone(capped)
 
-        grind_after = db.get_user_daily_grind(self.user_a_id, self.today_str, db_path=self.test_db)
-        self.assertEqual(grind_after["points"], 0)
-        self.assertEqual(grind_after["verdict"], "CAPPED")
+            grind_after = db.get_user_daily_grind(self.user_a_id, self.today_str, db_path=self.test_db)
+            self.assertEqual(grind_after["points"], 0)
+            self.assertEqual(grind_after["verdict"], "CAPPED")
 
-        stats_after = db.get_user_stats(self.user_a_id, db_path=self.test_db)
-        self.assertEqual(stats_after["lifetime_points"], stats_before["lifetime_points"] - 45)
+            stats_after = db.get_user_stats(self.user_a_id, db_path=self.test_db)
+            self.assertEqual(stats_after["lifetime_points"], stats_before["lifetime_points"] - 45)
 
     def test_accuse_confirm_view_honor_code(self):
         """Verifies AccuseConfirmView/CallCapConfirmView structure, honor code prompt, and Stand Down button."""
