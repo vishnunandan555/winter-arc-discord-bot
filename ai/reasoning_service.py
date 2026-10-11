@@ -172,6 +172,7 @@ async def safe_openrouter_chat_completion(
     temperature: float = 0.7,
     max_tokens: int = 300,
     timeout: float = 12.0,
+    allow_raw: bool = False,
 ) -> Optional[str]:
     """
     Executes a chat completion via OpenRouter with candidate fallback models.
@@ -211,6 +212,8 @@ async def safe_openrouter_chat_completion(
                     if choices:
                         content = choices[0].get("message", {}).get("content", "")
                         if content:
+                            if allow_raw:
+                                return content.strip()
                             cleaned = clean_ai_thought_leakage(content, is_json=bool(response_format))
                             if cleaned:
                                 if idx > 0:
@@ -248,15 +251,29 @@ async def check_ai_health() -> Dict[str, str]:
                 safe_openrouter_chat_completion(
                     messages=[{"role": "user", "content": "ping"}],
                     model=OPENROUTER_MODEL,
-                    max_tokens=5,
+                    max_tokens=10,
                     timeout=8.0,
+                    allow_raw=True,
                 ),
                 timeout=10.0
             )
             if ping_res:
                 openrouter_status = f"ONLINE ({OPENROUTER_MODEL})"
             else:
-                openrouter_status = "UNAVAILABLE (All candidate models failed)"
+                try:
+                    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}"}
+                    async with httpx.AsyncClient(timeout=4.0) as http_client:
+                        auth_resp = await http_client.get("https://openrouter.ai/api/v1/auth/key", headers=headers)
+                        if auth_resp.status_code == 200:
+                            free_quota = auth_resp.json().get("data", {}).get("free_model_daily_requests", {})
+                            if free_quota.get("remaining") == 0:
+                                openrouter_status = f"RATE LIMITED ({free_quota.get('used')}/{free_quota.get('limit')} daily free quota used; resets 00:00 UTC) -> Groq Active"
+                            else:
+                                openrouter_status = "UNAVAILABLE (Candidate models failed)"
+                        else:
+                            openrouter_status = "UNAVAILABLE (All candidate models failed)"
+                except Exception:
+                    openrouter_status = "UNAVAILABLE (All candidate models failed)"
         except Exception as e:
             openrouter_status = f"ERROR ({str(e)[:80]})"
     results["openrouter"] = openrouter_status
