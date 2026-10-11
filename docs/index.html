@@ -124,7 +124,7 @@
             "name": "What is the Streak Shield defense mechanism?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Warriors earn 1 Streak Shield for every 7 consecutive active days (inventory capped at 3). Members can activate a shield using /shield use during legitimate illness, travel, or muscle recovery to protect their unbroken streak without penalty."
+              "text": "Warriors earn 1 Streak Shield for every 7 consecutive active days (inventory capped at 2). Members can activate a shield using /shield use during legitimate illness, travel, or muscle recovery. In addition, every Sunday is an automated Active Recovery Day (0 pt target) where streaks are preserved automatically without burning shields."
             }
           },
           {
@@ -744,7 +744,7 @@
             </div>
             <h3 class="showcase-title">Streak Shields &amp; Injury Defense</h3>
             <p class="showcase-desc">
-              Legitimate rest and illness are real. Rather than punishing recovery with an unrecoverable streak reset, members earn Streak Shields every 7 active days. Protect active streaks with <code>/shield use</code>.
+              Legitimate rest and illness are real. Rather than punishing recovery with an unrecoverable streak reset, members earn Streak Shields every 7 active days. In addition, every Sunday is an automated Active Recovery Day (0 pt target &amp; auto-protected streaks).
             </p>
             <div class="code-snippet-preview">
               <code>/shield status</code>
@@ -801,11 +801,11 @@
             </div>
             <h3 class="showcase-title">Modular Todo &amp; Smart Reminders</h3>
             <p class="showcase-desc">
-              Distraction-free personal &amp; team task management strictly isolated in its own dedicated <code>todo.db</code>. Features relative task numbering (#1..#N), 7-day auto-purged trash (T1..TN), natural language recurrence, team delegation, and cross-midnight DND quiet hours.
+              Distraction-free personal &amp; team task management strictly isolated in its own dedicated <code>todo.db</code>. Features Incognito privacy mode (public vs private command responses), relative task numbering (#1..#N), 7-day auto-purged trash (T1..TN), natural language recurrence, team delegation, and cross-midnight DND quiet hours.
             </p>
             <div class="code-snippet-preview">
               <code>/todo add task:"Push project commit" when:"tomorrow 5pm" remind_me:"every 2 hours"</code>
-              <code>/todo dnd start_time:"22:00" end_time:"06:00" enable:True</code>
+              <code>/todo incognito mode:on</code>
             </div>
           </div>
 
@@ -1437,7 +1437,7 @@
               <span class="cmd-syntax">/reminders</span>
               <button class="copy-cmd-btn" data-copy="/reminders" title="Copy command">Copy</button>
             </div>
-            <div class="cmd-desc">Configure personal DM reminders (morning kickoff, afternoon pulse, evening streak warning).</div>
+            <div class="cmd-desc">Configure personal DM reminders (morning kickoff, afternoon pulse, evening streak warning) via an interactive channel card with guarded buttons only you can toggle.</div>
             <div class="cmd-tags">
               <span class="tag-cat">Warrior</span>
             </div>
@@ -1448,9 +1448,21 @@
               <span class="cmd-syntax">/settings</span>
               <button class="copy-cmd-btn" data-copy="/settings" title="Copy command">Copy</button>
             </div>
-            <div class="cmd-desc">Configure personal DM reminders (morning kickoff, afternoon pulse, evening warning). Alias for <code>/reminders</code>.</div>
+            <div class="cmd-desc">Configure personal DM reminders via an interactive channel card with guarded buttons only you can toggle. Alias for <code>/reminders</code>.</div>
             <div class="cmd-tags">
               <span class="tag-cat">Warrior</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="warrior">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/tips [category]</span>
+              <button class="copy-cmd-btn" data-copy="/tips" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Get an instant contextual fitness or mindset tip across categories (pushups, pullups, squats, running, recovery, nutrition, mindset). Use <code>/tips toggle</code> to enable or disable automatic tip footers in your command responses.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat">Warrior</span>
+              <span class="tag-param">category: optional</span>
             </div>
           </div>
 
@@ -1811,6 +1823,19 @@
             <div class="cmd-tags">
               <span class="tag-cat tag-todo">Todo</span>
               <span class="tag-param">which: required</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo incognito [mode: on|off|check] [user]</span>
+              <button class="copy-cmd-btn" data-copy="/todo incognito" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Toggle the channel visibility of your to-do actions between OFF (Public - default) and ON (Private ephemeral), or inspect a peer's privacy mode with interactive buttons.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">mode: optional</span>
+              <span class="tag-param">user: optional</span>
             </div>
           </div>
 
@@ -2576,7 +2601,7 @@ docker compose logs -f</code></pre>
             </summary>
             <div class="faq-answer">
               <p>
-                Real life includes legitimate rest, travel, and illness. For every 7 consecutive active days (at least 30 points per day), members earn 1 Streak Shield (inventory capped at 2). Running <code>/shield use [target] [reason]</code> protects your streak during a recovery day without resetting your progress to zero.
+                Real life includes legitimate rest, travel, and illness. For every 7 consecutive active days (at least 30 points per day), members earn 1 Streak Shield (inventory capped at 2). Running <code>/shield use [target] [reason]</code> protects your streak during a recovery day without resetting your progress to zero. In addition, every Sunday is an automated Active Recovery Day (ARD) where the daily target is 0 points, preserving all streaks automatically without consuming shields.
               </p>
             </div>
           </details>

@@ -837,6 +837,29 @@ AUTHENTIC_STOIC_QUOTES = [
     '"Difficulties show a person\'s character." — Epictetus',
 ]
 
+AUTHENTIC_REST_QUOTES = [
+    '"He who knows when he can fight and when he cannot, will be victorious." — Sun Tzu',
+    '"Even a bow breaks if it is kept always bent." — Publilius Syrus',
+    '"Take rest; a field that has rested gives a bountiful crop." — Ovid',
+    '"In intervals of rest, the mind and body find renewed vigor." — Seneca',
+    '"No man is free who is not master of himself." — Epictetus',
+    '"Nature does not hurry, yet everything is accomplished." — Lao Tzu',
+    '"Rest when you are weary. Refresh and renew yourself, your body, your mind, your spirit." — Marcus Aurelius',
+]
+
+ARD_AFTERNOON_FALLBACKS = [
+    "Midday check-in, warriors. Fun fact: light walking stimulates the lymphatic system—which has no central pump of its own—clearing out metabolic waste 3x faster than sitting still. Drink a tall glass of water, stretch your hips, and get 15 minutes of light sun.",
+    "Step away from your screen for ten minutes. Did you know tendons and ligaments take up to 10x longer to remodel than muscle tissue because of lower blood flow? Active recovery movement is what forces nutrients into them. Hydrate well, eat clean fuel, and stay mobile.",
+    "Midday pulse check. Dehydration reduces muscular endurance by up to 15% before you even feel thirsty. Chug 500ml of water right now, eat a nutrient-dense meal, and loosen up tight hamstrings and shoulders.",
+    "Your central nervous system (CNS) requires 48 hours to fully reset after heavy training strain. Active recovery with gentle mobility signals your parasympathetic system to begin cellular repair. Keep the blood moving lightly today.",
+]
+
+ARD_EVENING_FALLBACKS = [
+    "Active Recovery Day is coming to a close, and all streaks are safely preserved. Growth hormone production peaks during stage 3 deep slow-wave sleep—so shut off screens early and get to bed. Tomorrow morning we hunt at 100% intensity.",
+    "The pack observed recovery today. Your muscles repaired, joints settled, and your energy is topped off. Disconnect from devices, get 8 hours of restorative sleep, and prepare your mindset. We attack at dawn.",
+    "Active recovery is complete. True strength is built in the dark while you rest, not just when you grind. Wind down your evening, sleep deep, and wake up hungry tomorrow. Tomorrow we go full throttle.",
+]
+
 
 def get_default_callout(points: int) -> str:
     """Returns the default, grounded 1-sentence accountability callout based on points."""
@@ -866,47 +889,82 @@ async def generate_reminder_motivation(
     """
     import random
 
-    include_history_judgment = False
-    context_notes = []
-    if user_context:
-        u_name = user_context.get("username", "Warrior")
-        u_streak = user_context.get("streak", 0)
-        context_notes.append(f"Warrior: {u_name}")
-        context_notes.append(f"Active streak: {u_streak} days")
-        if recent_history:
-            past_pts = [f"{d['date'][-5:]}: {d.get('points', 0)} pts" for d in recent_history[:3]]
-            context_notes.append(f"Recent daily scores: {', '.join(past_pts)}")
-        recent_logs = user_context.get("recent_logs")
-        if recent_logs:
-            phys_summary = [f"{l['amount']} {l['unit']} {l['task_name']}" for l in recent_logs[:3]]
-            context_notes.append(f"Recent physical logs: {', '.join(phys_summary)}")
-        recent_grinds = user_context.get("recent_grinds")
-        if recent_grinds:
-            grind_summary = [f"{g.get('key_learning') or 'deep work'}" for g in recent_grinds[:2]]
-            context_notes.append(f"Recent study/grind: {', '.join(grind_summary)}")
-
-        has_slacked = recent_history and recent_history[0].get("points", 0) == 0
-        include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
-
-    prompt = (
-        f"You are Amarok, a grounded stoic coach in the Winter Arc.\n"
-        f"Generate a single razor-sharp stoic reminder or discipline quote for a {reminder_type.upper()} announcement.\n\n"
-        "STRICT CONSTRAINTS:\n"
-        "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 30 WORDS TOTAL).\n"
-        "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, zero generic motivational quotes.\n"
-    )
-
-    if include_history_judgment and context_notes:
-        prompt += (
-            f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
-            f"  {'; '.join(context_notes)}\n"
-            f"- INSTRUCTION: Bluntly or subtly weave their past work or momentum into a cold stoic edict. "
-            f"If they are slacking/idle, call it out bluntly. If consistent, remind them yesterday's sweat buys nothing today.\n"
+    if reminder_type == "morning_recovery":
+        prompt = (
+            "Generate or select an authentic historical quote about rest, recovery, patience, or renewal.\n"
+            "Attributed to real figures: Sun Tzu, Seneca, Marcus Aurelius, Epictetus, Lao Tzu, Ovid, or Publilius Syrus.\n"
+            "FORMAT: Exactly formatted as: \"<quote>\" — <Author>\n"
+            "STRICT RULES:\n"
+            "1. Must be under 25 words.\n"
+            "2. NEVER use generic attributions like 'Stoic Wisdom' or 'Unknown'. Attribute ONLY to real historical thinkers.\n"
+            "3. Output ONLY the quote with attribution. No introductory words, no markdown blockquotes."
+        )
+    elif reminder_type == "afternoon_recovery":
+        prompt = (
+            "You are Amarok, an athletic discipline coach for the Winter Arc.\n"
+            "Today is an Active Recovery Day (ARD) at 16:30 IST (midday check-in).\n"
+            "Generate a 2-to-3 sentence midday wellness check-in reminding warriors to hydrate, eat nutrition, and walk/stretch.\n"
+            "CRITICAL REQUIREMENT: Include one fascinating, bite-sized science or physiology fun fact about the human body "
+            "(e.g. regarding the lymphatic system, tendon remodeling, cellular hydration, fascia, lactic acid flush, or CNS recovery).\n"
+            "STRICT CONSTRAINTS:\n"
+            "- LENGTH: EXACTLY 2 TO 3 SENTENCES (35 TO 50 WORDS TOTAL). Not a one-liner, but not a bloated paragraph.\n"
+            "- TONE: Grounded, practical, athletic peer. No corporate fluff, no cringe fantasy metaphors.\n"
+            "- Output ONLY plain text sentences. Do not use quotes, markdown headers, or emojis."
+        )
+    elif reminder_type == "evening_recovery" or (user_context and user_context.get("is_recovery")):
+        prompt = (
+            "You are Amarok, an athletic discipline coach for the Winter Arc.\n"
+            "Today is an Active Recovery Day (ARD) at 21:00 IST (evening wind-down).\n"
+            "Generate a calm, grounded 2-to-3 sentence evening wind-down reflection for the pack.\n"
+            "Remind them that ARD is wrapping up, streaks are safe, and to shut off blue screens for 8 hours of restorative sleep, "
+            "preparing mentally to attack tomorrow at 100% intensity.\n"
+            "STRICT CONSTRAINTS:\n"
+            "- LENGTH: EXACTLY 2 TO 3 SENTENCES (35 TO 50 WORDS TOTAL). Not a one-liner, but not a bloated paragraph.\n"
+            "- TONE: Calm, authoritative, focused on deep recovery and tomorrow's hunt.\n"
+            "- Output ONLY plain text sentences. Do not use quotes, markdown headers, or emojis."
         )
     else:
-        prompt += "- Deliver an original, unpredictable stoic discipline edict tailored for the Winter Arc.\n"
+        include_history_judgment = False
+        context_notes = []
+        if user_context:
+            u_name = user_context.get("username", "Warrior")
+            u_streak = user_context.get("streak", 0)
+            context_notes.append(f"Warrior: {u_name}")
+            context_notes.append(f"Active streak: {u_streak} days")
+            if recent_history:
+                past_pts = [f"{d['date'][-5:]}: {d.get('points', 0)} pts" for d in recent_history[:3]]
+                context_notes.append(f"Recent daily scores: {', '.join(past_pts)}")
+            recent_logs = user_context.get("recent_logs")
+            if recent_logs:
+                phys_summary = [f"{l['amount']} {l['unit']} {l['task_name']}" for l in recent_logs[:3]]
+                context_notes.append(f"Recent physical logs: {', '.join(phys_summary)}")
+            recent_grinds = user_context.get("recent_grinds")
+            if recent_grinds:
+                grind_summary = [f"{g.get('key_learning') or 'deep work'}" for g in recent_grinds[:2]]
+                context_notes.append(f"Recent study/grind: {', '.join(grind_summary)}")
 
-    prompt += "\nOutput ONLY plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
+            has_slacked = recent_history and recent_history[0].get("points", 0) == 0
+            include_history_judgment = force_judgment or (random.random() < 0.35) or has_slacked
+
+        prompt = (
+            f"You are Amarok, a grounded stoic coach in the Winter Arc.\n"
+            f"Generate a single razor-sharp stoic reminder or discipline quote for a {reminder_type.upper()} announcement.\n\n"
+            "STRICT CONSTRAINTS:\n"
+            "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (STRICTLY UNDER 30 WORDS TOTAL).\n"
+            "- TONE: Gritty, austere, cold, relentless. Zero cheerleading, zero fluff, zero generic motivational quotes.\n"
+        )
+
+        if include_history_judgment and context_notes:
+            prompt += (
+                f"- CONTEXT ON WARRIOR'S PREVIOUS WORK:\n"
+                f"  {'; '.join(context_notes)}\n"
+                f"- INSTRUCTION: Bluntly or subtly weave their past work or momentum into a cold stoic edict. "
+                f"If they are slacking/idle, call it out bluntly. If consistent, remind them yesterday's sweat buys nothing today.\n"
+            )
+        else:
+            prompt += "- Deliver an original, unpredictable stoic discipline edict tailored for the Winter Arc.\n"
+
+        prompt += "\nOutput ONLY plain quote text. Do not wrap in quotes, do not prefix with Amarok, do not use markdown."
 
     # 0. Test Mock Check
     gemini_client = get_gemini_client()
@@ -985,8 +1043,14 @@ async def generate_reminder_motivation(
         logger.warning(f"Groq {reminder_type} quote fallback failed: {groq_err}")
 
     # 3. Tertiary: Static Fallback
-    logger.warning("Could not generate AI reminder quote. Using curated fallback.")
-    return random.choice(CURATED_STOIC_FALLBACKS)
+    logger.warning(f"Could not generate AI {reminder_type} quote. Using curated fallback.")
+    if reminder_type == "morning_recovery":
+        return random.choice(AUTHENTIC_REST_QUOTES)
+    if reminder_type == "afternoon_recovery":
+        return random.choice(ARD_AFTERNOON_FALLBACKS)
+    if reminder_type == "evening_recovery":
+        return random.choice(ARD_EVENING_FALLBACKS)
+    return random.choice(AUTHENTIC_STOIC_QUOTES)
 
 
 # -------------------------------------------------------------------------
@@ -994,7 +1058,8 @@ async def generate_reminder_motivation(
 # -------------------------------------------------------------------------
 
 async def generate_personalized_morning_briefing(
-    briefing_context: Dict[str, Any]
+    briefing_context: Dict[str, Any],
+    is_recovery: bool = False,
 ) -> str:
     """Generates a personalized 2-sentence morning reflection for opted-in member DMs."""
     import random
@@ -1018,17 +1083,31 @@ async def generate_personalized_morning_briefing(
     if grinds:
         context_lines.append(f"Recent Deep Work / Grinds: {'; '.join(grinds[:2])}")
 
-    prompt = (
-        "You are Amarok, the grounded brother and coach of the Winter Arc.\n"
-        "Generate a 1-to-2 sentence personalized morning reflection directly addressing this warrior at 05:00 AM.\n\n"
-        "WARRIOR PROFILE CONTEXT:\n"
-        + "\n".join(context_lines) + "\n\n"
-        "INSTRUCTIONS:\n"
-        "- Acknowledge their exact situation: If on a high streak, challenge them to defend it. If they had zero days, call them out to wake up and reset today.\n"
-        "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (UNDER 35 WORDS TOTAL).\n"
-        "- TONE: Blunt, respectful, focused on setting the standard today. No corporate fluff.\n\n"
-        "Output ONLY the plain text sentences. Do not use quotes or prefixes."
-    )
+    if is_recovery:
+        prompt = (
+            "You are Amarok, the grounded brother and coach of the Winter Arc.\n"
+            "Today is an official Active Recovery Day (ARD) for the pack.\n"
+            "Generate a 2-sentence personalized recovery reflection and health tips directly addressing this warrior at 05:00 AM.\n\n"
+            "WARRIOR PROFILE CONTEXT:\n"
+            + "\n".join(context_lines) + "\n\n"
+            "INSTRUCTIONS:\n"
+            "- If they worked hard recently (high streak, solid volume): Commend their consistency. Tell them to take pride in the work, but do not sit stagnant on the couch. Focus on deep hydration (3L+), hip & hamstring mobility, and a 20-minute gentle walk to flush out lactic acid. Rebuild the engine.\n"
+            "- If they slacked off or had low/zero volume: Bluntly remind them that their volume has been lagging behind. Tell them that while today protects their streak, do NOT treat it as an excuse to do zero. Push them to get up, get outside, hit a solid 30-minute walk, stretch, drink water, and fix nutrition. Build momentum for tomorrow.\n"
+            "- LENGTH: EXACTLY 2 TO 3 SHORT SENTENCES (UNDER 45 WORDS TOTAL).\n"
+            "- Output ONLY plain text sentences. Do not use quotes or prefixes."
+        )
+    else:
+        prompt = (
+            "You are Amarok, the grounded brother and coach of the Winter Arc.\n"
+            "Generate a 1-to-2 sentence personalized morning reflection directly addressing this warrior at 05:00 AM.\n\n"
+            "WARRIOR PROFILE CONTEXT:\n"
+            + "\n".join(context_lines) + "\n\n"
+            "INSTRUCTIONS:\n"
+            "- Acknowledge their exact situation: If on a high streak, challenge them to defend it. If they had zero days, call them out to wake up and reset today.\n"
+            "- LENGTH: EXACTLY 1 TO 2 SHORT SENTENCES (UNDER 35 WORDS TOTAL).\n"
+            "- TONE: Blunt, respectful, focused on setting the standard today. No corporate fluff.\n\n"
+            "Output ONLY the plain text sentences. Do not use quotes or prefixes."
+        )
 
     # 0. Test Mock Check
     gemini_client = get_gemini_client()
@@ -1106,6 +1185,11 @@ async def generate_personalized_morning_briefing(
 
     # 3. Tertiary: Static Fallback
     logger.warning(f"Could not generate personalized morning briefing for {u_name}. Using curated fallback.")
+    if is_recovery:
+        if total_7d >= 100 or streak >= 3 or solid_days >= 2:
+            return "You've put in brutal consistency over the last few days. Take pride in that work, but do not sit stagnant on the couch. Focus on deep hydration (3L+), hip & hamstring mobility, and a 20-minute gentle walk to flush out lactic acid. Rebuild the engine."
+        else:
+            return "You've been lagging behind on your volume over the past few days. While today protects your streak, do NOT treat it as an excuse to do zero. Get outside, hit a solid 30-minute walk, stretch, hydrate, and use today to build the momentum you've been missing for tomorrow."
     return random.choice(CURATED_STOIC_FALLBACKS)
 
 

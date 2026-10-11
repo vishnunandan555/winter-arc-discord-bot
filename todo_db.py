@@ -83,6 +83,14 @@ def init_todo_db(db_path: Optional[str] = None):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_todos_user_status ON todos(user_id, status);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_todos_reminders ON todos(status, next_reminder_at);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_todos_trashed ON todos(trashed_at);")
+
+        # Migration: Ensure incognito column exists in todo_user_settings
+        cursor.execute("PRAGMA table_info(todo_user_settings);")
+        cols = [c[1] for c in cursor.fetchall()]
+        if "incognito" not in cols:
+            cursor.execute("ALTER TABLE todo_user_settings ADD COLUMN incognito BOOLEAN DEFAULT 0;")
+            logger.info("Added 'incognito' column to todo_user_settings.")
+
         conn.commit()
     logger.info("Initialized isolated todo.db schema.")
 
@@ -98,13 +106,15 @@ def get_user_settings(user_id: int, db_path: Optional[str] = None) -> Dict[str, 
         cursor.execute("SELECT * FROM todo_user_settings WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         if row:
-            return dict(row)
+            res = dict(row)
+            res.setdefault("incognito", 0)
+            return res
         
         # Insert default
         now_ts = int(time.time())
         cursor.execute("""
-            INSERT INTO todo_user_settings (user_id, dnd_enabled, dnd_start, dnd_end, timezone, default_dm, created_at)
-            VALUES (?, 0, '22:00', '06:00', 'Asia/Kolkata', 1, ?)
+            INSERT INTO todo_user_settings (user_id, dnd_enabled, dnd_start, dnd_end, timezone, default_dm, incognito, created_at)
+            VALUES (?, 0, '22:00', '06:00', 'Asia/Kolkata', 1, 0, ?)
         """, (user_id, now_ts))
         conn.commit()
         return {
@@ -114,8 +124,31 @@ def get_user_settings(user_id: int, db_path: Optional[str] = None) -> Dict[str, 
             "dnd_end": "06:00",
             "timezone": "Asia/Kolkata",
             "default_dm": 1,
+            "incognito": 0,
             "created_at": now_ts,
         }
+
+
+def set_user_incognito(user_id: int, incognito: bool, db_path: Optional[str] = None) -> bool:
+    """Sets the incognito mode for a user (True = ON, False = OFF)."""
+    val = 1 if incognito else 0
+    with get_todo_connection(db_path) as conn:
+        cursor = conn.cursor()
+        now_ts = int(time.time())
+        cursor.execute("""
+            INSERT INTO todo_user_settings (user_id, dnd_enabled, dnd_start, dnd_end, timezone, default_dm, incognito, created_at)
+            VALUES (?, 0, '22:00', '06:00', 'Asia/Kolkata', 1, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET incognito = excluded.incognito;
+        """, (user_id, val, now_ts))
+        conn.commit()
+    logger.info(f"User {user_id} set todo incognito mode to {bool(val)}")
+    return bool(val)
+
+
+def is_user_incognito(user_id: int, db_path: Optional[str] = None) -> bool:
+    """Checks if a user has incognito mode enabled (True = ON, False = OFF)."""
+    settings = get_user_settings(user_id, db_path)
+    return bool(settings.get("incognito", 0))
 
 
 def update_user_settings(

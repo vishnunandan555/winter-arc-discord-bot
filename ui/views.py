@@ -19,6 +19,7 @@ from ui.embeds import (
     build_monthly_leaderboard_embed,
     build_overall_leaderboard_embed,
     build_settings_embed,
+    build_tips_embed,
     build_help_embed,
     build_recap_embed,
 )
@@ -177,6 +178,48 @@ class RemindersView(RobustView):
 SettingsView = RemindersView
 
 
+class TipsView(RobustView):
+    """Interactive toggle buttons for /tips on / off."""
+    def __init__(self, user_id: int, current_state: bool, db_path: Optional[str] = None):
+        super().__init__(timeout=180.0)
+        self.user_id = user_id
+        self.current_state = current_state
+        self.db_path = db_path
+        self._sync_buttons()
+
+    def _sync_buttons(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "btn_tips_on":
+                    child.style = discord.ButtonStyle.success if self.current_state else discord.ButtonStyle.secondary
+                elif child.custom_id == "btn_tips_off":
+                    child.style = discord.ButtonStyle.danger if not self.current_state else discord.ButtonStyle.secondary
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ These settings belong to another member. Run `/tips` to manage yours.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Turn On", emoji="💡", style=discord.ButtonStyle.secondary, custom_id="btn_tips_on")
+    async def btn_on(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_state = True
+        db.set_user_tips_enabled(self.user_id, True, username=interaction.user.name, db_path=self.db_path)
+        logger.info(f"User {interaction.user} ({self.user_id}) enabled periodic tips.")
+        self._sync_buttons()
+        embed = build_tips_embed(interaction.user, is_enabled=True)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Turn Off", emoji="🔕", style=discord.ButtonStyle.secondary, custom_id="btn_tips_off")
+    async def btn_off(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_state = False
+        db.set_user_tips_enabled(self.user_id, False, username=interaction.user.name, db_path=self.db_path)
+        logger.info(f"User {interaction.user} ({self.user_id}) disabled periodic tips.")
+        self._sync_buttons()
+        embed = build_tips_embed(interaction.user, is_enabled=False)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+
 class HelpView(RobustView):
     """Interactive select menu allowing warriors to navigate the complete command manual."""
     def __init__(self):
@@ -192,7 +235,7 @@ class HelpView(RobustView):
             discord.SelectOption(label="Progress & Analytics", value="progress", description="/today, /streak, /profile, /leaderboard, /stats, /recap, /ranks", emoji="📊"),
             discord.SelectOption(label="Streak Shields & Recovery", value="shields", description="/shield status & /shield use mechanics", emoji="🛡️"),
             discord.SelectOption(label="Todo & Smart Reminders", value="todo", description="/todo add, list, done, assign, dnd quiet hours", emoji="📋"),
-            discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /enroll, /leave_arc", emoji="⚙️"),
+            discord.SelectOption(label="Settings & Accountability", value="settings", description="/settings DMs, /tips, /enroll, /leave_arc", emoji="⚙️"),
             discord.SelectOption(label="Server Administration", value="admin", description="/admin controls, /test_reminder & health", emoji="👑"),
         ]
     )

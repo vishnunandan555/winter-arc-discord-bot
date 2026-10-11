@@ -200,6 +200,12 @@ class TodoListView(discord.ui.View):
             total_items=total_items
         )
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This to-do list belongs to another member. Run `/todo list` to view yours.", ephemeral=True)
+            return False
+        return True
+
     # ---------------- Buttons ----------------
 
     @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary, custom_id="btn_todo_prev")
@@ -466,3 +472,66 @@ class TaskAssignmentView(discord.ui.View):
             content="❌ **Task Declined.** The assignment was discarded.",
             view=self
         )
+
+
+# =====================================================================
+# Incognito Mode Embed & Interactive Toggle View
+# =====================================================================
+
+def build_todo_incognito_embed(user: discord.User, is_incognito: bool) -> discord.Embed:
+    state_str = "**ON** (Private)" if is_incognito else "**OFF** (Public)"
+    current_mode_tag = "ON (Private)" if is_incognito else "OFF (Public)"
+    color = 0x9B59B6 if is_incognito else 0x3498DB
+    desc = (
+        f"**Incognito Mode Status**: {state_str}\n\n"
+        "Incognito Mode controls the visibility of your `/todo` commands in server channels:\n\n"
+        "• **OFF (Public)**\n"
+        "  All your to-do actions (`/todo list`, `/todo done`, `/todo delete`, etc.) are posted publicly in the channel (others can see them).\n\n"
+        "• **ON (Private)**\n"
+        "  Only `/todo add` and `/todo assign` remain visible to the server. All other to-do management commands are completely private (visible only to you).\n\n"
+        "Use the buttons below to toggle your preference at any time."
+    )
+    embed = discord.Embed(
+        title="🕵🏻 To-Do Incognito Mode",
+        description=desc,
+        color=color
+    )
+    embed.set_footer(text=f"Toggle anytime with /todo incognito • Current Mode: {current_mode_tag}")
+    return embed
+
+
+class TodoIncognitoView(discord.ui.View):
+    """Interactive toggle buttons for /todo incognito mode."""
+    def __init__(self, user_id: int, current_state: bool, db_path: Optional[str] = None):
+        super().__init__(timeout=180.0)
+        self.user_id = user_id
+        self.current_state = current_state
+        self.db_path = db_path
+        self._sync_buttons()
+
+    def _sync_buttons(self):
+        self.btn_on.style = discord.ButtonStyle.primary if self.current_state else discord.ButtonStyle.secondary
+        self.btn_off.style = discord.ButtonStyle.secondary if self.current_state else discord.ButtonStyle.primary
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ These settings belong to another member. Run `/todo incognito` to manage yours.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Turn On", style=discord.ButtonStyle.secondary, custom_id="btn_incog_on")
+    async def btn_on(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_state = True
+        db.set_user_incognito(self.user_id, True, db_path=self.db_path)
+        self._sync_buttons()
+        embed = build_todo_incognito_embed(interaction.user, is_incognito=True)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Turn Off", style=discord.ButtonStyle.secondary, custom_id="btn_incog_off")
+    async def btn_off(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_state = False
+        db.set_user_incognito(self.user_id, False, db_path=self.db_path)
+        self._sync_buttons()
+        embed = build_todo_incognito_embed(interaction.user, is_incognito=False)
+        await interaction.response.edit_message(embed=embed, view=self)
+

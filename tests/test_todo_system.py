@@ -25,6 +25,8 @@ from ui.todo_views import (
     TodoListView,
     ReminderAlertView,
     TaskAssignmentView,
+    TodoIncognitoView,
+    build_todo_incognito_embed,
     build_todo_list_embed,
 )
 from tests.base import WinterArcTestCase
@@ -680,5 +682,89 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         kwargs = inter.response.send_message.call_args[1]
         self.assertIn("assigned a new task", kwargs.get("content", ""))
         self.assertTrue(mock_member.send.called)
+
+    def test_todo_incognito_mode_toggle_and_check(self):
+        """Verifies /todo incognito default state, on/off toggles, user checks, and command visibility."""
+        from discord import app_commands
+        inter = self.create_mock_interaction(user_id=self.user_id)
+
+        # 1. Default state is Incognito OFF (0)
+        self.assertFalse(db.is_user_incognito(self.user_id, db_path=self.todo_test_db))
+
+        # 2. /todo list with Incognito OFF is public (ephemeral=False)
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_list.callback(self.cog, inter))
+        self.assertFalse(inter.response.send_message.call_args[1].get("ephemeral"))
+
+        # 3. /todo incognito overview card (no args) is always public
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_incognito.callback(self.cog, inter))
+        self.assertFalse(inter.response.send_message.call_args[1].get("ephemeral"))
+        sent_embed = inter.response.send_message.call_args[1].get("embed")
+        self.assertIn("To-Do Incognito Mode", sent_embed.title)
+        self.assertIn("OFF", sent_embed.description)
+
+        # 4. /todo incognito mode:on
+        inter.response.send_message.reset_mock()
+        choice_on = app_commands.Choice(name="Turn ON", value="on")
+        asyncio.run(self.cog.todo_incognito.callback(self.cog, inter, mode=choice_on))
+        self.assertTrue(db.is_user_incognito(self.user_id, db_path=self.todo_test_db))
+        msg_on = inter.response.send_message.call_args[0][0]
+        self.assertEqual(msg_on, "🔒 Incognito Mode Turned ON")
+        self.assertFalse(inter.response.send_message.call_args[1].get("ephemeral"))
+
+        # 5. /todo list with Incognito ON is now private (ephemeral=True)
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_list.callback(self.cog, inter))
+        self.assertTrue(inter.response.send_message.call_args[1].get("ephemeral"))
+
+        # 6. /todo incognito mode:off
+        inter.response.send_message.reset_mock()
+        choice_off = app_commands.Choice(name="Turn OFF", value="off")
+        asyncio.run(self.cog.todo_incognito.callback(self.cog, inter, mode=choice_off))
+        self.assertFalse(db.is_user_incognito(self.user_id, db_path=self.todo_test_db))
+        msg_off = inter.response.send_message.call_args[0][0]
+        self.assertEqual(msg_off, "🔓 Incognito Mode Turned OFF")
+        self.assertFalse(inter.response.send_message.call_args[1].get("ephemeral"))
+
+        # 7. /todo incognito mode:check
+        inter.response.send_message.reset_mock()
+        choice_check = app_commands.Choice(name="Check Status", value="check")
+        asyncio.run(self.cog.todo_incognito.callback(self.cog, inter, mode=choice_check))
+        msg_check = inter.response.send_message.call_args[0][0]
+        self.assertIn("Your Incognito Mode is", msg_check)
+        self.assertIn("OFF", msg_check)
+
+        # 8. /todo incognito user:other_user
+        mock_other = MagicMock(spec=discord.User)
+        mock_other.id = 554433
+        mock_other.display_name = "ShadowWarrior"
+        db.set_user_incognito(554433, True, db_path=self.todo_test_db)
+
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_incognito.callback(self.cog, inter, user=mock_other))
+        msg_other = inter.response.send_message.call_args[0][0]
+        self.assertIn("ShadowWarrior", msg_other)
+        self.assertIn("ON", msg_other)
+
+        # 9. Test interactive TodoIncognitoView button callbacks & user guard
+        view = TodoIncognitoView(user_id=self.user_id, current_state=False, db_path=self.todo_test_db)
+        inter.response.edit_message = AsyncMock()
+
+        # Turn ON via button
+        asyncio.run(view.btn_on.callback(inter))
+        self.assertTrue(view.current_state)
+        self.assertTrue(db.is_user_incognito(self.user_id, db_path=self.todo_test_db))
+
+        # Turn OFF via button
+        asyncio.run(view.btn_off.callback(inter))
+        self.assertFalse(view.current_state)
+        self.assertFalse(db.is_user_incognito(self.user_id, db_path=self.todo_test_db))
+
+        # Stranger guard
+        stranger_inter = self.create_mock_interaction(user_id=999111)
+        can_interact = asyncio.run(view.interaction_check(stranger_inter))
+        self.assertFalse(can_interact)
+
 
 

@@ -32,7 +32,8 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
             "grind_points": 0,
         }
 
-        embed = build_today_embed(mock_user, progress, streak=4, date_display="Saturday, Sep 19")
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            embed = build_today_embed(mock_user, progress, streak=4, date_display="Saturday, Sep 19")
         self.assertEmbedDescriptionContains(
             embed,
             "WarriorX",
@@ -341,12 +342,13 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         ]
 
         quote = '"Waste no more time arguing what a good man should be. Be one." — Marcus Aurelius'
-        msg = build_evening_checkin_message(
-            warriors_data=warriors,
-            callouts=None,
-            stoic_quote=quote,
-            role_ping="@Coldfornt"
-        )
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            msg = build_evening_checkin_message(
+                warriors_data=warriors,
+                callouts=None,
+                stoic_quote=quote,
+                role_ping="@Coldfornt"
+            )
 
         expected_msg = (
             "@Coldfornt [WinterArc] 3 hours left until midnight rollover. ⏳\n"
@@ -485,12 +487,13 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
             {"name": "Push-ups", "target": 50, "unit": "reps", "max_points": 100},
             {"name": "Running", "target": 5, "unit": "km", "max_points": 100},
         ]
-        morning_msg = build_morning_kickoff_message(
-            active_tasks=active_tasks,
-            date_display="Mon, Sep 29",
-            quote="Focus on the work.",
-            role_ping="@Coldfornt"
-        )
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            morning_msg = build_morning_kickoff_message(
+                active_tasks=active_tasks,
+                date_display="Mon, Sep 29",
+                quote="Focus on the work.",
+                role_ping="@Coldfornt"
+            )
         self.assertIn("@Coldfornt [WinterArc] Mon, Sep 29 🌅", morning_msg)
         self.assertIn("• **Push-ups**: `50 reps` *(100 pts)*", morning_msg)
         self.assertIn("• **Running**: `5 km` *(100 pts)*", morning_msg)

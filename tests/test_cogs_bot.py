@@ -31,7 +31,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
                 "admin", "accuse", "calendar", "enroll", "grind", "help", "history",
                 "leaderboard", "leave_arc", "log", "nuke", "ping", "profile", "quick",
                 "ranks", "recap", "reminders", "set", "settings", "shield", "stats", "streak",
-                "tasks", "test_reminder", "today"
+                "tasks", "test_reminder", "today", "tips"
             }
             self.assertTrue(expected_cmds.issubset(cmd_names), f"Missing commands: {expected_cmds - cmd_names}")
             self.assertEqual(len(commands), len(expected_cmds))
@@ -41,6 +41,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
             self.assertIn("sync", subcmd_names)
             self.assertIn("grind", subcmd_names)
             self.assertIn("backup", subcmd_names)
+            self.assertIn("tips", subcmd_names)
 
         asyncio.run(verify_bot_cogs())
 

@@ -136,91 +136,93 @@ class TestRemindersAndDMs(WinterArcTestCase):
 
         # Test build_dm_morning_message
         active_tasks = db.get_active_tasks(db_path=self.test_db)
-        msg = build_dm_morning_message(
-            tasks=active_tasks,
-            streak=5,
-            date_display=now.strftime("%A, %B %d, %Y"),
-            quote=mock_briefing
-        )
-        self.assertIn("🌅 **Winter Arc — Morning Briefing", msg)
-        self.assertIn(mock_briefing, msg)
-        self.assertIn("5 days", msg)
-        self.assertIn("/log", msg)
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            msg = build_dm_morning_message(
+                tasks=active_tasks,
+                streak=5,
+                date_display=now.strftime("%A, %B %d, %Y"),
+                quote=mock_briefing
+            )
+            self.assertIn("🌅 **Winter Arc — Morning Briefing", msg)
+            self.assertIn(mock_briefing, msg)
+            self.assertIn("5 days", msg)
+            self.assertIn("/log", msg)
 
     def test_afternoon_and_evening_clean_dm_messages(self):
         """Verifies clean, non-embed message formatting for Afternoon and Evening DMs."""
-        # Afternoon DM (10 points logged, needs 20 more for streak min)
-        afternoon_msg = build_dm_afternoon_message(
-            user_name="Spartan",
-            points=10,
-            max_points=500,
-            streak=4
-        )
-        self.assertIn("☀️ **Winter Arc — Afternoon Check-in", afternoon_msg)
-        self.assertIn("10 / 500 pts", afternoon_msg)
-        self.assertIn("20 more points", afternoon_msg)
-        self.assertIn("/log", afternoon_msg)
+        with patch("ui.embeds.is_recovery_day", return_value=False):
+            # Afternoon DM (10 points logged, needs 20 more for streak min)
+            afternoon_msg = build_dm_afternoon_message(
+                user_name="Spartan",
+                points=10,
+                max_points=500,
+                streak=4
+            )
+            self.assertIn("☀️ **Winter Arc — Afternoon Check-in", afternoon_msg)
+            self.assertIn("10 / 500 pts", afternoon_msg)
+            self.assertIn("20 more points", afternoon_msg)
+            self.assertIn("/log", afternoon_msg)
 
-        # Afternoon DM (completed daily minimum)
-        afternoon_done_msg = build_dm_afternoon_message(
-            user_name="Spartan",
-            points=45,
-            max_points=500,
-            streak=4
-        )
-        self.assertIn("Streak is already secured", afternoon_done_msg)
-        self.assertIn("455 points", afternoon_done_msg)
+            # Afternoon DM (completed daily minimum)
+            afternoon_done_msg = build_dm_afternoon_message(
+                user_name="Spartan",
+                points=45,
+                max_points=500,
+                streak=4
+            )
+            self.assertIn("Streak is already secured", afternoon_done_msg)
+            self.assertIn("455 points", afternoon_done_msg)
 
-        # Evening DM (warning when below minimum)
-        evening_msg = build_dm_evening_message(
-            user_name="Spartan",
-            points=15,
-            max_points=500,
-            streak=7,
-            shields=1
-        )
-        self.assertIn("🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**", evening_msg)
-        self.assertIn("15 pts missing", evening_msg)
-        self.assertIn("1 / 2", evening_msg)
+            # Evening DM (warning when below minimum)
+            evening_msg = build_dm_evening_message(
+                user_name="Spartan",
+                points=15,
+                max_points=500,
+                streak=7,
+                shields=1
+            )
+            self.assertIn("🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**", evening_msg)
+            self.assertIn("15 pts missing", evening_msg)
+            self.assertIn("1 / 2", evening_msg)
 
-        # Evening DM (streak already defended)
-        evening_safe_msg = build_dm_evening_message(
-            user_name="Spartan",
-            points=50,
-            max_points=500,
-            streak=7,
-            shields=2
-        )
-        self.assertIn("safely secured", evening_safe_msg)
+            # Evening DM (streak already defended)
+            evening_safe_msg = build_dm_evening_message(
+                user_name="Spartan",
+                points=50,
+                max_points=500,
+                streak=7,
+                shields=2
+            )
+            self.assertIn("safely secured", evening_safe_msg)
 
-        # DMs with explicit user_mention pings
-        ping_morning = build_dm_morning_message(
-            tasks=db.get_active_tasks(db_path=self.test_db),
-            streak=3,
-            date_display="Today",
-            quote="Rise",
-            user_mention="<@770011>"
-        )
-        self.assertTrue(ping_morning.startswith("<@770011>\n"))
+            # DMs with explicit user_mention pings
+            ping_morning = build_dm_morning_message(
+                tasks=db.get_active_tasks(db_path=self.test_db),
+                streak=3,
+                date_display="Today",
+                quote="Rise",
+                user_mention="<@770011>"
+            )
+            self.assertTrue(ping_morning.startswith("<@770011>\n"))
 
-        ping_afternoon = build_dm_afternoon_message(
-            user_name="Spartan",
-            points=20,
-            max_points=500,
-            streak=3,
-            user_mention="<@770011>"
-        )
-        self.assertIn("<@770011>, you have logged", ping_afternoon)
+            ping_afternoon = build_dm_afternoon_message(
+                user_name="Spartan",
+                points=20,
+                max_points=500,
+                streak=3,
+                user_mention="<@770011>"
+            )
+            self.assertIn("<@770011>, you have logged", ping_afternoon)
 
-        ping_evening = build_dm_evening_message(
-            user_name="Spartan",
-            points=20,
-            max_points=500,
-            streak=3,
-            shields=1,
-            user_mention="<@770011>"
-        )
-        self.assertIn("<@770011>, scores finalize", ping_evening)
+            ping_evening = build_dm_evening_message(
+                user_name="Spartan",
+                points=20,
+                max_points=500,
+                streak=3,
+                shields=1,
+                user_mention="<@770011>"
+            )
+            self.assertIn("<@770011>, scores finalize", ping_evening)
 
     def test_reminders_view_and_interactive_toggles(self):
         """Verifies RemindersView button callbacks, UI states, and aliases."""
@@ -263,11 +265,12 @@ class TestRemindersAndDMs(WinterArcTestCase):
         scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
         # Mock _get_target_channel_and_ping to return channel and a role ping
         with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
-            with patch("ai.gemini_service.generate_reminder_motivation", return_value="Keep the standard high."):
-                with patch("ai.gemini_service.generate_evening_alert_data", return_value=([], "Endure.")):
-                    with patch("ai.gemini_service.generate_daily_toast_and_roast", return_value="Great work today."):
-                        # 1. Morning Kickoff
-                        asyncio.run(scheduler.broadcast_morning_kickoff())
+            with patch("scheduler.is_recovery_day", return_value=False):
+                with patch("ai.gemini_service.generate_reminder_motivation", return_value="Keep the standard high."):
+                    with patch("ai.gemini_service.generate_evening_alert_data", return_value=([], "Endure.")):
+                        with patch("ai.gemini_service.generate_daily_toast_and_roast", return_value="Great work today."):
+                            # 1. Morning Kickoff
+                            asyncio.run(scheduler.broadcast_morning_kickoff())
                         self.assertTrue(mock_channel.send.called)
                         sent_content = mock_channel.send.call_args.kwargs.get("content", "")
                         self.assertNotIn("<@&999888>", sent_content)

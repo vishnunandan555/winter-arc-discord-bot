@@ -1,0 +1,278 @@
+"""
+tests/test_active_recovery.py - Comprehensive Unit Tests for Active Recovery Day (ARD)
+
+Verifies:
+1. Schedule accuracy (Oct 7 days, Nov 8 days, Dec 4 days).
+2. Streak preservation across ARD days (zero point logging preserves streak).
+3. Monospace calendar rendering with '❤️' emoji on ARD days.
+4. Midnight finalization safety (zero shield deduction, zero broken streak).
+5. Progress embed status ('ARD ❤️ Streak Protected' vs 'Streak Secured ✅').
+6. Reactive AI nudge tone adaptation on recovery days.
+"""
+
+import asyncio
+from datetime import date, datetime, timedelta
+from unittest.mock import patch, MagicMock
+
+import discord
+from tests.base import WinterArcTestCase
+import phases
+import database as db
+from ui.embeds import (
+    build_today_embed,
+    build_evening_checkin_embed,
+    build_evening_checkin_message,
+    build_morning_kickoff_message,
+    build_morning_kickoff_embed,
+    build_afternoon_checkin_embed,
+    build_afternoon_checkin_message,
+    build_dm_morning_message,
+    build_dm_evening_message,
+    build_streak_consistency_embed,
+)
+from ai import groq_service
+from scheduler import WinterArcScheduler
+
+
+class TestActiveRecoverySystem(WinterArcTestCase):
+    """Test suite covering the end-to-end active recovery day engine."""
+
+    def test_recovery_schedule_dates_and_helpers(self):
+        """Verifies locked recovery dates for Oct, Nov, and Dec 2026."""
+        # October: 7 dates (Every 3rd day starting Oct 11)
+        oct_dates = phases.get_phase_recovery_days(1)
+        self.assertEqual(len(oct_dates), 7)
+        self.assertIn(f"{phases.BASE_YEAR}-10-11", oct_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-10-14", oct_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-10-29", oct_dates)
+
+        # November: 8 dates (Every 4th day starting Nov 1)
+        nov_dates = phases.get_phase_recovery_days(2)
+        self.assertEqual(len(nov_dates), 8)
+        self.assertIn(f"{phases.BASE_YEAR}-11-01", nov_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-11-05", nov_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-11-29", nov_dates)
+
+        # December: 4 dates (Sundays)
+        dec_dates = phases.get_phase_recovery_days(3)
+        self.assertEqual(len(dec_dates), 4)
+        self.assertIn(f"{phases.BASE_YEAR}-12-06", dec_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-12-13", dec_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-12-20", dec_dates)
+        self.assertIn(f"{phases.BASE_YEAR}-12-27", dec_dates)
+
+        # Helpers
+        self.assertTrue(phases.is_recovery_day(f"{phases.BASE_YEAR}-10-11"))
+        self.assertFalse(phases.is_recovery_day(f"{phases.BASE_YEAR}-10-12"))
+        self.assertEqual(
+            phases.get_next_recovery_day(f"{phases.BASE_YEAR}-10-12"),
+            f"{phases.BASE_YEAR}-10-14"
+        )
+
+    def test_streak_preservation_across_ard_days(self):
+        """Verifies that a user's streak bridges across ARD days with 0 points without breaking."""
+        user_id = 991100
+        u = db.enroll_user(user_id, "ZenWarrior", db_path=self.test_db)
+        self.assertIsNotNone(u)
+
+        # Train on Oct 9 and Oct 10 (30 pts each)
+        d_oct9 = f"{phases.BASE_YEAR}-10-09"
+        d_oct10 = f"{phases.BASE_YEAR}-10-10"
+        d_oct11 = f"{phases.BASE_YEAR}-10-11"  # ARD
+        d_oct12 = f"{phases.BASE_YEAR}-10-12"  # Training Day
+
+        # Add completed days directly to daily_summaries
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, ?, 30, 0.3, 0, 0), (?, ?, 30, 0.3, 0, 0);
+            """, (u["id"], d_oct9, u["id"], d_oct10))
+            conn.commit()
+
+        # On Oct 10: streak should be 2
+        streak_oct10 = db.calculate_streak(user_id, as_of_date=d_oct10, db_path=self.test_db)
+        self.assertEqual(streak_oct10, 2)
+
+        # On Oct 11 (ARD, 0 points logged): streak should remain preserved at 2!
+        streak_oct11 = db.calculate_streak(user_id, as_of_date=d_oct11, db_path=self.test_db)
+        self.assertEqual(streak_oct11, 2)
+
+        # On Oct 11 at midnight: finalization should NOT break streak and NOT use shields
+        leaderboard = db.finalize_daily_summaries(target_date_str=d_oct11, db_path=self.test_db)
+        user_entry = next(e for e in leaderboard if e["discord_id"] == user_id)
+        self.assertFalse(user_entry["streak_broken"])
+        self.assertFalse(user_entry["auto_shield_applied"])
+        self.assertEqual(user_entry["shields_left"], 0)
+
+        # On Oct 12: user logs 30 points -> streak becomes 3!
+        with db.get_connection(self.test_db) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
+                VALUES (?, ?, 30, 0.3, 0, 0);
+            """, (u["id"], d_oct12))
+            conn.commit()
+
+        streak_oct12 = db.calculate_streak(user_id, as_of_date=d_oct12, db_path=self.test_db)
+        self.assertEqual(streak_oct12, 3)
+
+    def test_calendar_matrix_renders_heart_emoji(self):
+        """Verifies habit calendar renders '❤️' on scheduled ARD days."""
+        user_id = 991101
+        db.enroll_user(user_id, "RestTracker", db_path=self.test_db)
+
+        # Check October calendar matrix
+        matrix = db.get_user_monthly_consistency(user_id, year=phases.BASE_YEAR, month=10, db_path=self.test_db)
+        grid = matrix["calendar_grid"]
+
+        # The '❤️' emoji must be present in the grid for Oct 11, 14, 17, etc.
+        self.assertIn("❤️", grid)
+
+    def test_today_embed_recovery_day_status(self):
+        """Verifies /today embed displays protected ARD status when under 30 points."""
+        member = self.create_mock_member(user_id=991102, display_name="RestTester")
+        prog = {
+            "total_points": 0,
+            "max_possible_points": 500,
+            "overall_completion_rate": 0.0,
+            "perfect_day": False,
+            "tasks": [],
+        }
+
+        # Mock today as an ARD day (e.g. Oct 11)
+        with patch("ui.embeds.is_recovery_day", return_value=True):
+            embed = build_today_embed(
+                target_user=member,
+                progress=prog,
+                streak=5,
+                date_display="Sunday, Oct 11",
+            )
+            self.assertIn("*(ARD ❤️ Streak Protected)*", embed.description)
+            self.assertIn("Active Recovery Day (ARD) ❤️", embed.footer.text)
+
+        # When user hits 30 points on recovery day: shows Secured ✅
+        prog["total_points"] = 35
+        with patch("ui.embeds.is_recovery_day", return_value=True):
+            embed_secured = build_today_embed(
+                target_user=member,
+                progress=prog,
+                streak=5,
+                date_display="Sunday, Oct 11",
+            )
+            self.assertIn("*(Streak Secured ✅)*", embed_secured.description)
+
+    def test_evening_checkin_peaceful_wind_down(self):
+        """Verifies evening check-in switches to peaceful wind-down without panic warnings."""
+        warriors_data = [{
+            "discord_id": 991103,
+            "username": "ChillWarrior",
+            "points": 0,
+            "max_points": 500,
+            "streak": 7,
+            "perfect_day": False,
+        }]
+
+        # Normal day -> Urgent warning
+        normal_msg = build_evening_checkin_message(warriors_data, is_recovery=False)
+        self.assertIn("3 hours left until midnight rollover. ⏳", normal_msg)
+        self.assertIn("Stop scrolling", normal_msg)
+
+        # Recovery day -> Peaceful wind-down
+        recovery_msg = build_evening_checkin_message(warriors_data, is_recovery=True)
+        self.assertIn("Winter Arc — Evening Wind-Down 🌙", recovery_msg)
+        self.assertIn("Active Recovery Day is winding down", recovery_msg)
+        self.assertNotIn("Stop scrolling", recovery_msg)
+
+    def test_calendar_matrix_hides_upcoming_ard(self):
+        """Verifies future ARDs remain hidden as '▫️' until the date actually arrives."""
+        user_id = 991104
+        db.enroll_user(user_id, "SecretAgent", db_path=self.test_db)
+
+        # On Oct 11 (ARD), Oct 11 shows ❤️, but future ARD Oct 14 shows ▫️
+        matrix = db.get_user_monthly_consistency(user_id, year=phases.BASE_YEAR, month=10, db_path=self.test_db)
+        day_details = matrix["day_details"]
+        self.assertEqual(day_details[11]["status"], "❤️")
+        # Oct 14 is in the future relative to Oct 11 -> hidden as ▫️
+        self.assertEqual(day_details[14]["status"], "▫️")
+        self.assertEqual(day_details[29]["status"], "▫️")
+
+    def test_morning_kickoff_pings_role_on_ard(self):
+        """Verifies morning kickoff pings the role on ARD days as an explicit exception."""
+        mock_bot = MagicMock()
+        mock_channel = self.create_mock_channel(7777)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 999222
+        mock_bot.guilds = [mock_guild]
+
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
+            with patch("scheduler.is_recovery_day", return_value=True):
+                with patch("ai.gemini_service.generate_personalized_morning_briefing", return_value="Active recovery pack advice."):
+                    with patch("ai.gemini_service.generate_reminder_motivation", return_value="Take a light walk."):
+                        asyncio.run(scheduler.broadcast_morning_kickoff())
+                        self.assertTrue(mock_channel.send.called)
+                        sent_content = mock_channel.send.call_args.kwargs.get("content", "")
+                        # Role ping must be present on ARD
+                        self.assertIn("<@&999888>", sent_content)
+                        allowed_mentions = mock_channel.send.call_args.kwargs.get("allowed_mentions")
+                        self.assertIsNotNone(allowed_mentions)
+                        self.assertTrue(allowed_mentions.roles)
+
+    def test_afternoon_checkin_ard_format(self):
+        """Verifies afternoon check-in on ARD has no role ping, simple AI reminder, and no roster."""
+        mock_bot = MagicMock()
+        mock_channel = self.create_mock_channel(7778)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 999222
+        mock_bot.guilds = [mock_guild]
+
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
+            with patch("scheduler.is_recovery_day", return_value=True):
+                with patch("ai.gemini_service.generate_reminder_motivation", return_value="Hydrate and stretch lightly."):
+                    asyncio.run(scheduler.broadcast_afternoon_checkin())
+                    self.assertTrue(mock_channel.send.called)
+                    sent_content = mock_channel.send.call_args.kwargs.get("content", "")
+                    # No role ping on ARD afternoon
+                    self.assertNotIn("<@&999888>", sent_content)
+                    embed = mock_channel.send.call_args.kwargs.get("embed")
+                    self.assertIn("Winter Arc — Midday Pulse 🌿", embed.title)
+                    self.assertIn("Hydrate and stretch lightly.", embed.description)
+
+    def test_midnight_finalization_silent_on_ard(self):
+        """Verifies midnight finalization silently executes without channel dispatch on ARD."""
+        mock_bot = MagicMock()
+        mock_channel = self.create_mock_channel(7779)
+        mock_guild = MagicMock(spec=discord.Guild)
+        mock_guild.id = 999222
+        mock_bot.guilds = [mock_guild]
+
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
+            # Yesterday was an ARD
+            with patch("scheduler.is_recovery_day", return_value=True):
+                asyncio.run(scheduler.broadcast_midnight_finalization())
+                # Channel send must NOT be called on ARD!
+                self.assertFalse(mock_channel.send.called)
+
+    def test_ard_dm_messaging_and_skip_afternoon(self):
+        """Verifies short DM messages and skipping afternoon DMs on ARD."""
+        # Morning DM
+        msg_m = build_dm_morning_message([], streak=5, date_display="Sunday, Oct 11", quote="Focus on joint mobility and water.", is_recovery=True)
+        self.assertIn("Today is Rest Day!", msg_m)
+        self.assertIn("Focus on joint mobility and water.", msg_m)
+
+        # Evening DM
+        msg_e = build_dm_evening_message("Warrior", points=0, max_points=500, streak=5, shields=0, is_recovery=True)
+        self.assertIn("Active Recovery Day Complete! 🌙", msg_e)
+        self.assertNotIn("3 hours left", msg_e)
+
+        # Scheduler dispatch_afternoon_dms skips on ARD
+        mock_bot = MagicMock()
+        scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
+        with patch("scheduler.is_recovery_day", return_value=True):
+            with patch.object(scheduler, "_send_single_afternoon_dm") as mock_dm:
+                asyncio.run(scheduler.dispatch_afternoon_dms())
+                self.assertFalse(mock_dm.called)
+

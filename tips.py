@@ -2,7 +2,8 @@
 tips.py - Winter Arc Bot Feature Tips & Community Guidance
 
 Contains the comprehensive pool of bot usage tips, user-specific 10-minute timers,
-and the 75% probability background dispatcher.
+preference checking (enabling/disabling tips per user or server), and the 75%
+probability background dispatcher.
 """
 
 import time
@@ -13,6 +14,33 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger("winter_arc.tips")
 
 BOT_USAGE_TIPS: List[str] = [
+    # 🔕 /tips — Preference Control & Disabling Tips
+    "💡 **Tip (`/tips`)**: Find tips popping up too often or annoying? You can disable them completely anytime with `/tips off` (or turn them back on with `/tips on`)!",
+    "💡 **Tip (`/tips`)**: Why `/tips`? Total control over your chat experience—toggle bot tips on or off, or check your tip status whenever you like.",
+    "💡 **Tip (`/tips`)**: Pro Tip: Run `/tips` without arguments to open an interactive status card with instant 1-click **Turn On** and **Turn Off** buttons!",
+
+    # 🧘 Active Recovery Days (Rest Days / Sundays)
+    "💡 **Tip (Active Recovery Days)**: How it works: Every Sunday is an official Active Recovery Day (ARD). Your active streak is automatically protected with 0 points required!",
+    "💡 **Tip (Active Recovery Days)**: Why Rest Days? Longevity over burnout! On Sundays, streak shields are never consumed, slacker alerts are silenced, and you can focus on light walks, mobility, and deep recovery.",
+    "💡 **Tip (Active Recovery Days)**: Pro Tip: Even though 0 points are required to save your streak on Sundays, any exercises or grinds you log still award points toward your 12-tier lifetime rank!",
+
+    # 📋 /todo — Standalone Productivity & Recurring Habits
+    "💡 **Tip (`/todo add`)**: How to use: Add tasks and recurring habits with natural language: `/todo add Submit quarterly report at 5 PM` or `/todo add Drink water every 2 hours until 10 PM`!",
+    "💡 **Tip (`/todo add`)**: Why `/todo`? Built on a standalone, decoupled SQLite engine (`todo.db`)—zero distraction from fitness tracking, perfect for daily life and work habits.",
+    "💡 **Tip (`/todo list`)**: How to use: View your active task queue with `/todo list` featuring 15-item pagination with `◀️ Prev` and `▶️ Next` buttons, or view archived tasks with `/todo list show_trash: True`.",
+    "💡 **Tip (`/todo done`)**: How to use: Complete tasks instantly with `/todo done #1` or click the inline `[ Done ]` action button directly on your reminder notification!",
+    "💡 **Tip (`/todo edit`)**: How to use: Easily adjust task descriptions, due dates, or urgency on existing items anytime with `/todo edit [task_num]`.",
+    "💡 **Tip (`/todo assign`)**: How to use: Delegate tasks to teammates with `/todo assign [member] [text]`. The assignee receives an interactive card with `[ ✅ Accept ]` and `[ ❌ Decline ]` buttons!",
+    "💡 **Tip (`/todo dnd`)**: How to use: Protect your sleep! Configure quiet hours with `/todo dnd enabled: True start: 22:00 end: 06:00` so reminders are postponed until your wake window.",
+    "💡 **Tip (`/todo silence`)**: How to use: Need to pause a recurring reminder? Silence it quickly with `/todo silence [task_num]` without deleting the task from your schedule.",
+    "💡 **Tip (`/todo delete` & `/todo restore`)**: How to use: Accidental deletion? Tasks deleted via `/todo delete` enter a 7-day auto-pruning trash archive and can be revived with `/todo restore [task_id]`!",
+    "💡 **Tip (`/todo clear`)**: How to use: Tidy up your completed tasks in one fell swoop with `/todo clear` to keep your active list focused on what's next.",
+
+    # 🕵️ /todo incognito — Stealth & Privacy Mode
+    "💡 **Tip (`/todo incognito`)**: How to use: Keep your personal to-dos private in public channels with `/todo incognito on`! Only task assignments and adds are shared—all lists and completions stay private to you.",
+    "💡 **Tip (`/todo incognito`)**: Why Incognito? Allows teams to share a Discord server while keeping individual productivity lists confidential and distraction-free.",
+    "💡 **Tip (`/todo incognito`)**: Pro Tip: Run `/todo incognito` to view an interactive card with instant `[ Turn On ]` / `[ Turn Off ]` buttons, or check a teammate's status with `/todo incognito check [user]`!",
+
     # 🏋️ /log — Incremental Workout Logging
     "💡 **Tip (`/log`)**: How to use: Type `/log [task] [amount]` to record completed reps or kilometers. Tab-autocomplete lets you select exercises and units in a fraction of a second!",
     "💡 **Tip (`/log`)**: Why `/log`? It is built for progressive tracking throughout your day—log 30 push-ups in the morning, 40 at lunch, and 30 at night without ever having to calculate your daily sum.",
@@ -81,6 +109,7 @@ BOT_USAGE_TIPS: List[str] = [
 
     # ⚖️ /accuse — Community Governance & Council Trials
     "💡 **Tip (`/accuse`)**: How to use: Suspect an exaggerated or illegitimate workout log? Run `/accuse [member]` to confirm your challenge and summon the Council to vote on stripping the points!",
+    "💡 **Tip (`/accuse`)**: Why Council Trials? Community integrity! When a member calls cap, the server gets a 10-minute trial with `[ 🔨 Guilty ]` and `[ 🛡️ Innocent ]` votes to enforce honest reporting.",
 
     # 📈 /stats — Server Records & Community Volume
     "💡 **Tip (`/stats`)**: How to use: Explore server-wide records, all-time longest streaks, single-day peak maxers, and community volume across all phases with `/stats`.",
@@ -113,9 +142,11 @@ BOT_USAGE_TIPS: List[str] = [
     "💡 **Tip (`/ping`)**: Why `/ping`? A quick way to verify that the bot is responsive and connected before logging important workout sets.",
     "💡 **Tip (`/ping`)**: Pro Tip: Shows gateway ping in milliseconds—low ping ensures your instant AI evaluations and streak calculations execute in real time.",
 
-    # ⏰ Daily Rules & Streak Threshold
-    "💡 **Tip (Streak Threshold)**: Why 30 points? It represents the non-negotiable minimum—even on your busiest or most exhausting days, doing 5 reps of each discipline keeps the habit alive.",
-    "💡 **Tip (Daily Reset)**: The board finalizes at **00:00 IST** every night. Max out your 500 points before midnight to claim a **Perfect Day (⭐)**!",
+    # ⏰ Daily Rules, Scoring & System Logic
+    "💡 **Tip (Daily Ceiling)**: Why 500 points max? A mathematical daily ceiling rewards 90-day consistency over erratic vanity binging. Hitting the full 500 points awards a **Perfect Day (⭐)**!",
+    "💡 **Tip (Streak Threshold)**: Why 30 points? Doing 5 reps of each discipline or a light workout earns 30 points, locking in your streak even on busy or exhausting days (0 pts needed on Sundays)!",
+    "💡 **Tip (Daily Reset)**: The board finalizes at **00:00 IST** every night. Max out your points before midnight to claim your daily standing and preserve your streak!",
+    "💡 **Tip (Automated Broadcasts)**: The bot maintains a zero-spam broadcast schedule in your designated channel: Morning Kickoff (05:00 IST), Afternoon Check-in (16:30 IST), and Evening Streak Warning (21:00 IST).",
 ]
 
 _last_tip_timestamps: Dict[int, float] = {}
@@ -125,12 +156,35 @@ TIP_COOLDOWN_SECONDS: float = 600.0  # Exactly 10 minutes per user
 TIP_ROLL_CHANCE: float = 0.75         # 75% probability after timer expires
 
 
-def should_send_tip(user_id: int, force: bool = False, roll_chance: float = TIP_ROLL_CHANCE) -> bool:
+def is_tips_enabled(user_id: int, guild_id: Optional[int] = None) -> bool:
+    """Checks whether tips are enabled for the specified user and guild."""
+    try:
+        import database as db
+        if not db.get_user_tips_enabled(user_id):
+            return False
+        if guild_id is not None and not db.get_server_tips_enabled(guild_id):
+            return False
+    except Exception as e:
+        logger.debug(f"Could not check tips status for user {user_id}: {e}")
+    return True
+
+
+def should_send_tip(
+    user_id: int,
+    force: bool = False,
+    roll_chance: float = TIP_ROLL_CHANCE,
+    guild_id: Optional[int] = None
+) -> bool:
     """
     Evaluates whether a tip should be dispatched:
-    1. If within the 10-minute timer for this user, probability check is skipped entirely.
-    2. Once 10 minutes have elapsed, executes the 75% probability roll.
+    1. Checks if tips are disabled for the user (or guild).
+    2. If within the 10-minute timer for this user, probability check is skipped entirely.
+    3. Once 10 minutes have elapsed, executes the 75% probability roll.
     """
+    if not force and not is_tips_enabled(user_id, guild_id=guild_id):
+        logger.debug(f"Tip check for user {user_id}: skipped (tips disabled by user/server).")
+        return False
+
     if force:
         return True
 
@@ -184,7 +238,13 @@ async def dispatch_tip(
     Non-blocking background dispatcher that sends a separate tip message
     if the user's 10-minute timer has expired and the 75% roll succeeds.
     """
-    if not should_send_tip(user_id, force=force):
+    guild_id = None
+    if hasattr(interaction_or_channel, "guild") and interaction_or_channel.guild:
+        guild_id = getattr(interaction_or_channel.guild, "id", None)
+    elif hasattr(interaction_or_channel, "guild_id"):
+        guild_id = interaction_or_channel.guild_id
+
+    if not should_send_tip(user_id, force=force, guild_id=guild_id):
         return
 
     try:

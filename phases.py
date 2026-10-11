@@ -95,6 +95,40 @@ PHASES: List[Dict[str, Any]] = [
     },
 ]
 
+# Official Active Recovery Day (ARD) Schedules
+RECOVERY_DATES_OCTOBER: List[str] = [
+    f"{BASE_YEAR}-10-11",
+    f"{BASE_YEAR}-10-14",
+    f"{BASE_YEAR}-10-17",
+    f"{BASE_YEAR}-10-20",
+    f"{BASE_YEAR}-10-23",
+    f"{BASE_YEAR}-10-26",
+    f"{BASE_YEAR}-10-29",
+]
+
+RECOVERY_DATES_NOVEMBER: List[str] = [
+    f"{BASE_YEAR}-11-01",
+    f"{BASE_YEAR}-11-05",
+    f"{BASE_YEAR}-11-09",
+    f"{BASE_YEAR}-11-13",
+    f"{BASE_YEAR}-11-17",
+    f"{BASE_YEAR}-11-21",
+    f"{BASE_YEAR}-11-25",
+    f"{BASE_YEAR}-11-29",
+]
+
+RECOVERY_DATES_DECEMBER: List[str] = [
+    f"{BASE_YEAR}-12-06",
+    f"{BASE_YEAR}-12-13",
+    f"{BASE_YEAR}-12-20",
+    f"{BASE_YEAR}-12-27",
+]
+
+ALL_RECOVERY_DATES: List[str] = sorted(
+    RECOVERY_DATES_OCTOBER + RECOVERY_DATES_NOVEMBER + RECOVERY_DATES_DECEMBER
+)
+RECOVERY_DATES_SET = set(ALL_RECOVERY_DATES)
+
 
 def _normalize_date(target: Optional[Union[date, datetime, str]] = None) -> date:
     """Helper to convert date, datetime, or ISO string to standard date in BOT_TZ."""
@@ -105,7 +139,10 @@ def _normalize_date(target: Optional[Union[date, datetime, str]] = None) -> date
     if isinstance(target, date):
         return target
     if isinstance(target, str):
-        return date.fromisoformat(target[:10])
+        try:
+            return date.fromisoformat(target[:10])
+        except Exception:
+            return date(1970, 1, 1)
     return datetime.now(BOT_TZ).date()
 
 
@@ -209,3 +246,31 @@ def get_next_phase(phase_id: int) -> Optional[Dict[str, Any]]:
         if p["id"] == phase_id and i + 1 < len(PHASES):
             return PHASES[i + 1].copy()
     return None
+
+
+def is_recovery_day(target: Optional[Union[date, datetime, str]] = None) -> bool:
+    """Returns True if the specified date is a designated Active Recovery Day."""
+    d = _normalize_date(target)
+    return d.isoformat() in RECOVERY_DATES_SET
+
+
+def get_next_recovery_day(as_of: Optional[Union[date, datetime, str]] = None) -> Optional[str]:
+    """Returns the ISO date string of the next upcoming recovery day on or after `as_of`."""
+    d = _normalize_date(as_of)
+    d_str = d.isoformat()
+    for r_date in ALL_RECOVERY_DATES:
+        if r_date >= d_str:
+            return r_date
+    return None
+
+
+def get_phase_recovery_days(phase_id: int) -> List[str]:
+    """Returns list of recovery dates for a given phase ID (1..3)."""
+    if phase_id == 1:
+        return list(RECOVERY_DATES_OCTOBER)
+    elif phase_id == 2:
+        return list(RECOVERY_DATES_NOVEMBER)
+    elif phase_id == 3:
+        return list(RECOVERY_DATES_DECEMBER)
+    return []
+

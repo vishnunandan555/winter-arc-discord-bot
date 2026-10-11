@@ -274,6 +274,14 @@ REACTIVE_STOIC_FALLBACKS = [
     "No man is more unhappy than he who never faces adversity. Keep pushing.",
 ]
 
+RECOVERY_STOIC_FALLBACKS = [
+    "Active recovery is not weakness; it is the tactical rebuild for the next hunt.",
+    "The bow cannot stay drawn forever without snapping. Active recovery today, strike tomorrow.",
+    "True discipline knows when to rebuild. Don't stay idle—stretch, walk, hydrate, and prepare.",
+    "Active Recovery Day (ARD) logged. Your streak is safe. Focus on light mobility and recovery.",
+    "He who does not recover cannot conquer. Take active recovery and prepare for tomorrow.",
+]
+
 
 async def generate_reactive_nudge(
     user_name: str,
@@ -288,9 +296,12 @@ async def generate_reactive_nudge(
     familiar stoic discipline wisdom woven in. Zero AI slop, zero fantasy melodrama.
     """
     import random
+    from phases import is_recovery_day
+    today_recovery = is_recovery_day()
+
     client = get_groq_client()
     if not client:
-        return random.choice(REACTIVE_STOIC_FALLBACKS)
+        return random.choice(RECOVERY_STOIC_FALLBACKS if today_recovery else REACTIVE_STOIC_FALLBACKS)
 
     system_prompt = (
         "You are Amarok, an uncompromising, sharp accountability coach for the Winter Arc challenge.\n"
@@ -318,6 +329,14 @@ async def generate_reactive_nudge(
         "6. NO FANTASY ROLEPLAY: Strictly ban medieval wolf/gothic metaphors ('the moon calls', 'the shadows', 'the crucible'). Keep it raw, modern, and athletic.\n"
         "7. LENGTH & FORMAT: Exactly 1 to 2 short sentences (STRICTLY under 30 words total). Output ONLY plain text, no quotes, no prefix, no emojis."
     )
+
+    if today_recovery:
+        system_prompt += (
+            "\n\nSPECIAL DIRECTIVE (ACTIVE RECOVERY DAY / ARD):\n"
+            "Today is an official PACK ACTIVE RECOVERY DAY (ARD). It is NOT a sedentary day: warriors do not stay idle; they move lightly, stretch, hydrate, and recover.\n"
+            "STRICTLY FORBIDDEN: Do NOT roast the user for having zero points, lack of push-ups, or checking stats. NEVER call today a 'rest day'—it is an 'Active Recovery Day' or 'ARD'.\n"
+            "Instead: Acknowledge the Active Recovery Day, commend light movement, mobility, or stretching, remind them their streak is protected, and tell them to prepare for tomorrow's grind."
+        )
 
     pts = progression.get("points", 0)
     max_pts = progression.get("max_points", 500)
@@ -382,7 +401,7 @@ NUDGE_COOLDOWN_SECONDS: float = 1800.0  # 30 minutes per user
 def should_trigger_nudge(user_id: int, force: bool = False, roll_chance: float = 0.35) -> bool:
     """Evaluates whether a reactive nudge should trigger based on cooldown and random probability."""
     if force:
-        logger.info(f"Nudge check for user {user_id}: triggered (force=True).")
+        logger.info(f"[Nudge-Roll] User {user_id}: Force triggered (force=True) -> Skipping cooldown/probability check.")
         return True
     import time
     import random
@@ -391,13 +410,13 @@ def should_trigger_nudge(user_id: int, force: bool = False, roll_chance: float =
     elapsed = now - last_time
     if elapsed < NUDGE_COOLDOWN_SECONDS:
         rem_min = int((NUDGE_COOLDOWN_SECONDS - elapsed) // 60)
-        logger.info(f"Nudge check for user {user_id}: skipped (on cooldown for {rem_min}m).")
+        logger.info(f"[Nudge-Cooldown] User {user_id}: SKIPPED (on active cooldown, {rem_min}m remaining).")
         return False
     roll = random.random()
     if roll <= roll_chance:
-        logger.info(f"Nudge check for user {user_id}: triggered (roll {roll:.2f} <= {roll_chance}).")
+        logger.info(f"[Nudge-Roll] User {user_id}: TRIGGERED (rolled {roll:.2f} <= threshold {roll_chance:.2f}) -> Invoking Groq reactive nudge.")
         return True
-    logger.info(f"Nudge check for user {user_id}: skipped (roll {roll:.2f} > {roll_chance}).")
+    logger.info(f"[Nudge-Roll] User {user_id}: SKIPPED (rolled {roll:.2f} > threshold {roll_chance:.2f}).")
     return False
 
 

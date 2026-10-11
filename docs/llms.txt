@@ -38,10 +38,15 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - **Interactive Trial Resolution**: 10-minute public voting session (`[ 🔨 Guilty ]` vs `[ 🛡️ Innocent ]`) with courtroom GIF reactions and point stripping on confirmed guilty verdicts.
 - **Administrative Disciplinary Probation**: `/admin grind [block/unlock] [member] [days] [reason]` to manage community standards.
 
-### 4. Streak Defense & Streak Shields
+### 4. Streak Defense, Streak Shields & Active Recovery Days (ARD)
 - Active streak increments on days with >=30 points or Perfect Days.
 - Earn 1 Streak Shield every 7 active days (inventory cap: 2).
 - Protect active streaks during illness, rest, or travel without shame: `/shield use [target] [reason]`.
+- **Active Recovery Day (ARD — Sundays)**: Every Sunday is an automated ARD with a 0-point target, auto-protected streaks, zero shield burn, and dynamic AI rest guidance. Upcoming dates are hidden in the monospace calendar to prevent premature slacking.
+
+### 4.1 Contextual Tips Engine
+- Individual and server-wide toggleable fitness & mindset tips (`/tips`, `/tips toggle`).
+- Contextual tip footers across command embeds (`/log`, `/quick`, `/today`, `/streak`) covering discipline form, nutrition, and mindset.
 
 ### 5. 12-Tier Discipline Hierarchy
 - Calibrated around 12,000 Lifetime Points for Level 12 (Apex) across 90 days (~133 pts/day average):
@@ -65,18 +70,19 @@ Modelled after the Saitama training challenge (100 push-ups, 100 sit-ups, 100 sq
 - `00:00 IST`: Midnight Podium Finalization, streak calculations, and rollover.
 - `Sunday 10:00 IST`: Weekly State of the Pack & weekly podium.
 - Broadcasts strictly inside channel set by `/admin set_channel` (zero role ping spam).
-- Personal DM reminders configurable individually via `/reminders`.
+- Personal DM reminders configurable individually via `/reminders` (public preference card with member guard).
 
 ### 7. Standalone Productivity Addon: Todo & Smart Reminders (`todo.db`)
 - Completely decoupled, zero-contamination SQLite engine (`todo.db`) with clean distraction-free formatting (no wolves or rank metaphors).
-- **Commands**: `/todo add`, `/todo list`, `/todo done`, `/todo silence`, `/todo delete`, `/todo restore`, `/todo edit`, `/todo assign`, `/todo dnd`, `/todo clear`.
+- **Commands**: `/todo add`, `/todo list`, `/todo done`, `/todo silence`, `/todo delete`, `/todo restore`, `/todo edit`, `/todo assign`, `/todo incognito`, `/todo dnd`, `/todo clear`.
 - **Dynamic Relative Task Numbering**: Active tasks automatically re-index contiguously `#1..#N`; completed/deleted tasks enter a 7-day auto-pruning trash archive (`T1..TN`).
+- **Incognito Privacy Mode**: Toggle between public channel replies (default, for transparent teamwork) and ephemeral private responses (`/todo incognito [on|off|check] [user]`) with interactive button cards.
 - **Smart Natural-Language Recurrence**: Intervals (`every 2 hours`), windowed schedules (`every hour after 6 PM`), and multi-daily cadences (`3 times a day`, `5 times a day`) with optional `until` parameter for indefinite recurring habits.
 - **Cross-Midnight Quiet Hours (DND)**: Suppresses alerts during sleep windows (e.g., `22:00` to `06:00`), postponing reminders by 30 minutes without spam.
 - **Interactive UI**: 15-item paginated lists with `◀️ Prev` / `▶️ Next` buttons, inline reminder action buttons (`Done`, `Silence`, `Snooze 30m`), and bilateral assignment modals with `[ ✅ Accept ]` and `[ ❌ Decline ]`.
 
 ## Automated Test Suite
-- **115 comprehensive unit & integration tests** across 11 domain modules inside `tests/` with **100% pass rate** (`python test_engine.py`).
+- **142 comprehensive unit & integration tests** across 12 domain modules inside `tests/` with **100% pass rate** (`python test_engine.py`).
 
 ## Quick Start / Deployment
 ```bash

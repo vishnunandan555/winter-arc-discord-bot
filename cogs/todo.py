@@ -22,6 +22,8 @@ from todo_reminders import TodoReminderService
 from ui.todo_views import (
     TodoListView,
     TaskAssignmentView,
+    TodoIncognitoView,
+    build_todo_incognito_embed,
     format_priority_badge,
     build_todo_list_embed,
 )
@@ -37,6 +39,10 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         self.bot = bot
         self.db_path = db_path
         self.reminder_service = TodoReminderService(bot, db_path=db_path)
+
+    def _is_ephemeral(self, user_id: int) -> bool:
+        """Returns True (ephemeral/private) if user is in incognito mode; False (public) if incognito is OFF."""
+        return db.is_user_incognito(user_id, db_path=self.db_path)
 
     async def cog_load(self):
         db.init_todo_db(self.db_path)
@@ -145,66 +151,71 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         )
 
         embed = view.build_current_embed()
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        is_eph = self._is_ephemeral(interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=is_eph)
 
     @todo_group.command(name="done", description="Mark a task completed and move it to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_done(self, interaction: discord.Interaction, id: int):
+        is_eph = self._is_ephemeral(interaction.user.id)
         res = db.mark_task_done(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"✅ **Completed!** Task **`#{id}`** (*{res['task_text']}*) marked done and moved to trash.\n"
                 f"-# All pending reminders cancelled. Kept in trash for 7 days.",
-                ephemeral=True
+                ephemeral=is_eph
             )
         else:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found. Run `/todo list` to check your current task numbers.",
-                ephemeral=True
+                ephemeral=is_eph
             )
 
     @todo_group.command(name="silence", description="Turn off future reminders for a task while keeping it on your list.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_silence(self, interaction: discord.Interaction, id: int):
+        is_eph = self._is_ephemeral(interaction.user.id)
         res = db.silence_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🔕 **Reminders Silenced!** Task **`#{id}`** (*{res['task_text']}*) will no longer send alerts.\n"
                 f"-# The task remains active on your `/todo list`.",
-                ephemeral=True
+                ephemeral=is_eph
             )
         else:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found.",
-                ephemeral=True
+                ephemeral=is_eph
             )
 
     @todo_group.command(name="delete", description="Remove an active task directly to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     async def todo_delete(self, interaction: discord.Interaction, id: int):
+        is_eph = self._is_ephemeral(interaction.user.id)
         res = db.delete_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🗑️ Task **`#{id}`** (*{res['task_text']}*) moved to trash.\n"
                 f"-# You can restore it from trash within 7 days via `/todo restore`.",
-                ephemeral=False
+                ephemeral=is_eph
             )
         else:
-            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph)
 
     @todo_group.command(name="restore", description="Restore a task from 7-day trash back to your active list.")
     @app_commands.describe(trash_id="The trash number (e.g. 1 for T1)")
     async def todo_restore(self, interaction: discord.Interaction, trash_id: int):
+        is_eph = self._is_ephemeral(interaction.user.id)
         res = db.restore_task(interaction.user.id, trash_id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"♻️ Restored task **`T{trash_id}`** (*{res['task_text']}*) back to your active list as **`#{res.get('num', 1)}`**.",
-                ephemeral=True
+                ephemeral=is_eph
             )
         else:
             await interaction.response.send_message(
                 f"❌ Trash item **`T{trash_id}`** not found. Run `/todo list filter: Trash` to inspect trash.",
-                ephemeral=True
+                ephemeral=is_eph
             )
 
     @todo_group.command(name="edit", description="Modify an existing task's description, priority, or reminder.")
@@ -229,6 +240,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         remind: Optional[str] = None,
         remove_reminder: Optional[bool] = False,
     ):
+        is_eph = self._is_ephemeral(interaction.user.id)
         p_val = priority.value if priority else None
         
         parsed = None
@@ -256,10 +268,10 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             note = " Reminders removed." if remove_reminder else (f" {parsed['confirmation_msg']}" if parsed else "")
             await interaction.response.send_message(
                 f"✏️ Updated task **`#{id}`**: **{res['task_text']}**.{note}",
-                ephemeral=True
+                ephemeral=is_eph
             )
         else:
-            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=True)
+            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph)
 
     @todo_group.command(name="assign", description="Assign a task to a friend with an interactive Accept/Decline flow.")
     @app_commands.describe(
@@ -361,9 +373,10 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     ):
         act = action.value
 
+        is_eph = self._is_ephemeral(interaction.user.id)
         if act == "off":
             db.update_user_settings(interaction.user.id, dnd_enabled=False, db_path=self.db_path)
-            await interaction.response.send_message("🔕 **DND Mode Disabled.** Reminders will fire anytime they are due.", ephemeral=True)
+            await interaction.response.send_message("🔕 **DND Mode Disabled.** Reminders will fire anytime they are due.", ephemeral=is_eph)
             return
 
         if act == "status":
@@ -377,7 +390,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
                 f"• State: {state_text}\n"
                 f"• Timezone: `{st.get('timezone', 'Asia/Kolkata')}`\n\n"
                 f"-# Configure using `/todo dnd action: Set start: \"22:00\" end: \"06:00\"`",
-                ephemeral=True
+                ephemeral=is_eph
             )
             return
 
@@ -388,7 +401,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         if not t_start or not t_end:
             await interaction.response.send_message(
                 "❌ Could not parse times. Please format like `22:00` (or `10 PM`) and `06:00` (or `6 AM`).",
-                ephemeral=True
+                ephemeral=is_eph
             )
             return
 
@@ -407,24 +420,74 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             f"🌙 **DND Quiet Hours Enabled!**\n"
             f"• **Quiet Window**: `{s_formatted}` to `{e_formatted}` daily.\n"
             f"• During this window, reminders will be silently postponed to avoid waking or disturbing you.",
-            ephemeral=True
+            ephemeral=is_eph
         )
 
     @todo_group.command(name="clear", description="Instantly purge all completed and trashed items.")
     @app_commands.describe(confirm="Confirm permanent deletion of trash")
     async def todo_clear(self, interaction: discord.Interaction, confirm: bool = False):
+        is_eph = self._is_ephemeral(interaction.user.id)
         if not confirm:
             await interaction.response.send_message(
                 "⚠️ This will permanently delete all tasks in your trash! Run `/todo clear confirm: True` to proceed.",
-                ephemeral=True
+                ephemeral=is_eph
             )
             return
 
         count = db.clear_trash(interaction.user.id, db_path=self.db_path)
         await interaction.response.send_message(
             f"🧹 **Trash Cleared.** Permanently removed **{count}** trashed task(s).",
-            ephemeral=True
+            ephemeral=is_eph
         )
+
+    @todo_group.command(name="incognito", description="Manage or check Incognito Mode for your /todo commands.")
+    @app_commands.describe(
+        mode="Set Incognito Mode (On, Off, or Check)",
+        user="Optional user to check incognito status for"
+    )
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Turn ON", value="on"),
+        app_commands.Choice(name="Turn OFF", value="off"),
+        app_commands.Choice(name="Check Status", value="check"),
+    ])
+    async def todo_incognito(
+        self,
+        interaction: discord.Interaction,
+        mode: Optional[app_commands.Choice[str]] = None,
+        user: Optional[discord.User] = None,
+    ):
+        target_mode = mode.value if mode else None
+
+        # 1. If checking another user, or mode == 'check'
+        if user is not None or target_mode == "check":
+            target = user if user is not None else interaction.user
+            target_incog = db.is_user_incognito(target.id, db_path=self.db_path)
+            state_text = "ON" if target_incog else "OFF"
+            emoji = "🔒" if target_incog else "🔓"
+            if target.id == interaction.user.id:
+                msg = f"{emoji} Your Incognito Mode is **{state_text}**"
+            else:
+                msg = f"{emoji} **{target.display_name}** is in Incognito Mode: **{state_text}**"
+            await interaction.response.send_message(msg, ephemeral=False)
+            return
+
+        # 2. Turn ON
+        if target_mode == "on":
+            db.set_user_incognito(interaction.user.id, True, db_path=self.db_path)
+            await interaction.response.send_message("🔒 Incognito Mode Turned ON", ephemeral=False)
+            return
+
+        # 3. Turn OFF
+        if target_mode == "off":
+            db.set_user_incognito(interaction.user.id, False, db_path=self.db_path)
+            await interaction.response.send_message("🔓 Incognito Mode Turned OFF", ephemeral=False)
+            return
+
+        # 4. Default: Interactive card with Turn On and Turn Off buttons
+        current_state = db.is_user_incognito(interaction.user.id, db_path=self.db_path)
+        embed = build_todo_incognito_embed(interaction.user, is_incognito=current_state)
+        view = TodoIncognitoView(interaction.user.id, current_state=current_state, db_path=self.db_path)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
 
 async def setup(bot: commands.Bot):

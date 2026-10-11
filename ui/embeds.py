@@ -11,6 +11,7 @@ import discord
 
 import database as db
 from config import BOT_TZ, MIN_STREAK_POINTS
+from phases import is_recovery_day
 from levels import get_level_info, get_all_ranks, APEX_THRESHOLD
 from ui.formatters import make_progress_bar, format_rank_badge, TASK_ICONS
 
@@ -27,6 +28,16 @@ def format_num(val: Any) -> Any:
 
 
 LEADERBOARD_NAV_GUIDE = ""
+
+AUTHENTIC_REST_QUOTES = [
+    '"He who knows when he can fight and when he cannot, will be victorious." — Sun Tzu',
+    '"Even a bow breaks if it is kept always bent." — Publilius Syrus',
+    '"Take rest; a field that has rested gives a bountiful crop." — Ovid',
+    '"In intervals of rest, the mind and body find renewed vigor." — Seneca',
+    '"No man is free who is not master of himself." — Epictetus',
+    '"Nature does not hurry, yet everything is accomplished." — Lao Tzu',
+    '"Rest when you are weary. Refresh and renew yourself, your body, your mind, your spirit." — Marcus Aurelius',
+]
 
 
 def build_daily_leaderboard_embed() -> discord.Embed:
@@ -240,13 +251,24 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
 
     total_line = f"\n\n📊 **Total Daily Progress**: **{total_pts} / {max_pts} pts** (**{pct}%**){points_breakdown}"
 
-    streak_status = " *(Streak Secured ✅)*" if (total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]) else f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
-
     reset_ts = get_midnight_reset_timestamp()
+    today_recovery = is_recovery_day()
+
     if total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]:
+        streak_status = " *(Streak Secured ✅)*"
         deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+        footer_text = "Active Recovery Day (ARD) ❤️ • Streak secured with volume • Rebuild & recover!" if today_recovery else f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak"
+        color = 0x1ABC9C if progress["perfect_day"] else 0x2ECC71
+    elif today_recovery:
+        streak_status = " *(ARD ❤️ Streak Protected)*"
+        deadline_line = f"✨ **Next Day Unlocks**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+        footer_text = "Active Recovery Day (ARD) ❤️ • Light mobility & hydration • Streak automatically preserved"
+        color = 0x9B59B6
     else:
+        streak_status = f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
         deadline_line = f"⏳ **Deadline to Secure Streak**: <t:{reset_ts}:R> (<t:{reset_ts}:t>)"
+        footer_text = f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak"
+        color = 0x3498DB
 
     desc = (
         f"**{target_user.display_name}** • {date_display}\n"
@@ -261,9 +283,9 @@ def build_today_embed(target_user: discord.Member, progress: Dict[str, Any], str
     embed = discord.Embed(
         title="❄️ Winter Arc — Today",
         description=desc,
-        color=0x1ABC9C if progress["perfect_day"] else (0x2ECC71 if total_pts >= MIN_STREAK_POINTS else 0x3498DB)
+        color=color
     )
-    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak")
+    embed.set_footer(text=footer_text)
     return embed
 
 
@@ -303,7 +325,20 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
         points_breakdown = f"  *(Physical: {phys_pts} + Grind: {grind_pts})*"
 
     total_line = f"\n\n📊 **Total Daily Progress**: **{total_pts} / {max_pts} pts** (**{pct}%**){points_breakdown}"
-    streak_status = " *(Streak Secured ✅)*" if (total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]) else f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
+
+    today_recovery = is_recovery_day()
+    if total_pts >= MIN_STREAK_POINTS or progress["perfect_day"]:
+        streak_status = " *(Streak Secured ✅)*"
+        footer_text = f"Log with /log • Set with /set • {MIN_STREAK_POINTS} pts/day minimum for streak"
+        color = 0x1ABC9C if progress["perfect_day"] else 0x2ECC71
+    elif today_recovery:
+        streak_status = " *(ARD ❤️ Streak Protected)*"
+        footer_text = "Active Recovery Day (ARD) ❤️ • Light mobility & hydration • Streak automatically preserved"
+        color = 0x9B59B6
+    else:
+        streak_status = f" *({MIN_STREAK_POINTS - total_pts} pts to secure streak)*"
+        footer_text = f"Log with /log • Set with /set • {MIN_STREAK_POINTS} pts/day minimum for streak"
+        color = 0x3498DB
 
     description = (
         f"**{target_user.display_name}** • {date_display}\n"
@@ -317,9 +352,9 @@ def build_tasks_embed(target_user: discord.Member, progress: Dict[str, Any], str
     embed = discord.Embed(
         title="📋 Winter Arc — Disciplines & Tasks",
         description=description,
-        color=0x1ABC9C if progress["perfect_day"] else (0x2ECC71 if total_pts >= MIN_STREAK_POINTS else 0x3498DB)
+        color=color
     )
-    embed.set_footer(text=f"Log with /log • Set with /set • {MIN_STREAK_POINTS} pts/day minimum for streak")
+    embed.set_footer(text=footer_text)
     return embed
 
 
@@ -776,7 +811,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             title="🛡️ Streak Shield & Recovery System",
             description=(
                 "The Winter Arc demands relentless discipline, but intentional recovery prevents burnout.\n"
-                "Streak Shields protect your unbroken streak automatically during missed days or emergencies."
+                "Streak Shields and Active Recovery Days protect your unbroken streak automatically."
             ),
             color=0x00D2FF
         )
@@ -787,7 +822,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
                 "• **Earning Shields**: You earn **+1 Streak Shield for every 7-day streak milestone** (cap of 2 shields max).\n"
                 "• **Inventory Cap**: You can hold a maximum of **2 Streak Shields** at any time.\n"
                 "• **Automatic Midnight Usage**: If you miss a day (< 30 pts), an available shield is automatically used at midnight (00:00 IST).\n"
-                "• **Safety Rule**: A day is missed only if you run out of Streak Shields!"
+                "• **❤️ Active Recovery Day (Sundays)**: Every Sunday is an Active Recovery Day with a **0 pt daily requirement**. Your streak is preserved automatically without burning shields, allowing rest, mobility, and reflection.\n"
+                "• **Safety Rule**: A streak is broken only if you miss on a normal day and have zero Streak Shields remaining!"
             ),
             inline=False
         )
@@ -799,7 +835,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             ),
             inline=False
         )
-        embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak milestone")
+        embed.set_footer(text="Max 2 shields stored • 1 shield awarded every 7-day streak milestone • Sundays auto-protected")
         return embed
 
     elif category == "todo":
@@ -847,6 +883,16 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             inline=False
         )
         embed.add_field(
+            name="🕵🏻 `/todo incognito [mode] [user]` — Incognito Privacy Mode",
+            value=(
+                "Toggle the visibility of your `/todo` actions in server channels:\n"
+                "• **OFF (Public)** *(Default)*: All to-do actions (`/todo list`, `/todo done`, `/todo delete`, etc.) are posted publicly in the channel.\n"
+                "• **ON (Private)**: Personal to-do actions are visible only to you (ephemeral), keeping channels uncluttered. Shared actions (`/todo add`, `/todo assign`) remain public.\n"
+                "• **Interactive Toggle**: Running `/todo incognito` posts an interactive card with `Turn On` and `Turn Off` buttons. You can also specify `mode: on`, `mode: off`, or `mode: check`."
+            ),
+            inline=False
+        )
+        embed.add_field(
             name="🤝 Team Delegation: `/todo assign [member] [task]`",
             value=(
                 "Assign a task to a server peer. Sends a channel ping and private DM notification with interactive "
@@ -874,7 +920,8 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
         embed.add_field(
             name="🔔 `/reminders` & `/settings` — Personal Direct Messages",
             value=(
-                "Configure automated private DM alerts sent directly to your inbox with 1-click toggles:\n"
+                "Configure automated private DM alerts sent directly to your inbox with 1-click toggles.\n"
+                "• **Public Channel Response**: Posts a card in the channel with guarded buttons only you can toggle.\n"
                 "• 🌅 **Morning Kickoff DM (05:00 IST)**: Daily discipline targets, motivation quote, and clean slate.\n"
                 "• ☀️ **Afternoon Standings DM (16:30 IST)**: Mid-day pulse check and active pack standings.\n"
                 "• ⚠️ **Evening Streak Warning DM (21:00 IST)**: Urgent reminder if you are below 30 points.\n"
@@ -887,6 +934,7 @@ def build_help_embed(category: str = "overview") -> discord.Embed:
             value=(
                 "• `/enroll` — Join the Winter Arc challenge and establish your warrior profile.\n"
                 "• `/leave_arc` — Unenroll from active server rosters (lifetime stats and points preserved).\n"
+                "• `/tips [on|off]` — Enable or disable periodic bot usage tips and guidance.\n"
                 "• `/ping` — Check bot response time, gateway latency, and timezone synchronization."
             ),
             inline=False
@@ -1004,7 +1052,8 @@ def build_morning_kickoff_message(
     curr_phase: Optional[Dict[str, Any]] = None,
     phase_progress: Optional[Dict[str, Any]] = None,
     quote: Optional[str] = None,
-    role_ping: str = ""
+    role_ping: str = "",
+    is_recovery: Optional[bool] = None,
 ) -> str:
     """Builds native Discord broadcast for the 07:00 IST morning kickoff."""
     clean_ping = role_ping.strip()
@@ -1014,6 +1063,22 @@ def build_morning_kickoff_message(
         phase_header = f"Day {phase_progress['day_num']} of {curr_phase['name']} ({curr_phase['short_name']}) 🌅"
     else:
         phase_header = f"{date_display} 🌅"
+
+    today_recovery = is_recovery if is_recovery is not None else is_recovery_day(date_display)
+    if today_recovery:
+        import random
+        rest_emoji = random.choice(["🌱", "🌿", "🍃", "🪴", "🧘"])
+        ping_part = f"{prefix}[WinterArc]\n\n" if prefix else ""
+        header = f"{ping_part}**Today is Rest Day {rest_emoji}**"
+        body = (
+            "The pack is on active recovery today. Movement is medicine — don't stay idle; "
+            "go for a light walk, stretch out tight joints, hydrate with plenty of water, and fuel your body with nutritious food. "
+            "Your streak is completely safe today. Rebuild your energy."
+        )
+        quote_text = (quote or random.choice(AUTHENTIC_REST_QUOTES)).strip()
+        quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Move Lightly"
+        return f"{header}\n\n{body}\n\n{quote_section}\n\n{subtext}"
 
     header = (
         f"{prefix}[WinterArc] {phase_header}\n"
@@ -1044,6 +1109,18 @@ def build_afternoon_checkin_message(
     clean_ping = role_ping.strip()
     prefix = f"{clean_ping} " if clean_ping else ""
 
+    today_recovery = is_recovery_day(today_str)
+    if today_recovery:
+        default_body = (
+            "Midday check-in, warriors. Put your phone down for 10 minutes: drink a tall glass of water, "
+            "get a clean meal in, step outside for a 15-minute mobility walk, and loosen up your back and hips. "
+            "Keep the blood moving lightly today."
+        )
+        body = (quote.strip() if quote else default_body)
+        header = f"**Winter Arc — Midday Pulse 🌿**\n\n{body}"
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Stay hydrated & mobile"
+        return f"{header}\n\n{subtext}"
+
     header = (
         f"{prefix}[WinterArc] Afternoon Check-in ⏳\n"
         "Halfway through the day. Check your numbers and get your remaining sets logged before tonight."
@@ -1069,10 +1146,11 @@ def build_afternoon_checkin_message(
 
     members_section = "\n".join(member_lines) if member_lines else "- _No enrolled members yet._"
 
-    quote_text = (quote or '"First say to yourself what you would be; and then do what you have to do." — Epictetus').strip()
+    default_q = '"Active recovery builds the foundation for tomorrow\'s strength." — Amarok' if today_recovery else '"First say to yourself what you would be; and then do what you have to do." — Epictetus'
+    quote_text = (quote or default_q).strip()
     quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
 
-    subtext = "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
+    subtext = "-# Active Recovery Day (ARD) ❤️ • Streaks protected • Rollover at midnight" if today_recovery else "-# Log with /log • 30 pts/day minimum for streak • Rollover at midnight"
 
     return f"{header}\n\n{members_section}\n\n{quote_section}\n\n{subtext}"
 
@@ -1081,6 +1159,26 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
     """Builds the 05:00 morning kickoff broadcast embed with active phase context."""
     from phases import get_current_phase, get_phase_progress
     curr_phase = get_current_phase()
+    today_recovery = is_recovery_day(date_display)
+
+    if today_recovery:
+        import random
+        rest_emoji = random.choice(["🌱", "🌿", "🍃", "🪴", "🧘"])
+        embed = discord.Embed(
+            title=f"Today is Rest Day {rest_emoji}",
+            color=0x27AE60
+        )
+        body = (
+            "The pack is on active recovery today. Movement is medicine — don't stay idle; "
+            "go for a light walk, stretch out tight joints, hydrate with plenty of water, and fuel your body with nutritious food. "
+            "Your streak is completely safe today. Rebuild your energy."
+        )
+        quote_text = (quote or random.choice(AUTHENTIC_REST_QUOTES)).strip()
+        quote_section = quote_text if quote_text.startswith(">") else f"> {quote_text}"
+        embed.description = f"{body}\n\n{quote_section}"
+        embed.set_footer(text="Active Recovery Day (ARD) ❤️ • Streaks protected • Move Lightly")
+        return embed
+
     embed_color = curr_phase["color"] if curr_phase else 0x2980B9
 
     embed = discord.Embed(
@@ -1119,6 +1217,22 @@ def build_morning_kickoff_embed(active_tasks: List[Dict[str, Any]], date_display
 
 def build_afternoon_checkin_embed(enrolled_users: List[Dict[str, Any]], today_str: str, quote: Optional[str] = None) -> discord.Embed:
     """Builds the 16:30 afternoon check-in broadcast embed."""
+    today_recovery = is_recovery_day(today_str)
+    if today_recovery:
+        default_desc = (
+            "Midday check-in, warriors. Put your phone down for 10 minutes: drink a tall glass of water, "
+            "get a clean meal in, step outside for a 15-minute mobility walk, and loosen up your back and hips. "
+            "Keep the blood moving lightly today."
+        )
+        desc = (quote.strip() if quote else default_desc)
+        embed = discord.Embed(
+            title="Winter Arc — Midday Pulse 🌿",
+            description=desc,
+            color=0x27AE60
+        )
+        embed.set_footer(text="Active Recovery Day (ARD) ❤️ • Streaks protected • Stay hydrated & mobile")
+        return embed
+
     embed = discord.Embed(
         title="⏳ Winter Arc — Afternoon Check-in",
         color=0xD35400
@@ -1167,7 +1281,8 @@ def build_evening_checkin_message(
     warriors_data: List[Dict[str, Any]],
     callouts: Optional[Dict[int, str]] = None,
     stoic_quote: Optional[str] = None,
-    role_ping: str = ""
+    role_ping: str = "",
+    is_recovery: Optional[bool] = None,
 ) -> str:
     """
     Builds the native Discord text broadcast for the 21:00 IST evening streak alert (3h before midnight).
@@ -1175,6 +1290,18 @@ def build_evening_checkin_message(
     """
     clean_ping = role_ping.strip()
     header_ping = f"{clean_ping} " if clean_ping else ""
+
+    today_recovery = is_recovery if is_recovery is not None else is_recovery_day()
+    if today_recovery:
+        default_body = (
+            "Active Recovery Day is winding down. The pack observed recovery today and all streaks remain locked in and protected.\n\n"
+            "Shut off screens, wind down early, and get 8 hours of deep restorative sleep. "
+            "Tomorrow the hunt resumes at 100% intensity — be ready to give it your absolute all."
+        )
+        body = (stoic_quote.strip() if stoic_quote else default_body)
+        header = f"**Winter Arc — Evening Wind-Down 🌙**\n\n{body}"
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Rest well • Tomorrow we hunt"
+        return f"{header}\n\n{subtext}"
 
     header = (
         f"{header_ping}[WinterArc] 3 hours left until midnight rollover. ⏳\n"
@@ -1184,7 +1311,6 @@ def build_evening_checkin_message(
     if not warriors_data:
         warriors_section = "- No enrolled warriors yet."
     else:
-        # Sort ascending by points so warriors who need urgency (0 pts, <30 pts) are at the top
         sorted_warriors = sorted(
             warriors_data,
             key=lambda w: (w.get("points", 0), w.get("streak", 0))
@@ -1227,6 +1353,22 @@ def build_evening_checkin_embed(
     callouts: Optional[Dict[int, str]] = None,
 ) -> discord.Embed:
     """Builds the 21:00 IST evening streak alert channel broadcast embed (3 hours before midnight)."""
+    today_recovery = is_recovery_day(today_str)
+    if today_recovery:
+        default_desc = (
+            "Active Recovery Day is winding down. The pack observed recovery today and all streaks remain locked in and protected.\n\n"
+            "Shut off screens, wind down early, and get 8 hours of deep restorative sleep. "
+            "Tomorrow the hunt resumes at 100% intensity — be ready to give it your absolute all."
+        )
+        desc = (quote.strip() if quote else default_desc)
+        embed = discord.Embed(
+            title="Winter Arc — Evening Wind-Down 🌙",
+            description=desc,
+            color=0x27AE60
+        )
+        embed.set_footer(text="Active Recovery Day (ARD) ❤️ • Rest well • Tomorrow we hunt")
+        return embed
+
     secured_lines = []
     at_risk_lines = []
 
@@ -1251,12 +1393,12 @@ def build_evening_checkin_embed(
         "⏳ **3 Hours Remaining Until Midnight Rollover!**\n"
         f"Scores lock in at 00:00 IST. Earn at least **{MIN_STREAK_POINTS} pts** to defend your streak.\n\n"
     )
-
     if at_risk_lines:
         desc += "**⚠️ Streak at Risk (< 30 pts)**\n" + "\n".join(at_risk_lines) + "\n\n"
-
     if secured_lines:
         desc += "**🔥 Streak Secured**\n" + "\n".join(secured_lines) + "\n\n"
+    color = 0xC0392B
+    footer_text = f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST"
 
     if not at_risk_lines and not secured_lines:
         desc += "No enrolled warriors yet.\n\n"
@@ -1266,11 +1408,11 @@ def build_evening_checkin_embed(
         desc += f"> {clean_quote}\n\n"
 
     embed = discord.Embed(
-        title="🌙 Winter Arc — Evening Streak Alert",
+        title="🌙 Winter Arc — Active Recovery Wind-down" if today_recovery else "🌙 Winter Arc — Evening Streak Alert",
         description=desc.strip(),
-        color=0xC0392B
+        color=color
     )
-    embed.set_footer(text=f"Log with /log • {MIN_STREAK_POINTS} pts/day minimum for streak • Rollover at 00:00 IST")
+    embed.set_footer(text=footer_text)
     return embed
 
 
@@ -1502,6 +1644,30 @@ def build_shield_activated_embed(user: discord.Member, result: Dict[str, Any]) -
     return embed
 
 
+def build_tips_embed(user: Union[discord.User, discord.Member], is_enabled: bool) -> discord.Embed:
+    """Builds the interactive tips configuration embed."""
+    status_str = "**ON** 🟢 (Enabled)" if is_enabled else "**OFF** 🔕 (Disabled)"
+    current_mode_tag = "ON (Enabled)" if is_enabled else "OFF (Disabled)"
+    color = 0x2ECC71 if is_enabled else 0x95A5A6
+    desc = (
+        f"**Tips Status for {user.display_name}**: {status_str}\n\n"
+        "Periodic tips appear after logging workouts with `/log`, `/quick`, `/streak`, etc., "
+        "sharing feature guides, pro-tips, and challenge logic.\n\n"
+        "• **ON (Enabled)**\n"
+        "  You will occasionally receive helpful command tricks, habit guidance, and feature tips.\n\n"
+        "• **OFF (Disabled)**\n"
+        "  All periodic tip messages mentioning you are completely suppressed.\n\n"
+        "Use the buttons below to toggle your preference at any time."
+    )
+    embed = discord.Embed(
+        title="💡 Winter Arc — Usage Tips & Guidance",
+        description=desc,
+        color=color
+    )
+    embed.set_footer(text=f"Toggle anytime with /tips on or /tips off • Current: {current_mode_tag}")
+    return embed
+
+
 def build_settings_embed(user: discord.Member, settings: Dict[str, Any]) -> discord.Embed:
     """Builds the interactive private DM notification settings embed."""
     morning_icon = "🟢 On" if settings.get("dm_morning") else "⚪ Off"
@@ -1534,8 +1700,19 @@ def build_dm_morning_message(
     curr_phase: Optional[Dict[str, Any]] = None,
     phase_progress: Optional[Dict[str, Any]] = None,
     user_mention: Optional[str] = None,
+    is_recovery: bool = False,
 ) -> str:
     """Builds clean personal text message for the 05:00 IST morning DM briefing."""
+    today_recovery = is_recovery
+    if today_recovery:
+        import random
+        rest_emoji = random.choice(["🌱", "🌿", "🍃", "🪴", "🧘"])
+        mention_prefix = f"{user_mention}\n" if user_mention else ""
+        rest_quote = random.choice(AUTHENTIC_REST_QUOTES)
+        advice = (quote or "Movement is medicine today. Don't sit idle; take a light 20-minute walk, hydrate deeply, and mobilize tight joints to actively rebuild.").strip()
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Streak automatically preserved • Disable anytime using /reminders"
+        return f"{mention_prefix}**Today is Rest Day! {rest_emoji}**\n\n> {rest_quote}\n\n{advice}\n\n{subtext}"
+
     if curr_phase and phase_progress:
         header = f"🌅 **Winter Arc — Day {phase_progress['day_num']} of {curr_phase['name']}**"
     else:
@@ -1564,11 +1741,24 @@ def build_dm_afternoon_message(
     max_points: int,
     streak: int,
     user_mention: Optional[str] = None,
+    is_recovery: bool = False,
 ) -> str:
     """Builds clean personal text message for the 16:30 IST afternoon DM check-in."""
     pct = int(round((points / max_points * 100))) if max_points > 0 else 0
-    header = "☀️ **Winter Arc — Afternoon Check-in (16:30 IST)**"
     target = user_mention if user_mention else (user_name if user_name.startswith("<@") else f"**{user_name}**")
+
+    today_recovery = is_recovery
+    if today_recovery:
+        header = "☀️ **Winter Arc — ARD Afternoon Pulse (16:30 IST) 🧘**"
+        body = (
+            f"{target}, today is an official Pack Active Recovery Day (ARD).\n"
+            f"Your **{streak}-day streak** is fully protected with zero stress.\n\n"
+            "Don't stay idle—take a light walk, do mobility work or foam rolling, hydrate, and restore."
+        )
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Streak protected • Disable anytime using /reminders"
+        return f"{header}\n\n{body}\n\n{subtext}"
+
+    header = "☀️ **Winter Arc — Afternoon Check-in (16:30 IST)**"
 
     if points >= 500:
         body = (
@@ -1602,10 +1792,24 @@ def build_dm_evening_message(
     shields: int,
     quote: Optional[str] = None,
     user_mention: Optional[str] = None,
+    is_recovery: bool = False,
 ) -> str:
     """Builds clean personal text message for the 21:00 IST evening streak warning DM (3h before midnight)."""
-    header = "🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**"
     target = user_mention if user_mention else (user_name if user_name.startswith("<@") else f"**{user_name}**")
+
+    today_recovery = is_recovery
+    if today_recovery:
+        mention_prefix = f"{target}\n" if target else ""
+        header = "**Active Recovery Day Complete! 🌙**"
+        default_body = (
+            "Good work taking care of your recovery today. Turn off notifications, stay off your screen, "
+            "and get to bed early tonight. Tomorrow we go full throttle — make sure you're well-rested and ready to crush your sets."
+        )
+        body = (quote.strip() if quote else default_body)
+        subtext = "-# Active Recovery Day (ARD) ❤️ • Rest well • Tomorrow we hunt"
+        return f"{mention_prefix}{header}\n\n{body}\n\n{subtext}"
+
+    header = "🌙 **Winter Arc — 3 Hours Until Midnight Rollover!**"
 
     if points >= 500:
         body = (
@@ -2316,7 +2520,7 @@ def format_embed_as_text(embed: discord.Embed) -> str:
     return "\n\n".join(parts).strip()
 
 
-STREAK_LEGEND_FOOTER = "🟩 Streaked • ⭐ Perfect Day (100%) • 🛡️ Shield Used • 🟥 Missed • ▫️ Upcoming"
+STREAK_LEGEND_FOOTER = "🟩 Streaked • ⭐ Perfect Day (100%) • ❤️ ARD • 🛡️ Shield Used • 🟥 Missed • ▫️ Upcoming"
 STREAK_LEGEND_SUBTEXT = STREAK_LEGEND_FOOTER
 
 

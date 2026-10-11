@@ -124,6 +124,28 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         )
         await interaction.followup.send(embed=embed)
 
+    @admin_group.command(name="tips", description="Enable or disable periodic bot tips server-wide.")
+    @app_commands.describe(enabled="Turn periodic tips ON or OFF for the entire server")
+    async def admin_tips(self, interaction: discord.Interaction, enabled: bool):
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await interaction.followup.send("This command must be run within a server.", ephemeral=True)
+            return
+
+        db.set_server_tips_enabled(interaction.guild.id, enabled)
+        status_str = "ENABLED" if enabled else "DISABLED"
+        emoji = "💡" if enabled else "🔕"
+        logger.info(f"Admin command '/admin tips' executed by {interaction.user} -> {status_str} in {interaction.guild.name}")
+        embed = discord.Embed(
+            title=f"{emoji} Server Tips {status_str.title()}",
+            description=(
+                f"Periodic tips have been **{'enabled' if enabled else 'disabled'} server-wide** in **{interaction.guild.name}**.\n\n"
+                f"{'Members will occasionally receive helpful usage tips after commands unless they disabled their personal tips with `/tips off`.' if enabled else 'All background tips across this server are now completely suppressed.'}"
+            ),
+            color=0x2ECC71 if enabled else 0x95A5A6
+        )
+        await interaction.followup.send(embed=embed)
+
     @admin_group.command(name="overview", description="View server configuration, enrolled members, and disciplines.")
     async def admin_overview(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -135,12 +157,14 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         settings = db.get_server_settings(interaction.guild.id)
         channel_id = settings.get("channel_id", 0)
         role_id = settings.get("role_id", 0)
+        tips_on = bool(settings.get("tips_enabled", 1))
 
         channel = interaction.guild.get_channel(channel_id) if channel_id else None
         role = interaction.guild.get_role(role_id) if role_id else None
 
         channel_display = channel.mention if channel else "`Not Configured ⚠️` (use `/admin set_channel`)"
         role_display = role.mention if role else "`Not Configured ⚠️` (use `/admin set_role`)"
+        tips_display = "🟢 Enabled" if tips_on else "🔕 Disabled"
 
         enrolled = db.get_enrolled_users()
         today_str = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
@@ -157,7 +181,8 @@ class AdminCog(commands.Cog, name="Admin Commands"):
         desc = (
             "**Server Configuration**\n"
             f"• 📢 **Dedicated Channel**: {channel_display}\n"
-            f"• 🔔 **Ping Role**: {role_display}\n\n"
+            f"• 🔔 **Ping Role**: {role_display}\n"
+            f"• 💡 **Periodic Tips**: {tips_display}\n\n"
             f"**Enrolled Members ({len(enrolled)})**\n"
             + ("\n".join(warrior_lines) if warrior_lines else "_No members enrolled yet._")
             + "\n\n**Active Disciplines**\n"
@@ -169,7 +194,7 @@ class AdminCog(commands.Cog, name="Admin Commands"):
             description=desc,
             color=0x34495E
         )
-        embed.set_footer(text="Admin: /admin set_channel • /admin set_role • /admin task_add")
+        embed.set_footer(text="Admin: /admin set_channel • /admin set_role • /admin tips • /admin task_add")
         await interaction.followup.send(embed=embed)
 
     @admin_group.command(name="task_add", description="Add a new challenge discipline to the database.")

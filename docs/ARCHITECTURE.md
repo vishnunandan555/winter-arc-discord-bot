@@ -28,7 +28,7 @@ Technical design specification, component separation, database schema, and scori
 │  • /profile, /ranks          ││  • /admin grind (probation) │
 │  • /leaderboard, /stats      ││  • /nuke (Owner 2FA Purge)  │
 │  • /history, /recap, /quick  ││  • /test_reminder           │
-│  • /grind, /reminders        ││                             │
+│  • /grind, /reminders, /tips ││                             │
 │  • /accuse (Council trial)   ││                             │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │
@@ -100,7 +100,7 @@ winter-arc-bot/
 │   └── todo_views.py         # Interactive 15-item Todo views, alerts, and assignment cards
 ├── cogs/
 │   ├── __init__.py
-│   ├── warrior.py            # User-facing slash commands, /accuse, and /reminders
+│   ├── warrior.py            # User-facing slash commands, /accuse, /reminders, and /tips
 │   ├── admin.py              # Administrator commands, /admin grind, /admin backup, /nuke
 │   └── todo.py               # Standalone /todo command group implementation
 ├── todo_db.py                # Dedicated SQLite engine for Todo addon (todo.db)
@@ -141,6 +141,13 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `username` | TEXT | Discord display username |
 | `joined_at` | DATETIME | Timestamp when user enrolled |
 | `enrolled` | BOOLEAN | `1` if active, `0` if unenrolled via `/leave_arc` |
+| `frost_shields` | INTEGER DEFAULT 0 | Current inventory of Streak Shields (cap: 2) |
+| `last_shield_milestone` | INTEGER DEFAULT 0 | Highest 7-day streak milestone awarded |
+| `dm_reminders` | BOOLEAN DEFAULT 0 | Legacy DM toggle |
+| `dm_morning` | BOOLEAN DEFAULT 1 | 05:00 IST Morning Kickoff DM preference |
+| `dm_afternoon` | BOOLEAN DEFAULT 1 | 16:30 IST Afternoon Standings DM preference |
+| `dm_evening` | BOOLEAN DEFAULT 1 | 21:00 IST Evening Streak Alert DM preference |
+| `tips_enabled` | BOOLEAN DEFAULT 1 | Periodic bot tips preference (`/tips [on/off]`) |
 
 ### `tasks`
 
@@ -175,6 +182,7 @@ SQLite schema definition (`PRAGMA foreign_keys = ON;`):
 | `points` | INTEGER | Sum of points earned across all tasks (max 500) |
 | `completion_rate` | REAL | Ratio achieved (0.0 to 1.0) |
 | `perfect_day` | BOOLEAN | `1` if user achieved 100% completion |
+| `is_rest_day` | BOOLEAN DEFAULT 0 | `1` if designated Active Recovery Day (Sunday) |
 
 ### `server_settings`
 
@@ -229,7 +237,50 @@ $$\text{Arc Progress \%} = \min\left(100.0, \frac{\text{Lifetime Points}}{12000}
 
 ---
 
-## 5. Tribal Governance & Anti-Cheat Council Engine
+## 5. Streak Defense & Active Recovery Day (ARD) Engine
+
+1. **Streak Calculus & Shields**:
+   - Maintaining an active streak requires $\ge 30\text{ points}$ on standard weekdays and Saturdays (or achieving Perfect Day with 500 pts).
+   - Warriors earn **+1 Streak Shield** for every 7 consecutive days completed (inventory capped at 2 shields).
+   - If a warrior logs $< 30\text{ points}$ on a standard day, an available Streak Shield is consumed automatically at midnight (00:00 IST) without shame or manual intervention.
+
+2. **❤️ Active Recovery Day (ARD — Sundays)**:
+   - **Calendar Schedule**: Every Sunday throughout the 90-day campaign is designated as an **Active Recovery Day (ARD)**:
+     - **Phase 1**: Oct 11, Oct 18, Oct 25
+     - **Phase 2**: Nov 1, Nov 8, Nov 15, Nov 22
+     - **Phase 3**: Nov 29, Dec 6, Dec 13, Dec 20, Dec 27
+   - **Point Threshold**: Daily target is set to **0 points** (`is_active_recovery_day(date) == True`).
+   - **Streak Auto-Protection**: No warrior loses their streak on an ARD, and **zero Streak Shields are consumed**.
+   - **Database Schema**: Tracks recovery state via `daily_summaries.is_rest_day` (`BOOLEAN DEFAULT 0`), persisted automatically across daily logs and finalizations.
+   - **Monospace Calendar & Hidden ARD Mechanics**:
+     - In `/calendar` and `/streak`, upcoming days are intentionally rendered with neutral `▫️` (hidden ARD dates) to prevent warriors from slacking off ahead of time.
+     - Upon arrival and for past dates, ARDs reveal as `❤️` (Active Recovery Day) if rest was taken, or `🟩` if the warrior logged full volume.
+   - **Dynamic Broadcast Cadence on ARDs**:
+     - **Morning Kickoff (05:00 IST)**: Role pinged `@Warrior [WinterArc]` (deliberate ARD exception to notify the pack). Short, feel-good, dynamic AI message reflecting pack history (top performers urged to rest and recover; low-activity members encouraged to move lightly), paired with authentic rest quotes (no generic cliché quotes).
+     - **Afternoon Check-in (14:30 IST)**: Unpinged message featuring dynamic AI health and human physiology fun facts, hydration tips, and gentle mobility reminders.
+     - **Evening Wind-down (21:00 IST)**: Short dynamic message focused on quality sleep, winding down, and mental readiness for tomorrow's resumption.
+   - **Direct Message (DM) Personalization on ARDs**:
+     - Personalized morning ARD DM evaluates the warrior's individual 7-day volume. Reassures them that their streak is protected, offering tailored recovery, nutrition, and walking suggestions.
+   - **Reactive AI Nudge Adaptation on ARDs**:
+     - Reactive nudges never scold or chastise a warrior for having 0 reps on an ARD. Prompts dynamically instruct Amarok to motivate light mobility, stretching, and mental reset.
+
+---
+
+## 5.1 Contextual Tips Engine (`tips.py`)
+
+A non-intrusive habit intelligence system providing actionable micro-tips:
+- **Command Control**:
+  - `/tips [category]` — Query immediate tips across categories (`pushups`, `pullups`, `squats`, `running`, `recovery`, `nutrition`, `mindset`).
+  - `/tips toggle` — Individual warrior toggle to enable or disable tip footers across bot responses.
+- **Server & User Settings**:
+  - Persisted via `users.tips_enabled` and `server_settings.tips_enabled` (`BOOLEAN DEFAULT 1`).
+  - Admins can manage server-wide tip broadcasting via `/settings`.
+- **Dynamic Rotation & Anti-Spam**:
+  - Tips rotate dynamically in embed footers of workout logs (`/log`, `/quick`, `/set`), `/today`, and `/streak` without inflating message size.
+
+---
+
+## 6. Tribal Governance & Anti-Cheat Council Engine
 
 The Winter Arc governance system enforces authenticity through a dual-trigger architecture:
 
@@ -244,7 +295,7 @@ The Winter Arc governance system enforces authenticity through a dual-trigger ar
 
 ---
 
-## 6. Multi-Tier AI Architecture & Cascade Failover Engine
+## 7. Multi-Tier AI Architecture & Cascade Failover Engine
 
 The bot employs a fault-tolerant, 3-tier cascade architecture to guarantee zero-downtime execution and eliminate regional datacenter IP restrictions:
 
@@ -282,9 +333,21 @@ User Request (/grind, recaps, announcements, briefings)
 3. **Tier 3 — Curated Stoic Safety Net**:
    - Zero-downtime safety net guaranteeing grounded, authentic Stoic edicts (Marcus Aurelius, Seneca, Epictetus) and deterministic announcements even during network partitions.
 
+### 7.1 Standardized AI Logging & Observability Pipeline
+
+All AI requests, background evaluators, and probabilistic rolls output uniform structured log tags to `sys.stdout` and `winter_arc.log` for real-time observability:
+
+| Tag | Level | Context | Description & Output Example |
+| :--- | :--- | :--- | :--- |
+| `[Nudge-Roll]` | `INFO` | Reactive nudge probability | `[Nudge-Roll] User 123456: TRIGGERED (rolled 0.11 <= threshold 0.35) -> Invoking Groq reactive nudge.` |
+| `[Nudge-Cooldown]` | `INFO` | 30-min per-user cooldown suppression | `[Nudge-Cooldown] User 123456: SKIPPED (on active cooldown, 28m remaining).` |
+| `[AI-Call]` | `INFO` | Outbound request initiation | `Calling OpenRouter API (openrouter/free) for afternoon_recovery reminder quote...` |
+| `[AI-Success]` | `INFO` | Model latency & generation confirmation | `OpenRouter afternoon_recovery quote generated in 0.42s: '...'` |
+| `[AI-Fallback]` | `WARNING` | Multi-tier failover transition | `OpenRouter morning briefing failed for warrior (429). Falling back to Groq...` |
+
 ---
 
-## 7. Modular Productivity Addon: Todo & Smart Reminders (`todo.db`)
+## 8. Modular Productivity Addon: Todo & Smart Reminders (`todo.db`)
 
 To keep productivity distraction-free and protect the fitness progression integrity, the **Todo & Smart Reminders Addon** is architected with strict decoupling from the core Winter Arc framework.
 
@@ -293,10 +356,12 @@ To keep productivity distraction-free and protect the fitness progression integr
 │               Slash Command Group: /todo                    │
 │   • /todo add [task] [when] [remind_me] [until] [dm] [prio] │
 │   • /todo list [filter: active | trash]                     │
-│   • /todo done [id]   • /todo silence [id]                  │
-│   • /todo delete [id] • /todo restore [id]                  │
-│   • /todo edit [id]   • /todo assign [member] [task]        │
+│   • /todo done [id]      • /todo silence [id]               │
+│   • /todo delete [id]    • /todo restore [id]               │
+│   • /todo edit [id]      • /todo assign [member] [task]     │
+│   • /todo incognito [mode: on|off|check] [user]             │
 │   • /todo dnd [start] [end] [enable]                        │
+│   • /todo clear [which: active | trash | all]               │
 └──────────────┬──────────────────────────────┬───────────────┘
                │                              │
                ▼                              ▼
@@ -306,7 +371,7 @@ To keep productivity distraction-free and protect the fitness progression integr
 │ • One-time timestamps        ││ • 15-item Paginated View    │
 │ • "every 2 hours" intervals  ││ • Dynamic Quick Actions     │
 │ • Windowed recurrence        ││ • Assignment Accept/Decline │
-│ • "3 times a day" cadence    ││ • Reminder alert Snooze/Done│
+│ • "3 times a day" cadence    ││ • Incognito Privacy View    │
 └──────────────┬───────────────┘└─────────────┬───────────────┘
                │                              │
                ▼                              ▼
@@ -324,6 +389,7 @@ To keep productivity distraction-free and protect the fitness progression integr
 │   • Completely isolated SQLite database: todo.db            │
 │   • Zero coupling with winter_arc.db                        │
 │   • Relative user task numbering (#1..#N)                   │
+│   • user_settings table: DND hours & Incognito privacy mode │
 │   • 7-day trash archive (T1..TN) with automatic purging     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -344,5 +410,10 @@ To keep productivity distraction-free and protect the fitness progression integr
 5. **Interactive Lifecycle**:
    - Direct inline buttons (`[ ✅ Mark Done ]`, `[ 🔕 Silence ]`, `[ ⏰ Snooze 30m ]`) on reminder alerts.
    - Delegated task assignment (`/todo assign`) with bilateral accept/decline confirmations.
+6. **Incognito Privacy Mode**:
+   - Users can toggle the channel visibility of their `/todo` operations between `OFF (Public)` (default) and `ON (Private)` using `/todo incognito`.
+   - **OFF (Public)**: All actions (`/todo list`, `/todo done`, `/todo delete`, etc.) post publicly to the server channel so teams stay accountable together.
+   - **ON (Private)**: Personal to-do actions respond ephemerally (visible only to the user), keeping channels quiet, while shared operations (`/todo add`, `/todo assign`) remain public.
+   - **Interactive View (`TodoIncognitoView`)**: Running `/todo incognito` posts a public status card with `[ Turn On ]` and `[ Turn Off ]` buttons protected with user-only authorization checks. Users can also inspect peer privacy modes with `/todo incognito mode: check user: @member`.
 
 

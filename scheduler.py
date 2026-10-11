@@ -41,7 +41,7 @@ from ui.embeds import (
     build_phase_conclusion_message,
 )
 from ai import gemini_service
-from phases import is_last_day_of_phase, get_next_phase, get_current_phase, get_phase_progress
+from phases import is_last_day_of_phase, get_next_phase, get_current_phase, get_phase_progress, is_recovery_day
 
 logger = logging.getLogger("winter_arc.scheduler")
 
@@ -297,18 +297,19 @@ class WinterArcScheduler:
         now = get_now_ist()
         date_display = now.strftime("%A, %B %d, %Y")
 
+        today_recovery = is_recovery_day(now.strftime("%Y-%m-%d"))
         quote = override_quote or ""
         if not quote:
             try:
                 quote = await gemini_service.generate_reminder_motivation(
-                    reminder_type="morning",
+                    reminder_type="morning_recovery" if today_recovery else "morning",
                     user_context=user_context,
                     recent_history=recent_history,
                 )
             except Exception as e:
                 logger.debug(f"Could not generate AI morning quote: {e}")
 
-        allowed_mentions = discord.AllowedMentions(users=False, roles=False, everyone=False)
+        allowed_mentions = discord.AllowedMentions(users=False, roles=True if today_recovery else False, everyone=False)
         embed = build_morning_kickoff_embed(
             active_tasks=active_tasks,
             date_display=date_display,
@@ -316,14 +317,16 @@ class WinterArcScheduler:
         )
 
         if target_channel:
-            await self._send_broadcast_embed(target_channel, embed, role_ping="", allowed_mentions=allowed_mentions)
+            target_ping = role_ping.strip() if role_ping else ""
+            await self._send_broadcast_embed(target_channel, embed, role_ping=target_ping, allowed_mentions=allowed_mentions)
             return
 
         for guild in self.bot.guilds:
             channel, ping = self._get_target_channel_and_ping(guild)
             if channel:
+                send_ping = ping.strip() if today_recovery else ""
                 try:
-                    await self._send_broadcast_embed(channel, embed, role_ping="", allowed_mentions=allowed_mentions)
+                    await self._send_broadcast_embed(channel, embed, role_ping=send_ping, allowed_mentions=allowed_mentions)
                 except Exception as e:
                     logger.warning(f"Could not send morning kickoff to {channel.name} in {guild.name}: {e}")
 
@@ -340,11 +343,12 @@ class WinterArcScheduler:
         today_str = now.strftime("%Y-%m-%d")
         enrolled_users = db.get_enrolled_users(db_path=self.db_path)
 
+        today_recovery = is_recovery_day(today_str)
         quote = override_quote or ""
         if not quote:
             try:
                 quote = await gemini_service.generate_reminder_motivation(
-                    reminder_type="afternoon",
+                    reminder_type="afternoon_recovery" if today_recovery else "afternoon",
                     user_context=user_context,
                     recent_history=recent_history,
                 )
@@ -396,15 +400,28 @@ class WinterArcScheduler:
                 "perfect_day": prog["perfect_day"],
             })
 
-        callouts, stoic_quote = await gemini_service.generate_evening_alert_data(
-            warriors_data=warriors_data,
-            override_quote=override_quote,
-        )
-
-        # Ping ONLY warriors whose streak is at risk (< 30 pts); never ping the role
-        at_risk_mentions = [f"<@{w['discord_id']}>" for w in warriors_data if w.get("points", 0) < MIN_STREAK_POINTS]
-        at_risk_content = " ".join(at_risk_mentions) if at_risk_mentions else ""
-        allowed_mentions = discord.AllowedMentions(users=True, roles=False, everyone=False)
+        today_recovery = is_recovery_day(today_str)
+        if today_recovery:
+            stoic_quote = override_quote or ""
+            if not stoic_quote:
+                try:
+                    stoic_quote = await gemini_service.generate_reminder_motivation(
+                        reminder_type="evening_recovery",
+                        user_context={"is_recovery": True},
+                    )
+                except Exception as e:
+                    logger.debug(f"Could not generate AI evening recovery quote: {e}")
+            callouts = {}
+            at_risk_content = ""
+            allowed_mentions = discord.AllowedMentions(users=False, roles=False, everyone=False)
+        else:
+            callouts, stoic_quote = await gemini_service.generate_evening_alert_data(
+                warriors_data=warriors_data,
+                override_quote=override_quote,
+            )
+            at_risk_mentions = [f"<@{w['discord_id']}>" for w in warriors_data if w.get("points", 0) < MIN_STREAK_POINTS]
+            at_risk_content = " ".join(at_risk_mentions) if at_risk_mentions else ""
+            allowed_mentions = discord.AllowedMentions(users=True, roles=False, everyone=False)
 
         embed = build_evening_checkin_embed(
             enrolled_users=enrolled_users,
@@ -439,12 +456,12 @@ class WinterArcScheduler:
             grind_highlights = db.get_daily_grind_highlights(yesterday, db_path=self.db_path)
             enrolled_users = db.get_enrolled_users(db_path=self.db_path)
             active_yesterday = {e["discord_id"] for e in leaderboard if e["points"] > 0}
-            slacker_count = len(enrolled_users) - len(active_yesterday)
+            slacker_count = 0 if is_recovery_day(yesterday) else max(0, len(enrolled_users) - len(active_yesterday))
 
             ai_recap = await gemini_service.generate_daily_toast_and_roast(
                 podium_data=leaderboard,
                 grind_highlights=grind_highlights,
-                slacker_count=max(0, slacker_count),
+                slacker_count=slacker_count,
                 total_enrolled=len(enrolled_users)
             )
             if ai_recap:
@@ -483,6 +500,11 @@ class WinterArcScheduler:
                 alert = f"💔 <@{u_id}> You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
+
+        # On Active Recovery Days (ARD), do not post midnight finalization to the channel
+        if is_recovery_day(yesterday):
+            logger.info(f"Yesterday ({yesterday}) was an ARD. Silently finalized summaries; skipping midnight channel broadcast.")
+            return embed
 
         if target_channel:
             await self._send_broadcast_embed(target_channel, embed, role_ping="", allowed_mentions=allowed_mentions)
@@ -669,9 +691,13 @@ class WinterArcScheduler:
                 briefing_context = db.get_user_weekly_briefing_context(discord_id, db_path=self.db_path)
                 curr_phase = get_current_phase()
                 phase_progress = get_phase_progress(curr_phase) if curr_phase else None
+                is_recovery = is_recovery_day(today_str)
                 quote = ""
                 try:
-                    quote = await gemini_service.generate_personalized_morning_briefing(briefing_context)
+                    quote = await gemini_service.generate_personalized_morning_briefing(
+                        briefing_context,
+                        is_recovery=is_recovery,
+                    )
                 except Exception as e:
                     logger.debug(f"Could not generate AI DM quote: {e}")
 
@@ -683,6 +709,7 @@ class WinterArcScheduler:
                     curr_phase=curr_phase,
                     phase_progress=phase_progress,
                     user_mention=discord_user.mention,
+                    is_recovery=is_recovery,
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 logger.info(f"Delivered Morning Briefing DM to {discord_user.display_name} ({discord_id})")
@@ -733,6 +760,7 @@ class WinterArcScheduler:
                     max_points=prog.get("max_possible_points", 500),
                     streak=streak,
                     user_mention=discord_user.mention,
+                    is_recovery=is_recovery_day(today_str),
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 logger.info(f"Delivered Afternoon Check-in DM to {discord_user.display_name} ({discord_id})")
@@ -745,13 +773,16 @@ class WinterArcScheduler:
 
     async def dispatch_afternoon_dms(self):
         """Dispatches personal afternoon check-in DMs concurrently to opted-in members."""
+        now = get_now_ist()
+        today_str = now.strftime("%Y-%m-%d")
+        if is_recovery_day(today_str):
+            logger.info(f"Today ({today_str}) is an ARD. Skipping afternoon check-in DMs.")
+            return
+
         users = db.get_opted_in_dm_users(category="afternoon", db_path=self.db_path)
         logger.info(f"Afternoon check-in DMs: evaluating {len(users)} opted-in member(s)...")
         if not users:
             return
-
-        now = get_now_ist()
-        today_str = now.strftime("%Y-%m-%d")
 
         sem = asyncio.Semaphore(2)
 
@@ -776,14 +807,16 @@ class WinterArcScheduler:
                 progress = db.get_user_daily_progress(discord_id, today_str, db_path=self.db_path)
                 streak = db.calculate_streak(discord_id, today_str, db_path=self.db_path)
                 shield_status = db.get_user_shield_status(discord_id, db_path=self.db_path)
+                is_recovery = is_recovery_day(today_str)
                 quote = ""
                 try:
                     quote = await gemini_service.generate_reminder_motivation(
-                        reminder_type="evening",
+                        reminder_type="evening_recovery" if is_recovery else "evening",
                         user_context={
                             "username": discord_user.display_name,
                             "streak": streak,
                             "today_points": progress.get("total_points", 0),
+                            "is_recovery": is_recovery,
                         },
                     )
                 except Exception as e:
@@ -797,6 +830,7 @@ class WinterArcScheduler:
                     shields=shield_status.get("frost_shields", 0),
                     quote=quote,
                     user_mention=discord_user.mention,
+                    is_recovery=is_recovery,
                 )
                 await discord_user.send(content=msg, allowed_mentions=discord.AllowedMentions(users=True))
                 logger.info(f"Delivered Evening Streak Warning DM to {discord_user.display_name} ({discord_id})")

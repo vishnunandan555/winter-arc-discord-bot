@@ -52,6 +52,7 @@ from ui.embeds import (
     build_shield_automated_info_embed,
     build_shield_activated_embed,
     build_settings_embed,
+    build_tips_embed,
     build_grind_embed,
     format_grind_reply,
     build_quicklog_embed,
@@ -66,6 +67,7 @@ from ui.embeds import (
 from ui.views import (
     LeaderboardView,
     SettingsView,
+    TipsView,
     HelpView,
     RecapView,
     ServerRecordsView,
@@ -974,13 +976,122 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         embed = build_settings_embed(interaction.user, settings)
         view = SettingsView(interaction.user.id, settings)
         try:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
         except (discord.NotFound, discord.HTTPException):
             logger.debug("Interaction for /reminders expired or was cancelled by Discord.")
             return
         asyncio.create_task(
             dispatch_tip(interaction, interaction.user.id, interaction.user.display_name)
         )
+
+    @app_commands.command(name="tips", description="Configure or toggle periodic bot tips and guidance.")
+    @app_commands.describe(
+        mode="Turn tips on, off, or check your current tip status",
+        server="Optional: Apply to the entire server (Requires Administrator)"
+    )
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Turn ON", value="on"),
+        app_commands.Choice(name="Turn OFF", value="off"),
+        app_commands.Choice(name="Check Status", value="check"),
+    ])
+    async def tips_cmd(
+        self,
+        interaction: discord.Interaction,
+        mode: Optional[app_commands.Choice[str]] = None,
+        server: Optional[bool] = False,
+    ):
+        logger.info(f"Slash command '/tips' invoked by {interaction.user} (mode: {mode}, server: {server})")
+        target_mode = mode.value if hasattr(mode, "value") else mode
+        if target_mode and isinstance(target_mode, str):
+            target_mode = target_mode.lower().strip()
+
+        # Handle server-wide toggle if requested
+        if server and interaction.guild:
+            is_admin = False
+            if hasattr(interaction.user, "guild_permissions"):
+                is_admin = interaction.user.guild_permissions.administrator
+            if not is_admin:
+                await interaction.response.send_message(
+                    "❌ Modifying server-wide tips requires **Administrator** permissions. Run `/tips` to manage your personal preference.",
+                    ephemeral=True
+                )
+                return
+
+            if target_mode == "on":
+                db.set_server_tips_enabled(interaction.guild.id, True)
+                embed = discord.Embed(
+                    title="💡 Server Tips Enabled",
+                    description=f"Periodic tips have been **enabled server-wide** for **{interaction.guild.name}**.",
+                    color=0x2ECC71
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=False)
+                return
+            elif target_mode == "off":
+                db.set_server_tips_enabled(interaction.guild.id, False)
+                embed = discord.Embed(
+                    title="🔕 Server Tips Disabled",
+                    description=f"Periodic tips have been **disabled server-wide** for **{interaction.guild.name}**.",
+                    color=0x95A5A6
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=False)
+                return
+            elif target_mode == "check":
+                server_on = db.get_server_tips_enabled(interaction.guild.id)
+                state_text = "**Enabled** 🟢" if server_on else "**Disabled** 🔕"
+                embed = discord.Embed(
+                    title="💡 Server Tips Status",
+                    description=f"Server-wide periodic tips for **{interaction.guild.name}** are currently {state_text}.",
+                    color=0x2ECC71 if server_on else 0x95A5A6
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=False)
+                return
+
+        user_id = interaction.user.id
+        current_state = db.get_user_tips_enabled(user_id)
+
+        if target_mode == "on":
+            db.set_user_tips_enabled(user_id, True, username=interaction.user.name)
+            embed = discord.Embed(
+                title="💡 Usage Tips Enabled",
+                description=(
+                    f"Hey {interaction.user.mention}, **periodic tips are now enabled** for you!\n\n"
+                    "You will occasionally receive helpful command tricks, habit guidance, and feature tips "
+                    "when logging workouts.\n\n"
+                    "If they ever get annoying, you can disable them anytime with `/tips off`."
+                ),
+                color=0x2ECC71
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=False)
+            return
+
+        if target_mode == "off":
+            db.set_user_tips_enabled(user_id, False, username=interaction.user.name)
+            embed = discord.Embed(
+                title="🔕 Usage Tips Disabled",
+                description=(
+                    f"Hey {interaction.user.mention}, **periodic tips are now disabled** for you!\n\n"
+                    "All automatic background tip messages mentioning you will be suppressed.\n\n"
+                    "You can turn them back on whenever you like using `/tips on`."
+                ),
+                color=0x95A5A6
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=False)
+            return
+
+        if target_mode == "check":
+            state_text = "**Enabled** 🟢" if current_state else "**Disabled** 🔕"
+            embed = discord.Embed(
+                title="💡 Tips Status",
+                description=f"{interaction.user.mention}, your periodic tips are currently {state_text}.",
+                color=0x2ECC71 if current_state else 0x95A5A6
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=False)
+            return
+
+        # Default: Interactive card with Turn On and Turn Off buttons
+        embed = build_tips_embed(interaction.user, is_enabled=current_state)
+        view = TipsView(user_id=user_id, current_state=current_state)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
 
     # ==========================================
     # AI Discipline & Quick-Logging Commands

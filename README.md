@@ -9,7 +9,7 @@
 
   [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![discord.py](https://img.shields.io/badge/discord.py-v2.x-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discordpy.readthedocs.io/)
-  [![Tests](https://img.shields.io/badge/Tests-115%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
+  [![Tests](https://img.shields.io/badge/Tests-147%20Passed%20(100%25)-00E5FF?style=for-the-badge&logo=pytest&logoColor=black)](tests/)
   [![Database](https://img.shields.io/badge/Database-SQLite%20Zero--Config-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](database.py)
   [![License](https://img.shields.io/badge/License-MIT-F39C12?style=for-the-badge)](LICENSE)
 
@@ -32,6 +32,8 @@ Most fitness and habit trackers fail because working out in isolation provides n
 - **Anti-Cheat 500-Point Daily Ceiling**: Prevents erratic binge workouts and vanity scores. 90-day consistency beats single-day ego lifting.
 - **Multi-Tier AI Architecture with Cascade Failover**: High-reasoning evaluations (`/grind`, recaps, Stoic quotes) powered by OpenRouter with a multi-model fallback cascade; sub-second NLP workout text parsing (`/quick`) and instant failover powered by Groq (`openai/gpt-oss-20b`); and an authentic Stoic curated safety net.
 - **Tribal Governance & Council Trials**: Anti-buzzword AI audits and democratic Council trials (`/accuse`) protect server integrity from vanity claims.
+- **Active Recovery Day (ARD) Sundays**: Auto-protected streaks (0 pt daily requirement), dynamic AI mobility advice, authentic quotes, and zero shield burn on designated recovery dates.
+- **Contextual Tips Engine**: Server and member-level toggleable fitness & mindset tips (`/tips`) dynamically enriching command responses and embed footers.
 - **Data Sovereignty**: 100% self-hosted with local SQLite. Your members' workout data remains completely private.
 
 ---
@@ -41,8 +43,8 @@ Most fitness and habit trackers fail because working out in isolation provides n
 | Feature | Description |
 | :--- | :--- |
 | **5 Disciplines (Saitama Protocol)** | Push-ups (100), Pull-ups (100), Squats (100), Sit-ups (100), and Running (10 km). 1 rep / 100m = 1 pt (500 pts max/day). |
-| **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full campaign view with interactive bidirectional switching and status highlights. |
-| **Streak Shield Defense** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` to protect your streak on rest or recovery days. |
+| **Monospace Habit Calendar** | `/streak` & `/calendar` render an aligned, monospace monthly matrix and full campaign view with interactive bidirectional switching and status highlights. Hidden upcoming ARD dates preserve urgency. |
+| **Streak Shield Defense & ARDs** | Earn Streak Shields every 7-day milestone. Deploy `/shield use` on illness/travel; Sundays automatically trigger Active Recovery Days (ARD) with zero-shield streak preservation. |
 | **Multi-Tier AI Parsing & Failover** | `/quick` parses unstructured workout text via Groq (`openai/gpt-oss-20b`); `/grind` evaluates custom workouts & deep work via OpenRouter (+5 to +50 pts, 1x/day) with instant Groq failover and zero cloud-IP geo-blocking. |
 | **Tribal Council Governance** | Real-time integrity verification: `/accuse` challenges suspect logs with an Honor Code verification modal, 10-minute democratic voting, and courtroom GIF verdicts. |
 | **12-Tier Progression** | Climb from **Initiate (Level 1, 0 pts)** to **Apex (Level 12, 12,000 pts)** over the course of the 90-day challenge. |
@@ -109,9 +111,9 @@ python bot.py
 ---
 
 ## 🧪 Automated Test Suite
-
-The test suite contains **115 comprehensive test cases** organized into 11 domain modules inside the [`tests/`](tests/) directory.
-
+ 
+The test suite contains **147 comprehensive test cases** organized into 13 domain modules inside the [`tests/`](tests/) directory.
+ 
 ```bash
 # Run the complete test suite via discovery runner
 python test_engine.py
@@ -120,6 +122,8 @@ python test_engine.py
 python -m unittest discover tests
 
 # Or run individual domain test modules
+python -m unittest tests/test_active_recovery.py
+python -m unittest tests/test_tips_feature.py
 python -m unittest tests/test_todo_system.py
 python -m unittest tests/test_reminders_and_dms.py
 python -m unittest tests/test_call_cap_and_governance.py
@@ -142,8 +146,8 @@ The bot registers native slash commands designed with Discord autocomplete, sele
 | **Habits & Streaks** | `/streak`, `/calendar`, `/today`, `/tasks`, `/history` | Monospace habit consistency dashboard, full habit calendar, daily progress card, task guide, and past logs. |
 | **Pack Standings** | `/leaderboard`, `/profile`, `/ranks`, `/stats`, `/recap` | Weekly (Sun–Sat), monthly (phase), and all-time leaderboards, rank cards, server records, and phase summaries. |
 | **Tribal Governance** | `/accuse` | Challenge suspect grind logs to summon a 10-min Council verification vote. |
-| **Productivity Addon** | `/todo` (`add`, `list`, `done`, `silence`, `delete`, `restore`, `edit`, `assign`, `dnd`, `clear`) | Clean distraction-free personal & team task management, smart recurring reminders, 15-item paginated viewer, 7-day trash retention, and cross-midnight DND quiet hours (completely isolated in `todo.db`). |
-| **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, private morning/afternoon/evening DM preferences (active by default), master interactive manual, and latency check. |
+| **Productivity Addon** | `/todo` (`add`, `list`, `done`, `silence`, `delete`, `restore`, `edit`, `assign`, `incognito`, `dnd`, `clear`) | Clean distraction-free personal & team task management, Incognito privacy toggle (public vs private command responses), smart recurring reminders, 15-item paginated viewer, 7-day trash retention, and cross-midnight DND quiet hours (completely isolated in `todo.db`). |
+| **Recovery & Settings** | `/shield`, `/settings`, `/reminders`, `/tips`, `/enroll`, `/leave_arc`, `/help`, `/ping` | Streak shield defense, Active Recovery Day (ARD) Sundays (0 pt target & auto-protected streaks), contextual fitness/mindset tips (`/tips`), public channel preference cards with author guards (`/reminders`, `/settings`), master interactive manual, and latency check. |
 | **Server Admin** | `/admin` (`overview`, `set_channel`, `set_role`, `dm`, `task_add`, `task_toggle`, `tasks_list`, `grind`, `sync`, `backup`, `health`), `/test_reminder`, `/nuke` | Channel binding, role ping, database snapshots, multi-target DMs, discipline customization, broadcast preview, and factory reset. |
 | **Security & Safety** | `/nuke` | Server Owner emergency channel purge with 2FA modal verification and rotated nuclear explosion GIFs. |
 
@@ -189,7 +193,7 @@ winter-arc-discord-bot/
 ├── ai/                      # OpenRouter & Groq AI service integrations
 ├── cogs/                    # Discord command extensions (warrior, admin, and todo cogs)
 ├── ui/                      # Discord embeds, formatters, and interactive views
-├── tests/                   # Modular domain test suite (131 test cases across 12 modules)
+├── tests/                   # Modular domain test suite (142 test cases across 12 modules)
 ├── docs/                    # Static showcase website (GitHub Pages / Vercel)
 │   ├── assets/              # Banners, badges, and branding graphics
 │   ├── index.html           # Interactive showcase site

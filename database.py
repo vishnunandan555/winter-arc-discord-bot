@@ -20,6 +20,7 @@ import calendar
 from typing import List, Dict, Any, Optional, Tuple
 
 from config import DB_PATH, MIN_STREAK_POINTS, BOT_TZ
+from phases import is_recovery_day
 
 logger = logging.getLogger("winter_arc.database")
 
@@ -197,16 +198,21 @@ def init_db(db_path: str = DB_PATH):
             ("dm_morning", "BOOLEAN DEFAULT 1"),
             ("dm_afternoon", "BOOLEAN DEFAULT 1"),
             ("dm_evening", "BOOLEAN DEFAULT 1"),
+            ("tips_enabled", "BOOLEAN DEFAULT 1"),
         ]
         for col_name, col_def in user_columns:
             _ensure_column_exists(cursor, "users", col_name, col_def)
 
         _ensure_column_exists(cursor, "daily_summaries", "is_shielded", "BOOLEAN DEFAULT 0")
+        _ensure_column_exists(cursor, "daily_summaries", "is_rest_day", "BOOLEAN DEFAULT 0")
+        _ensure_column_exists(cursor, "server_settings", "tips_enabled", "BOOLEAN DEFAULT 1")
 
-        # Backfill NULL dm_* values so existing users receive DMs by default
+        # Backfill NULL dm_* and tips_enabled values so existing users receive DMs and tips by default
         cursor.execute("UPDATE users SET dm_morning = 1 WHERE dm_morning IS NULL;")
         cursor.execute("UPDATE users SET dm_afternoon = 1 WHERE dm_afternoon IS NULL;")
         cursor.execute("UPDATE users SET dm_evening = 1 WHERE dm_evening IS NULL;")
+        cursor.execute("UPDATE users SET tips_enabled = 1 WHERE tips_enabled IS NULL;")
+        cursor.execute("UPDATE server_settings SET tips_enabled = 1 WHERE tips_enabled IS NULL;")
 
         # 7. Grind logs table (daily custom workouts & deep work friction logs evaluated by Gemini)
         cursor.execute("""
@@ -324,14 +330,42 @@ def set_bot_state(key: str, value: str, db_path: str = DB_PATH) -> None:
 # Server Settings
 # ==========================================
 
-def get_server_settings(guild_id: int, db_path: str = DB_PATH) -> Dict[str, Any]:
+def get_server_settings(guild_id: int, db_path: Optional[str] = None) -> Dict[str, Any]:
+    db_path = db_path or DB_PATH
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM server_settings WHERE guild_id = ?", (guild_id,))
         row = cursor.fetchone()
         if row:
-            return dict(row)
-        return {"guild_id": guild_id, "channel_id": 0, "role_id": 0}
+            res = dict(row)
+            if "tips_enabled" not in res or res["tips_enabled"] is None:
+                res["tips_enabled"] = 1
+            return res
+        return {"guild_id": guild_id, "channel_id": 0, "role_id": 0, "tips_enabled": 1}
+
+
+def set_server_tips_enabled(guild_id: int, enabled: bool, db_path: Optional[str] = None) -> bool:
+    """Enables or disables periodic tips server-wide."""
+    db_path = db_path or DB_PATH
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO server_settings (guild_id, tips_enabled, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                tips_enabled = excluded.tips_enabled,
+                updated_at = CURRENT_TIMESTAMP;
+        """, (guild_id, 1 if enabled else 0))
+        conn.commit()
+    return enabled
+
+
+def get_server_tips_enabled(guild_id: int, db_path: Optional[str] = None) -> bool:
+    """Returns True if the server allows periodic tips."""
+    db_path = db_path or DB_PATH
+    settings = get_server_settings(guild_id, db_path)
+    val = settings.get("tips_enabled")
+    return bool(val) if val is not None else True
 
 
 def set_server_channel(guild_id: int, channel_id: int, db_path: str = DB_PATH):
@@ -875,6 +909,7 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
 
     # Check ref_date completion status
     today_shielded = ref_date_str in shielded_dates
+    ref_is_recovery = is_recovery_day(ref_date)
     if ref_date_str in summaries:
         s = summaries[ref_date_str]
         ref_completed = s["points"] >= MIN_STREAK_POINTS or s["perfect_day"] or s["is_shielded"]
@@ -882,8 +917,8 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
         today_prog = get_user_daily_progress(discord_id, ref_date_str, db_path)
         ref_completed = today_prog["total_points"] >= MIN_STREAK_POINTS or today_prog["perfect_day"]
 
-    # If ref_date was finalized in daily_summaries and was neither completed nor shielded, the streak on that day is 0
-    if ref_date_str in summaries and not ref_completed and not today_shielded:
+    # If ref_date was finalized in daily_summaries and was neither completed nor shielded, the streak on that day is 0 UNLESS it's a recovery day
+    if ref_date_str in summaries and not ref_completed and not today_shielded and not ref_is_recovery:
         return 0
 
     streak = 0
@@ -904,6 +939,10 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
                 streak += 1
                 current_check -= timedelta(days=1)
                 continue
+            elif is_recovery_day(current_check) or s.get("is_rest_day"):
+                # Active recovery day without qualifying points: bridge without breaking streak
+                current_check -= timedelta(days=1)
+                continue
             else:
                 break
         else:
@@ -911,6 +950,9 @@ def calculate_streak(discord_id: int, as_of_date: Optional[str] = None, db_path:
             day_prog = get_user_daily_progress(discord_id, d_str, db_path)
             if (day_prog["total_points"] >= MIN_STREAK_POINTS or day_prog["perfect_day"]) and day_prog["total_points"] > 0:
                 streak += 1
+                current_check -= timedelta(days=1)
+            elif is_recovery_day(current_check):
+                # Active recovery day in progress: bridge without breaking streak
                 current_check -= timedelta(days=1)
             else:
                 break
@@ -960,16 +1002,22 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
         streak_broken = False
         broken_streak_count = 0
 
+        target_is_recovery = is_recovery_day(target_date_str)
+
         if not streak_qualifies and not shielded:
-            past_streak = calculate_streak(u["discord_id"], day_before, db_path)
-            if past_streak > 0:
-                if shields_available > 0:
-                    auto_shield_applied = True
-                    shielded = 1
-                    shields_available -= 1
-                else:
-                    streak_broken = True
-                    broken_streak_count = past_streak
+            if target_is_recovery:
+                # Sanctioned recovery day: streak does not break, no shield consumed
+                streak_broken = False
+            else:
+                past_streak = calculate_streak(u["discord_id"], day_before, db_path)
+                if past_streak > 0:
+                    if shields_available > 0:
+                        auto_shield_applied = True
+                        shielded = 1
+                        shields_available -= 1
+                    else:
+                        streak_broken = True
+                        broken_streak_count = past_streak
 
         user_plans.append({
             "id": u["id"],
@@ -979,6 +1027,7 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
             "completion_rate": completion,
             "perfect_day": bool(perfect),
             "is_shielded": bool(shielded),
+            "is_rest_day": bool(target_is_recovery),
             "auto_shield_applied": auto_shield_applied,
             "frost_shields": shields_available,
             "streak_broken": streak_broken,
@@ -998,14 +1047,15 @@ def finalize_daily_summaries(target_date_str: Optional[str] = None, db_path: str
                 """, (p["id"], target_date_str))
 
             cursor.execute("""
-                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO daily_summaries (user_id, date, points, completion_rate, perfect_day, is_shielded, is_rest_day)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, date) DO UPDATE SET
                     points = excluded.points,
                     completion_rate = excluded.completion_rate,
                     perfect_day = excluded.perfect_day,
-                    is_shielded = excluded.is_shielded;
-            """, (p["id"], target_date_str, p["points"], p["completion_rate"], 1 if p["perfect_day"] else 0, 1 if p["is_shielded"] else 0))
+                    is_shielded = excluded.is_shielded,
+                    is_rest_day = excluded.is_rest_day;
+            """, (p["id"], target_date_str, p["points"], p["completion_rate"], 1 if p["perfect_day"] else 0, 1 if p["is_shielded"] else 0, 1 if p.get("is_rest_day") else 0))
 
         conn.commit()
 
@@ -1643,6 +1693,40 @@ def update_user_dm_settings(
             conn.commit()
 
     return get_user_dm_settings(discord_id, db_path)
+
+
+def get_user_tips_enabled(discord_id: int, db_path: Optional[str] = None) -> bool:
+    """Returns True if user has periodic tips enabled (default: True)."""
+    db_path = db_path or DB_PATH
+    user = get_user_by_discord_id(discord_id, db_path)
+    if not user:
+        return True
+    val = user.get("tips_enabled")
+    return bool(val) if val is not None else True
+
+
+def set_user_tips_enabled(
+    discord_id: int,
+    enabled: bool,
+    username: Optional[str] = None,
+    db_path: Optional[str] = None
+) -> bool:
+    """Sets whether periodic tips are enabled for the given user."""
+    db_path = db_path or DB_PATH
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE discord_id = ?", (discord_id,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE users SET tips_enabled = ? WHERE discord_id = ?", (1 if enabled else 0, discord_id))
+        else:
+            uname = username or f"User_{discord_id}"
+            cursor.execute(
+                "INSERT INTO users (discord_id, username, enrolled, tips_enabled) VALUES (?, ?, 0, ?)",
+                (discord_id, uname, 1 if enabled else 0)
+            )
+        conn.commit()
+    return enabled
 
 
 def get_opted_in_dm_users(category: str = "all", db_path: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -2593,12 +2677,23 @@ def get_user_longest_streak(discord_id: int, db_path: str = DB_PATH) -> int:
     longest = 1
     curr = 1
     for i in range(1, len(sorted_dates)):
-        if sorted_dates[i] == sorted_dates[i - 1] + timedelta(days=1):
+        gap_days = (sorted_dates[i] - sorted_dates[i - 1]).days
+        if gap_days == 1:
             curr += 1
             if curr > longest:
                 longest = curr
-        elif sorted_dates[i] > sorted_dates[i - 1] + timedelta(days=1):
-            curr = 1
+        elif gap_days > 1:
+            # Check if all intervening days are scheduled active recovery days
+            all_intermediate_rest = all(
+                is_recovery_day(sorted_dates[i - 1] + timedelta(days=d))
+                for d in range(1, gap_days)
+            )
+            if all_intermediate_rest:
+                curr += 1
+                if curr > longest:
+                    longest = curr
+            else:
+                curr = 1
 
     current_streak = calculate_streak(discord_id, db_path=db_path)
     return max(longest, current_streak)
@@ -2694,6 +2789,7 @@ def get_user_monthly_consistency(
     for d in range(1, num_days + 1):
         d_obj = date(target_year, target_month, d)
         d_str = d_obj.isoformat()
+        is_scheduled_rest = is_recovery_day(d_obj)
 
         if d_obj == today:
             summary_today = summaries.get(d_str, {})
@@ -2709,6 +2805,9 @@ def get_user_monthly_consistency(
             elif pts >= MIN_STREAK_POINTS:
                 status = "🟩"
                 completed = True
+            elif is_scheduled_rest:
+                status = "❤️"
+                completed = True
             else:
                 status = "⏳"
                 completed = False
@@ -2718,7 +2817,8 @@ def get_user_monthly_consistency(
                 "points": pts,
                 "completed": completed,
                 "is_perfect": is_perfect,
-                "is_shielded": today_shielded
+                "is_shielded": today_shielded,
+                "is_rest_day": is_scheduled_rest
             }
         elif d_str in summaries or d_str in shield_records:
             # Recorded day in summaries or shield records
@@ -2727,6 +2827,7 @@ def get_user_monthly_consistency(
             pts = summ["points"] if summ else 0
             is_shielded = bool(sh or (summ and summ["is_shielded"]))
             is_perfect = bool(summ and summ["perfect_day"])
+            is_day_rest = bool(summ and summ.get("is_rest_day")) or is_scheduled_rest
 
             if is_shielded:
                 status = "🛡️"
@@ -2737,6 +2838,9 @@ def get_user_monthly_consistency(
             elif pts >= MIN_STREAK_POINTS:
                 status = "🟩"
                 completed = True
+            elif is_day_rest:
+                status = "❤️"
+                completed = True
             else:
                 status = "🟥"
                 completed = False
@@ -2746,25 +2850,28 @@ def get_user_monthly_consistency(
                 "points": pts,
                 "completed": completed,
                 "is_perfect": is_perfect,
-                "is_shielded": is_shielded
+                "is_shielded": is_shielded,
+                "is_rest_day": is_day_rest
             }
         elif d_obj > today:
-            # Future day in this month without records
+            # Future day in this month (hide upcoming ARDs with neutral ▫️ until the day arrives)
             day_details[d] = {
                 "status": "▫️",
                 "points": 0,
                 "completed": False,
                 "is_perfect": False,
-                "is_shielded": False
+                "is_shielded": False,
+                "is_rest_day": is_scheduled_rest
             }
         else:
-            # Past day without records (missed)
+            # Past day without records
             day_details[d] = {
-                "status": "🟥",
+                "status": "❤️" if is_scheduled_rest else "🟥",
                 "points": 0,
-                "completed": False,
+                "completed": is_scheduled_rest,
                 "is_perfect": False,
-                "is_shielded": False
+                "is_shielded": False,
+                "is_rest_day": is_scheduled_rest
             }
 
     # Group into Monday-Sunday calendar weeks
@@ -2833,6 +2940,7 @@ def get_user_monthly_consistency(
         "month_name": month_name,
         "rank_title": lvl_info["title"],
         "calendar_grid": calendar_grid,
+        "day_details": day_details,
         "highlights": {
             "highest_streak": highest_streak,
             "current_streak": current_streak,
