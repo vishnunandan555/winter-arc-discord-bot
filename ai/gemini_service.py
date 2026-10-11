@@ -717,7 +717,10 @@ async def generate_weekly_state_of_the_pack(
         f"- Standout Deep Work & Study (/grind): {', '.join(grind_summaries) if grind_summaries else 'None logged'}\n"
         f"- Ghost Members (0 pts all week): {ghosts_count}\n\n"
         "TASK & CONSTRAINTS:\n"
-        "1. Give direct credit to the top 3 warriors by name for leading the pack if they earned solid points.\n"
+        "1. Congratulate warriors intelligently based on point proximity to #1:\n"
+        "   - Always acknowledge #1 for setting the pace.\n"
+        "   - ONLY congratulate #2 or #3 alongside #1 if their scores are genuinely close and competitive (e.g. 300 vs 260 vs 220).\n"
+        "   - If there is a huge point drop-off from #1 (e.g. 305 vs 160 or 77), do NOT group them together with #1. Instead, highlight #1's dominant lead and challenge the rest of the pack to step up and close the distance.\n"
         "2. If standout /grind deep-work sessions are present, briefly highlight their high-focus execution.\n"
         "3. Deliver a sharp, blunt callout to ghosts at zero, and set a commanding tone for the fresh week starting tomorrow.\n"
         "4. DO NOT repeat all raw volume numbers.\n"
@@ -790,8 +793,19 @@ async def generate_weekly_state_of_the_pack(
         logger.warning(f"Groq weekly state of the pack fallback failed ({groq_err}). Using deterministic summary.")
 
     # 3. Tertiary: Static Fallback
-    top_name = top_warriors[0]["username"] if top_warriors else "The Pack"
-    return f"Week concluded. Respect to {top_name} and those who held the line every single day. If you stayed at zero, new week starts tomorrow—step up."
+    if top_warriors:
+        p1 = top_warriors[0].get("points", top_warriors[0].get("total_points", 0))
+        contenders = [top_warriors[0]["username"]]
+        for w in top_warriors[1:3]:
+            pw = w.get("points", w.get("total_points", 0))
+            if p1 > 0 and pw >= p1 * 0.7:
+                contenders.append(w["username"])
+        if len(contenders) > 1:
+            leaders_str = ", ".join(contenders[:-1]) + f" and {contenders[-1]}"
+            return f"Week concluded. High-level battle at the top between {leaders_str} setting the standard. If you stayed at zero, new week starts tomorrow—step up."
+        else:
+            return f"Week concluded. Salute to {top_warriors[0]['username']} for dominating the pack this week. To everyone trailing behind: close the gap starting tomorrow."
+    return "Week concluded. Execution continues tomorrow at 00:00 IST. Step up."
 
 
 # -------------------------------------------------------------------------

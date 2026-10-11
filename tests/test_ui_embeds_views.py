@@ -325,8 +325,8 @@ class TestBroadcastAndMotivationEmbeds(WinterArcTestCase):
         self.assertEmbedDescriptionContains(
             embed,
             "3 Hours Remaining",
-            "AlphaWolf",
-            "BetaPup",
+            "<@101>",
+            "<@102>",
         )
 
     def test_evening_checkin_broadcast_message(self):

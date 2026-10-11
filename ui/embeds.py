@@ -1245,7 +1245,7 @@ def build_evening_checkin_embed(
             needed = MIN_STREAK_POINTS - pts
             callout = (callouts or {}).get(u["discord_id"])
             extra = f" — {callout}" if callout else f" — {needed} pts needed before midnight"
-            at_risk_lines.append(f"• <@{u['discord_id']}> ({username}) — **{pts} / {max_pts} pts**{extra}")
+            at_risk_lines.append(f"• <@{u['discord_id']}> — **{pts} / {max_pts} pts**{extra}")
 
     desc = (
         "⏳ **3 Hours Remaining Until Midnight Rollover!**\n"

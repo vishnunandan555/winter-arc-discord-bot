@@ -468,20 +468,19 @@ class WinterArcScheduler:
             if not u_id:
                 continue
 
-            uname = entry.get("username", "Warrior")
             if entry.get("auto_shield_applied"):
                 streak = entry.get("current_streak", 0)
                 shields_left = entry.get("shields_left", 0)
                 if shields_left == 1:
-                    alert = f"🛡️ <@{u_id}> **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
+                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! You have **1 shield left**. Lock in today!"
                 else:
-                    alert = f"🛡️ <@{u_id}> **{uname}** Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
+                    alert = f"🛡️ <@{u_id}> Your Streak Shield just saved your **{streak}-day streak** at midnight! That was your **last shield**! Make sure to log today or your streak breaks!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Shield auto-applied for user {u_id} (streak: {streak}, {shields_left} shields left)")
 
             elif entry.get("streak_broken"):
                 broken_streak = entry.get("broken_streak_count", 0)
-                alert = f"💔 <@{u_id}> **{uname}** You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
+                alert = f"💔 <@{u_id}> You missed yesterday and had no Streak Shields left. Your **{broken_streak}-day streak** has broken! Start fresh and rebuild today!"
                 individual_alerts.append(alert)
                 logger.info(f"Midnight channel alert: Streak broken for user {u_id} (broken streak: {broken_streak})")
 
