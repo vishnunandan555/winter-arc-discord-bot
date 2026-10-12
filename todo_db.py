@@ -856,13 +856,17 @@ def edit_task(
     remind_window_start: Optional[str] = None,
     until_spec: Optional[str] = None,
     until_timestamp: Optional[int] = None,
+    remove_until: bool = False,
     current_count: Optional[int] = None,
     target_count: Optional[int] = None,
     reset_period: Optional[str] = None,
     reset_interval_days: Optional[int] = None,
+    delivery_mode: Optional[str] = None,
+    dm_only: Optional[bool] = None,
+    origin_channel_id: Optional[int] = None,
     db_path: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Edits an active task's description, priority, counter, or reminder parameters."""
+    """Edits an active task's description, priority, counter, reminder, or delivery parameters."""
     task = get_task_by_relative_num(user_id, num, db_path=db_path)
     if not task:
         task = get_task_by_id(num, db_path=db_path)
@@ -877,8 +881,7 @@ def edit_task(
 
     cur = int(current_count) if current_count is not None else int(task.get("current_count") or 0)
     cur = max(0, cur)
-    tgt = int(target_count) if target_count is not None else int(task.get("target_count") or 1)
-    tgt = max(1, tgt)
+    tgt = max(0, int(target_count)) if target_count is not None else int(task.get("target_count") or 0)
 
     r_period = reset_period.lower().strip() if reset_period is not None else (task.get("reset_period") or "none")
     r_days = int(reset_interval_days) if reset_interval_days is not None else int(task.get("reset_interval_days") or 0)
@@ -886,7 +889,37 @@ def edit_task(
     now_dt = datetime.now(BOT_TZ)
     new_reset_ts = compute_next_midnight_reset(r_period, r_days, from_dt=now_dt)
 
-    new_status = "completed" if cur >= tgt else "active"
+    if tgt > 0 and cur >= tgt:
+        new_status = "completed"
+    elif task.get("status") == "completed" and tgt > 0 and cur < tgt:
+        new_status = "active"
+    else:
+        new_status = task.get("status", "active")
+
+    # Delivery mode resolution
+    d_mode = delivery_mode.lower().strip() if delivery_mode else task.get("delivery_mode", "channel")
+    if d_mode not in ["channel", "dm", "both"]:
+        d_mode = "channel"
+
+    if dm_only is not None:
+        dm_val = 1 if dm_only else 0
+    elif delivery_mode is not None:
+        dm_val = 1 if d_mode in ["dm", "both"] else 0
+    else:
+        dm_val = task.get("dm_only", 1)
+
+    orig_ch = origin_channel_id if origin_channel_id is not None else task.get("origin_channel_id")
+
+    # Until resolution
+    if remove_until:
+        u_spec = None
+        u_ts = None
+    elif until_spec is not None:
+        u_spec = until_spec
+        u_ts = until_timestamp
+    else:
+        u_spec = task.get("until_spec")
+        u_ts = task.get("until_timestamp")
 
     with get_todo_connection(db_path) as conn:
         cursor = conn.cursor()
@@ -897,9 +930,10 @@ def edit_task(
                     reset_period = ?, reset_interval_days = ?, next_reset_ts = ?,
                     remind_spec = NULL, remind_type = NULL, remind_interval_mins = NULL,
                     remind_fixed_times = NULL, remind_window_start = NULL,
-                    until_spec = NULL, until_timestamp = NULL, next_reminder_at = NULL, status = ?
+                    until_spec = ?, until_timestamp = ?, dm_only = ?, delivery_mode = ?,
+                    origin_channel_id = ?, next_reminder_at = NULL, status = ?
                 WHERE id = ?
-            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, new_status, task_id))
+            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, u_spec, u_ts, dm_val, d_mode, orig_ch, new_status, task_id))
         elif new_remind_spec:
             fixed_json = json.dumps(remind_fixed_times) if remind_fixed_times else None
             cursor.execute("""
@@ -908,24 +942,62 @@ def edit_task(
                     reset_period = ?, reset_interval_days = ?, next_reset_ts = ?,
                     remind_spec = ?, remind_type = ?, remind_interval_mins = ?,
                     remind_fixed_times = ?, remind_window_start = ?,
-                    until_spec = ?, until_timestamp = ?, next_reminder_at = ?, status = ?
+                    until_spec = ?, until_timestamp = ?, dm_only = ?, delivery_mode = ?,
+                    origin_channel_id = ?, next_reminder_at = ?, status = ?
                 WHERE id = ?
             """, (
                 text, priority, cur, tgt, r_period, r_days, new_reset_ts,
                 new_remind_spec, remind_type, remind_interval_mins, fixed_json,
-                remind_window_start, until_spec, until_timestamp, next_reminder_at,
+                remind_window_start, u_spec, u_ts, dm_val, d_mode, orig_ch, next_reminder_at,
                 new_status, task_id
             ))
         else:
             cursor.execute("""
                 UPDATE todos
                 SET task_text = ?, priority = ?, current_count = ?, target_count = ?,
-                    reset_period = ?, reset_interval_days = ?, next_reset_ts = ?, status = ?
+                    reset_period = ?, reset_interval_days = ?, next_reset_ts = ?,
+                    until_spec = ?, until_timestamp = ?, dm_only = ?, delivery_mode = ?,
+                    origin_channel_id = ?, status = ?
                 WHERE id = ?
-            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, new_status, task_id))
+            """, (text, priority, cur, tgt, r_period, r_days, new_reset_ts, u_spec, u_ts, dm_val, d_mode, orig_ch, new_status, task_id))
         conn.commit()
 
     return get_task_by_id(task_id, db_path=db_path)
+
+
+def cycle_task_delivery_mode(
+    user_id: int,
+    task_id: int,
+    origin_channel_id: Optional[int] = None,
+    db_path: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Cycles a task's delivery mode in order:
+    channel -> both -> dm -> channel (if origin channel available)
+    or dm -> both -> channel -> dm
+    """
+    task = get_task_by_id(task_id, db_path=db_path)
+    if not task or task.get("user_id") != user_id:
+        return None
+
+    cur_mode = (task.get("delivery_mode") or ("dm" if task.get("dm_only", 1) else "channel")).lower().strip()
+    has_ch = bool(origin_channel_id or task.get("origin_channel_id"))
+
+    if cur_mode == "channel":
+        next_mode = "both"
+    elif cur_mode == "both":
+        next_mode = "dm"
+    else:  # dm
+        next_mode = "channel" if has_ch else "both"
+
+    ch_id = origin_channel_id or task.get("origin_channel_id")
+    return edit_task(
+        user_id=user_id,
+        num=task_id,
+        delivery_mode=next_mode,
+        origin_channel_id=ch_id,
+        db_path=db_path
+    )
 
 
 def clear_trash(user_id: int, db_path: Optional[str] = None) -> int:

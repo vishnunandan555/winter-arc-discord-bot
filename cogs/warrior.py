@@ -277,8 +277,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         progress = db.get_user_daily_progress(target_user.id, today_str)
         streak = db.calculate_streak(target_user.id, today_str)
 
-        embed = build_today_embed(target_user, progress, streak, date_display)
-        await interaction.followup.send(embed=embed)
+        msg = await interaction.followup.send(embed=embed, wait=True)
+        if interaction.guild is not None and msg:
+            try:
+                await msg.delete(delay=60.0)
+            except Exception:
+                pass
 
         cmd_out = format_embed_as_text(embed)
 
@@ -334,8 +338,12 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         progress = db.get_user_daily_progress(target_user.id, today_str)
         streak = db.calculate_streak(target_user.id, today_str)
 
-        embed = build_tasks_embed(target_user, progress, streak, date_display)
-        await interaction.followup.send(embed=embed)
+        msg = await interaction.followup.send(embed=embed, wait=True)
+        if interaction.guild is not None and msg:
+            try:
+                await msg.delete(delay=60.0)
+            except Exception:
+                pass
 
         cmd_out = format_embed_as_text(embed)
 

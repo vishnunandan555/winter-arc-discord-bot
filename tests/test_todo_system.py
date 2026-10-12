@@ -767,6 +767,112 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         can_interact = asyncio.run(view.interaction_check(stranger_inter))
         self.assertFalse(can_interact)
 
+    def test_message_declutter_and_auto_delete_lifecycles(self):
+        """Verifies auto-delete parameters on public commands, reminder actions, and view timeouts."""
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        inter.guild = MagicMock()  # Public guild channel
+
+        # 1. /todo add in public channel sends delete_after=60.0
+        asyncio.run(self.cog.todo_add.callback(self.cog, inter, task="Clean room"))
+        call_kwargs = inter.response.send_message.call_args[1]
+        self.assertFalse(call_kwargs.get("ephemeral", False))
+        self.assertEqual(call_kwargs.get("delete_after"), 60.0)
+
+        # 2. When user turns on incognito, delete_after is None and ephemeral is True
+        db.set_user_incognito(self.user_id, True, db_path=self.todo_test_db)
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_done.callback(self.cog, inter, id=1))
+        call_kwargs = inter.response.send_message.call_args[1]
+        self.assertTrue(call_kwargs.get("ephemeral", True))
+        self.assertIsNone(call_kwargs.get("delete_after"))
+
+        # 3. ReminderAlertView auto-deletes channel message on action
+        mock_msg = MagicMock()
+        mock_msg.delete = AsyncMock()
+        inter.message = mock_msg
+        inter.guild = MagicMock()
+
+        new_t = db.add_task(self.user_id, "Declutter Desk", db_path=self.todo_test_db)
+        alert_view = ReminderAlertView(task_id=new_t["id"], user_id=self.user_id, db_path=self.todo_test_db)
+        asyncio.run(alert_view.btn_alert_done.callback(inter))
+        mock_msg.delete.assert_called_with(delay=10.0)
+
+        mock_msg.delete.reset_mock()
+        asyncio.run(alert_view.btn_alert_silence.callback(inter))
+        mock_msg.delete.assert_called_with(delay=10.0)
+
+        mock_msg.delete.reset_mock()
+        asyncio.run(alert_view.btn_alert_snooze.callback(inter))
+        mock_msg.delete.assert_called_with(delay=10.0)
+
+        # 4. TodoListView and TaskDetailView delete public messages on timeout
+        list_view = TodoListView(user_id=self.user_id, user=inter.user, db_path=self.todo_test_db)
+        list_view.message = mock_msg
+        mock_msg.delete.reset_mock()
+        asyncio.run(list_view.on_timeout())
+        mock_msg.delete.assert_called_once()
+
+    def test_todo_edit_full_capabilities_and_delivery_switcher(self):
+        """Verifies editing delivery mode, counter, reset, until, and cycling delivery mode."""
+        inter = self.create_mock_interaction(user_id=self.user_id)
+        inter.channel_id = 123456
+        inter.guild = MagicMock()
+
+        # 1. Add initial task with 'both' delivery mode
+        t = db.add_task(
+            user_id=self.user_id,
+            task_text="Train Typing",
+            remind_spec="everyday at 4:30PM",
+            delivery_mode="both",
+            origin_channel_id=123456,
+            target_count=3,
+            reset_period="daily",
+            db_path=self.todo_test_db
+        )
+        self.assertEqual(t["delivery_mode"], "both")
+        self.assertEqual(t["target_count"], 3)
+
+        # 2. Edit delivery to 'dm only', count to 5, reset to 'weekly'
+        from discord import app_commands
+        reset_choice = app_commands.Choice(name="Weekly", value="weekly")
+        inter.response.send_message.reset_mock()
+        asyncio.run(self.cog.todo_edit.callback(
+            self.cog,
+            inter,
+            id=1,
+            dm="dm",
+            count=5,
+            reset=reset_choice,
+            task="Train Speed Typing"
+        ))
+        inter.response.send_message.assert_called_once()
+        msg = inter.response.send_message.call_args[0][0]
+        self.assertIn("Train Speed Typing", msg)
+        self.assertIn("Direct Message", msg)
+
+        updated_t = db.get_task_by_id(t["id"], db_path=self.todo_test_db)
+        self.assertEqual(updated_t["delivery_mode"], "dm")
+        self.assertEqual(updated_t["target_count"], 5)
+        self.assertEqual(updated_t["reset_period"], "weekly")
+        self.assertEqual(updated_t["task_text"], "Train Speed Typing")
+
+        # 3. Test cycle_task_delivery_mode
+        c1 = db.cycle_task_delivery_mode(self.user_id, t["id"], origin_channel_id=123456, db_path=self.todo_test_db)
+        self.assertEqual(c1["delivery_mode"], "channel")
+
+        c2 = db.cycle_task_delivery_mode(self.user_id, t["id"], origin_channel_id=123456, db_path=self.todo_test_db)
+        self.assertEqual(c2["delivery_mode"], "both")
+
+        c3 = db.cycle_task_delivery_mode(self.user_id, t["id"], origin_channel_id=123456, db_path=self.todo_test_db)
+        self.assertEqual(c3["delivery_mode"], "dm")
+
+        # 4. Test TaskDetailView interactive button cycle
+        from ui.todo_views import TaskDetailView
+        detail_view = TaskDetailView(task_id=t["id"], user_id=self.user_id, db_path=self.todo_test_db)
+        inter.response.edit_message = AsyncMock()
+        asyncio.run(detail_view.on_cycle_delivery(inter))
+        inter.response.edit_message.assert_called_once()
+
     def test_todo_autocomplete_providers(self):
         """Verifies todo autocomplete providers for remind, until, active tasks, and trash tasks."""
         from cogs.todo import (
@@ -1041,6 +1147,9 @@ class TestTaskCounterAndRoutineEngine(unittest.TestCase):
         self.assertTrue(mock_channel.send.called)
         channel_kwargs = mock_channel.send.call_args[1]
         self.assertIn(f"<@{self.user_id}>", channel_kwargs.get("content"))
+
+
+
 
 
 

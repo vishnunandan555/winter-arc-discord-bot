@@ -314,8 +314,10 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             else:
                 details.append(f"• **Reset Cadence**: {counter_cfg['reset_period'].title()} at 00:00 IST")
 
+        is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         resp = f"✅ Added task **`#{num}`**: **{task}**{p_str}\n" + "\n".join(details)
-        await interaction.response.send_message(resp, ephemeral=False)
+        await interaction.response.send_message(resp, ephemeral=is_eph, delete_after=del_after)
 
     @todo_group.command(name="list", description="View and manage your active tasks and 7-day trash history.")
     @app_commands.describe(filter="Filter tasks by status or priority")
@@ -348,47 +350,63 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         embed = view.build_current_embed()
         is_eph = self._is_ephemeral(interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=is_eph)
+        if not is_eph:
+            try:
+                view.message = await interaction.original_response()
+            except Exception:
+                pass
 
     @todo_group.command(name="view", description="Open the interactive Control Center for a task.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_view(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         task = db.get_task_by_relative_num(interaction.user.id, id, db_path=self.db_path)
         if not task:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found. Run `/todo list` to check your current task numbers.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
             return
 
         view = TaskDetailView(task_id=task["id"], user_id=interaction.user.id, parent_view=None, db_path=self.db_path)
         embed = build_task_detail_embed(task, user=interaction.user)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=is_eph)
+        if not is_eph:
+            try:
+                view.message = await interaction.original_response()
+            except Exception:
+                pass
 
     @todo_group.command(name="done", description="Mark a task completed for today or move it to 7-day trash.")
     @app_commands.describe(id="The relative task number (e.g. 1 for #1)")
     @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_done(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         res = db.mark_task_done(interaction.user.id, id, db_path=self.db_path)
         if res:
             if res.get("reset_period", "none") != "none":
                 await interaction.response.send_message(
                     f"✅ **Completed for today!** Task **`#{id}`** (*{res['task_text']}*) marked done.\n"
                     f"-# Next reminder will fire on schedule. Resets at 00:00 IST.",
-                    ephemeral=is_eph
+                    ephemeral=is_eph,
+                    delete_after=del_after
                 )
             else:
                 await interaction.response.send_message(
                     f"✅ **Completed!** Task **`#{id}`** (*{res['task_text']}*) marked done and moved to trash.\n"
                     f"-# Kept in trash for 7 days. Restore anytime via `/todo restore`.",
-                    ephemeral=is_eph
+                    ephemeral=is_eph,
+                    delete_after=del_after
                 )
         else:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found. Run `/todo list` to check your current task numbers.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
 
     @todo_group.command(name="silence", description="Turn off future reminders for a task while keeping it on your list.")
@@ -396,17 +414,20 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_silence(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         res = db.silence_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🔕 **Reminders Silenced!** Task **`#{id}`** (*{res['task_text']}*) will no longer send alerts.\n"
                 f"-# The task remains active on your `/todo list`.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
         else:
             await interaction.response.send_message(
                 f"❌ Task **`#{id}`** not found.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
 
     @todo_group.command(name="delete", description="Remove an active task directly to 7-day trash.")
@@ -414,47 +435,67 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @app_commands.autocomplete(id=todo_active_tasks_autocomplete)
     async def todo_delete(self, interaction: discord.Interaction, id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         res = db.delete_task(interaction.user.id, id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"🗑️ Task **`#{id}`** (*{res['task_text']}*) moved to trash.\n"
                 f"-# You can restore it from trash within 7 days via `/todo restore`.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
         else:
-            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph)
+            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph, delete_after=del_after)
 
     @todo_group.command(name="restore", description="Restore a task from 7-day trash back to your active list.")
     @app_commands.describe(trash_id="The trash number (e.g. 1 for T1)")
     @app_commands.autocomplete(trash_id=todo_trash_tasks_autocomplete)
     async def todo_restore(self, interaction: discord.Interaction, trash_id: int):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         res = db.restore_task(interaction.user.id, trash_id, db_path=self.db_path)
         if res:
             await interaction.response.send_message(
                 f"♻️ Restored task **`T{trash_id}`** (*{res['task_text']}*) back to your active list as **`#{res.get('num', 1)}`**.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
         else:
             await interaction.response.send_message(
                 f"❌ Trash item **`T{trash_id}`** not found. Run `/todo list filter: Trash` to inspect trash.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
 
-    @todo_group.command(name="edit", description="Modify an existing task's description, priority, or reminder.")
+    @todo_group.command(name="edit", description="Modify an existing task's description, priority, reminder, delivery, or counter.")
     @app_commands.describe(
         id="The relative task number (e.g. 1 for #1)",
         task="New task description",
         priority="Updated priority level",
-        remind="New reminder schedule",
-        remove_reminder="Remove reminder schedule completely (True/False)"
+        remind="New reminder schedule (e.g. 'everyday at 4:30PM')",
+        dm="Delivery mode: 'channel', 'dm', or 'both'",
+        until="Task deadline or expiration date (e.g. 'until next Friday')",
+        count="Target goal count (e.g. 5, or 0 to turn off counter)",
+        reset="Reset schedule cadence",
+        remove_reminder="Remove reminder schedule completely (True/False)",
+        remove_until="Remove deadline / expiration date completely (True/False)"
     )
     @app_commands.choices(priority=[
         app_commands.Choice(name="🔴 High", value="high"),
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
-    @app_commands.autocomplete(id=todo_active_tasks_autocomplete, remind=todo_remind_autocomplete)
+    @app_commands.choices(reset=[
+        app_commands.Choice(name="🔁 Reset Every Day (at 00:00 IST)", value="daily"),
+        app_commands.Choice(name="🔁 Reset Every Week (at 00:00 IST)", value="weekly"),
+        app_commands.Choice(name="🚫 No Reset (Keep count until cleared)", value="none"),
+    ])
+    @app_commands.autocomplete(
+        id=todo_active_tasks_autocomplete,
+        remind=todo_remind_autocomplete,
+        dm=todo_delivery_autocomplete,
+        until=todo_until_autocomplete
+    )
     async def todo_edit(
         self,
         interaction: discord.Interaction,
@@ -462,14 +503,44 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         task: Optional[str] = None,
         priority: Optional[app_commands.Choice[str]] = None,
         remind: Optional[str] = None,
+        dm: Optional[str] = None,
+        until: Optional[str] = None,
+        count: Optional[int] = None,
+        reset: Optional[app_commands.Choice[str]] = None,
         remove_reminder: Optional[bool] = False,
+        remove_until: Optional[bool] = False,
     ):
         is_eph = self._is_ephemeral(interaction.user.id)
         p_val = priority.value if priority else None
-        
+        reset_val = reset.value if reset else None
+
+        is_in_dm = (interaction.guild is None)
+        delivery_mode = None
+        dm_val = None
+        origin_ch = None
+
+        if dm is not None and str(dm).strip():
+            dm_raw = str(dm).strip().lower()
+            if dm_raw in ["dm", "only_dm", "only dm", "true", "1", "private"]:
+                delivery_mode = "dm"
+            elif dm_raw in ["both", "all", "on"]:
+                delivery_mode = "dm" if is_in_dm else "both"
+            elif dm_raw in ["channel", "here", "default", "false", "0", "off"]:
+                delivery_mode = "dm" if is_in_dm else "channel"
+            else:
+                delivery_mode = "dm" if is_in_dm else "channel"
+
+            dm_val = (delivery_mode in ["dm", "both"])
+            if not is_in_dm and interaction.channel_id is not None:
+                origin_ch = interaction.channel_id
+
         parsed = None
         if remind and not remove_reminder:
             parsed = parser.parse_remind_spec(remind)
+
+        parsed_until = None
+        if until and not remove_until:
+            parsed_until = parser.parse_until_spec(until)
 
         res = db.edit_task(
             user_id=interaction.user.id,
@@ -483,19 +554,58 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             remind_interval_mins=parsed["remind_interval_mins"] if parsed else None,
             remind_fixed_times=parsed["remind_fixed_times"] if parsed else None,
             remind_window_start=parsed["remind_window_start"] if parsed else None,
-            until_spec=parsed["until_spec"] if parsed else None,
-            until_timestamp=parsed["until_timestamp"] if parsed else None,
+            until_spec=parsed_until["until_spec"] if parsed_until else None,
+            until_timestamp=parsed_until["until_timestamp"] if parsed_until else None,
+            remove_until=bool(remove_until),
+            target_count=count,
+            reset_period=reset_val,
+            delivery_mode=delivery_mode,
+            dm_only=dm_val,
+            origin_channel_id=origin_ch,
             db_path=self.db_path,
         )
 
+        del_after = None if is_eph else 60.0
         if res:
-            note = " Reminders removed." if remove_reminder else (f" {parsed['confirmation_msg']}" if parsed else "")
+            changes = []
+            if task:
+                changes.append(f"• **Task**: {res['task_text']}")
+            if priority:
+                changes.append(f"• **Priority**: {format_priority_badge(p_val)}")
+            if remove_reminder:
+                changes.append("• **Reminders**: 🔕 Removed")
+            elif parsed:
+                changes.append(f"• **Reminder**: {parsed['confirmation_msg']}")
+            if delivery_mode:
+                if delivery_mode == "both":
+                    ch_tag = f"<#{interaction.channel_id}>" if interaction.channel_id else "Channel"
+                    d_desc = f"📢 Both ({ch_tag} & 🔒 DM)"
+                elif delivery_mode == "dm":
+                    d_desc = "🔒 Direct Message"
+                else:
+                    ch_tag = f"<#{interaction.channel_id}>" if interaction.channel_id else "This Channel"
+                    d_desc = f"💬 Current Channel ({ch_tag})"
+                changes.append(f"• **Delivery**: {d_desc}")
+            if remove_until:
+                changes.append("• **Deadline**: Cleared")
+            elif until and parsed_until:
+                changes.append(f"• **Deadline**: {parsed_until['confirmation_msg']}")
+            if count is not None:
+                if count > 0:
+                    changes.append(f"• **Goal Count**: `0/{count}`")
+                else:
+                    changes.append("• **Goal Count**: Turned off (Checkmark mode)")
+            if reset is not None:
+                changes.append(f"• **Reset**: {reset.name}")
+
+            summary = "\n".join(changes) if changes else "No fields changed."
             await interaction.response.send_message(
-                f"✏️ Updated task **`#{id}`**: **{res['task_text']}**.{note}",
-                ephemeral=is_eph
+                f"✏️ Updated task **`#{id}`**: **{res['task_text']}**\n{summary}",
+                ephemeral=is_eph,
+                delete_after=del_after
             )
         else:
-            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph)
+            await interaction.response.send_message(f"❌ Task **`#{id}`** not found.", ephemeral=is_eph, delete_after=del_after)
 
     @todo_group.command(name="assign", description="Assign a task to a friend with an interactive Accept/Decline flow.")
     @app_commands.describe(
@@ -657,17 +767,20 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @app_commands.describe(confirm="Confirm permanent deletion of trash")
     async def todo_clear(self, interaction: discord.Interaction, confirm: bool = False):
         is_eph = self._is_ephemeral(interaction.user.id)
+        del_after = None if is_eph else 60.0
         if not confirm:
             await interaction.response.send_message(
                 "⚠️ This will permanently delete all tasks in your trash! Run `/todo clear confirm: True` to proceed.",
-                ephemeral=is_eph
+                ephemeral=is_eph,
+                delete_after=del_after
             )
             return
 
         count = db.clear_trash(interaction.user.id, db_path=self.db_path)
         await interaction.response.send_message(
             f"🧹 **Trash Cleared.** Permanently removed **{count}** trashed task(s).",
-            ephemeral=is_eph
+            ephemeral=is_eph,
+            delete_after=del_after
         )
 
     @todo_group.command(name="incognito", description="Manage or check Incognito Mode for your /todo commands.")

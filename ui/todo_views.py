@@ -330,7 +330,24 @@ class TodoListView(discord.ui.View):
                 ephemeral=True
             )
             return False
+        if interaction.message:
+            self.message = interaction.message
         return True
+
+    async def on_timeout(self) -> None:
+        if hasattr(self, "message") and self.message:
+            try:
+                if getattr(self.message, "guild", None) is not None:
+                    await self.message.delete()
+                    return
+            except Exception:
+                pass
+            try:
+                for child in self.children:
+                    child.disabled = True
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     def build_current_embed(self) -> discord.Embed:
         page_items, total_pages, total_items = self._get_current_items()
@@ -608,7 +625,25 @@ class TaskDetailView(discord.ui.View):
             btn_silence.callback = self.on_toggle_silence
             self.add_item(btn_silence)
 
-        # Row 2: Delete & Back
+        # Row 2: Delivery switcher, Delete & Back
+        if task.get("remind_spec"):
+            d_mode = task.get("delivery_mode") or ("dm" if task.get("dm_only", 1) else "channel")
+            if d_mode == "both":
+                d_label = "📢 Alert: Both"
+            elif d_mode == "dm":
+                d_label = "🔒 Alert: DM Only"
+            else:
+                d_label = "📍 Alert: Channel"
+
+            btn_delivery = discord.ui.Button(
+                label=d_label,
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"detail_delivery_{self.task_id}",
+                row=2
+            )
+            btn_delivery.callback = self.on_cycle_delivery
+            self.add_item(btn_delivery)
+
         btn_del = discord.ui.Button(
             label="🗑️ Delete",
             style=discord.ButtonStyle.danger,
@@ -632,7 +667,24 @@ class TaskDetailView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ This task belongs to another user.", ephemeral=True)
             return False
+        if interaction.message:
+            self.message = interaction.message
         return True
+
+    async def on_timeout(self) -> None:
+        if hasattr(self, "message") and self.message:
+            try:
+                if getattr(self.message, "guild", None) is not None:
+                    await self.message.delete()
+                    return
+            except Exception:
+                pass
+            try:
+                for child in self.children:
+                    child.disabled = True
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
     async def on_add_one(self, interaction: discord.Interaction):
         db.adjust_task_count_by_id(self.task_id, delta=1, db_path=self.db_path)
@@ -688,6 +740,17 @@ class TaskDetailView(discord.ui.View):
             embed=None,
             view=self
         )
+
+    async def on_cycle_delivery(self, interaction: discord.Interaction):
+        ch_id = interaction.channel_id if interaction.guild else None
+        db.cycle_task_delivery_mode(self.user_id, self.task_id, origin_channel_id=ch_id, db_path=self.db_path)
+        self._sync_buttons()
+        task = self._get_task()
+        if task:
+            embed = build_task_detail_embed(task, user=interaction.user)
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message("Task not found.", ephemeral=True)
 
     async def on_back(self, interaction: discord.Interaction):
         if self.parent_view:
@@ -776,6 +839,12 @@ class ReminderAlertView(discord.ui.View):
                     ephemeral=True
                 )
 
+        if interaction.guild is not None and interaction.message:
+            try:
+                await interaction.message.delete(delay=10.0)
+            except Exception:
+                pass
+
     @discord.ui.button(label="🔕 Silence Reminder", style=discord.ButtonStyle.secondary, custom_id="btn_alert_silence")
     async def btn_alert_silence(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
         for child in self.children:
@@ -784,6 +853,11 @@ class ReminderAlertView(discord.ui.View):
 
         db.silence_task(self.user_id, self.task_id, db_path=self.db_path)
         await interaction.followup.send("🔕 Future reminders for this task are now silenced. Task remains on your active list.", ephemeral=True)
+        if interaction.guild is not None and interaction.message:
+            try:
+                await interaction.message.delete(delay=10.0)
+            except Exception:
+                pass
 
     @discord.ui.button(label="⏰ Snooze 30m", style=discord.ButtonStyle.primary, custom_id="btn_alert_snooze")
     async def btn_alert_snooze(self, interaction: discord.Interaction, button: Optional[discord.ui.Button] = None):
@@ -796,6 +870,11 @@ class ReminderAlertView(discord.ui.View):
             await interaction.followup.send("⏰ Snoozed! Next reminder will fire in **30 minutes**.", ephemeral=True)
         else:
             await interaction.followup.send("Task not found or already completed.", ephemeral=True)
+        if interaction.guild is not None and interaction.message:
+            try:
+                await interaction.message.delete(delay=10.0)
+            except Exception:
+                pass
 
 
 # =====================================================================
