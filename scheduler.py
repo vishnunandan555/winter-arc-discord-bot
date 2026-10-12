@@ -482,7 +482,7 @@ class WinterArcScheduler:
         # Update web dashboard statistics JSON
         try:
             from export_web_stats import export_stats_to_json
-            export_stats_to_json(db_path=self.db_path)
+            await asyncio.to_thread(export_stats_to_json, db_path=self.db_path)
         except Exception as e:
             logger.warning(f"Could not auto-export web stats: {e}")
 

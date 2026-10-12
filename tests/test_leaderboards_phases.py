@@ -45,21 +45,22 @@ class TestLeaderboardRankings(WinterArcTestCase):
         self.assertIn("Vishnu", usernames)
 
         # Check overall leaderboard with multi-day activity
-        d1 = (today - timedelta(days=2)).isoformat()
-        db.log_activity(u2, "Arjun", "Push-ups", 100, d1, self.test_db)
-        db.log_activity(u2, "Arjun", "Pull-ups", 100, d1, self.test_db)
-        db.log_activity(u2, "Arjun", "Squats", 100, d1, self.test_db)
-        db.log_activity(u2, "Arjun", "Sit-ups", 100, d1, self.test_db)
-        db.log_activity(u2, "Arjun", "Running", 10, d1, self.test_db)
-        db.finalize_daily_summaries(d1, self.test_db)
+        with patch("database.is_recovery_day", return_value=False):
+            d1 = (today - timedelta(days=2)).isoformat()
+            db.log_activity(u2, "Arjun", "Push-ups", 100, d1, self.test_db)
+            db.log_activity(u2, "Arjun", "Pull-ups", 100, d1, self.test_db)
+            db.log_activity(u2, "Arjun", "Squats", 100, d1, self.test_db)
+            db.log_activity(u2, "Arjun", "Sit-ups", 100, d1, self.test_db)
+            db.log_activity(u2, "Arjun", "Running", 10, d1, self.test_db)
+            db.finalize_daily_summaries(d1, self.test_db)
 
-        overall = db.get_overall_leaderboard(self.test_db)
-        self.assertGreater(len(overall), 0)
-        overall_usernames = [u["username"] for u in overall]
-        self.assertIn("Arjun", overall_usernames)
-        self.assertIn("Vishnu", overall_usernames)
-        self.assertEqual(overall[0]["username"], "Arjun")
-        self.assertGreaterEqual(overall[0]["total_points"], 500)
+            overall = db.get_overall_leaderboard(self.test_db)
+            self.assertGreater(len(overall), 0)
+            overall_usernames = [u["username"] for u in overall]
+            self.assertIn("Arjun", overall_usernames)
+            self.assertIn("Vishnu", overall_usernames)
+            self.assertEqual(overall[0]["username"], "Arjun")
+            self.assertGreaterEqual(overall[0]["total_points"], 500)
 
     def test_batched_leaderboard_types_return_lists(self):
         """Verifies daily, monthly, and overall leaderboard queries return list instances."""

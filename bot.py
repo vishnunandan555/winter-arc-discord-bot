@@ -8,9 +8,13 @@ and automated daily check-ins.
 
 import os
 import sys
+import time
+import socket
 import signal
 import asyncio
 import logging
+import aiohttp
+from aiohttp.resolver import ThreadedResolver
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -24,6 +28,26 @@ EXTENSIONS = [
     "cogs.admin",
     "cogs.todo",
 ]
+
+
+class ResilientResolver(ThreadedResolver):
+    """
+    Threaded DNS resolver with exponential backoff retry for transient name resolution errors.
+    Shields against container networking glitches (e.g. EAI_AGAIN / [Errno -3] Temporary failure in name resolution)
+    frequently seen in Docker and Pterodactyl container environments.
+    """
+    async def resolve(self, host: str, port: int = 0, family: socket.AddressFamily = socket.AddressFamily.AF_UNSPEC):
+        for attempt in range(3):
+            try:
+                return await super().resolve(host, port, family)
+            except socket.gaierror as e:
+                err_code = getattr(e, "errno", None)
+                if attempt < 2 and err_code in (-3, -2, -5):
+                    backoff = 0.5 * (attempt + 1)
+                    logger.debug(f"Transient DNS resolution error for '{host}' ({e}). Retrying in {backoff:.1f}s...")
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
 
 
 class AutocompleteNotFoundFilter(logging.Filter):
@@ -64,7 +88,22 @@ class WinterArcBot(commands.Bot):
         self._has_started = False
         from datetime import datetime, timezone
         self.start_time = datetime.now(timezone.utc)
+        self._disconnect_time = time.monotonic()
         setup_global_exception_handlers(logger)
+
+    async def login(self, token: str) -> None:
+        """Initializes a resilient aiohttp connector with DNS caching before connecting to Discord."""
+        if self.http.connector is discord.utils.MISSING:
+            loop = asyncio.get_running_loop()
+            resolver = ResilientResolver(loop=loop)
+            self.http.connector = aiohttp.TCPConnector(
+                limit=0,
+                resolver=resolver,
+                ttl_dns_cache=300,  # 5-minute DNS cache shields against transient container DNS drops
+                use_dns_cache=True,
+                enable_cleanup_closed=True,
+            )
+        await super().login(token)
 
     async def on_error(self, event_method: str, *args, **kwargs):
         """Global gateway event exception listener."""
@@ -205,11 +244,13 @@ class WinterArcBot(commands.Bot):
 
     async def on_disconnect(self):
         """Called when the client has disconnected from Discord Gateway."""
+        self._disconnect_time = time.monotonic()
         logger.warning("⚠️ Discord Gateway connection lost. Awaiting automatic reconnect...")
 
     async def on_resumed(self):
         """Called when a gateway session is successfully resumed."""
-        logger.info("🔁 Discord Gateway session resumed successfully. Active session state preserved.")
+        elapsed = time.monotonic() - getattr(self, "_disconnect_time", time.monotonic())
+        logger.info(f"🔁 Discord Gateway session resumed in {elapsed:.1f}s. Active session state preserved.")
 
     async def on_ready(self):
         """Called when gateway connection is established."""

@@ -217,33 +217,35 @@ class TestDiscordEmbedBuilders(WinterArcTestCase):
         # 2. Formatted history with grind log attachment
         u_hist = 999777
         db.enroll_user(u_hist, "HistoryWarrior", db_path=self.test_db)
-        past_d = db.get_today_date() - timedelta(days=2)
-        past_date = past_d.isoformat()
-        db.log_activity(u_hist, "HistoryWarrior", "Push-ups", 50, log_date=past_date, db_path=self.test_db)
-        db.record_grind_entry(
-            discord_id=u_hist,
-            date_str=past_date,
-            raw_input="Finished dynamic programming problem set",
-            verdict="ACCEPTED",
-            points=30,
-            key_learning="Graph Dynamic Programming",
-            commentary="Strong deep work",
-            db_path=self.test_db
-        )
-        hist = db.get_user_history(u_hist, days=7, db_path=self.test_db)
-        matching = [h for h in hist if h["date"] == past_date]
-        self.assertEqual(len(matching), 1)
-        self.assertIsNotNone(matching[0].get("grind_entry"))
-        self.assertEqual(matching[0]["grind_entry"]["points_awarded"], 30)
+        with patch("database.is_recovery_day", return_value=False), \
+             patch("ui.embed_builders.warrior.is_recovery_day", return_value=False):
+            past_d = db.get_today_date() - timedelta(days=2)
+            past_date = past_d.isoformat()
+            db.log_activity(u_hist, "HistoryWarrior", "Push-ups", 50, log_date=past_date, db_path=self.test_db)
+            db.record_grind_entry(
+                discord_id=u_hist,
+                date_str=past_date,
+                raw_input="Finished dynamic programming problem set",
+                verdict="ACCEPTED",
+                points=30,
+                key_learning="Graph Dynamic Programming",
+                commentary="Strong deep work",
+                db_path=self.test_db
+            )
+            hist = db.get_user_history(u_hist, days=7, db_path=self.test_db)
+            matching = [h for h in hist if h["date"] == past_date]
+            self.assertEqual(len(matching), 1)
+            self.assertIsNotNone(matching[0].get("grind_entry"))
+            self.assertEqual(matching[0]["grind_entry"]["points_awarded"], 30)
 
-        # History embed format
-        mock_user = self.create_mock_member(user_id=u_hist, display_name="HistoryWarrior")
-        mock_user.avatar = None
-        h_embed = build_history_embed(mock_user, hist)
-        expected_date_str = past_d.strftime("%a, %b %d")
-        self.assertIn(expected_date_str, h_embed.description)
-        self.assertIn("↳ ⚔️ *+30 pts grind (Graph Dynamic Programming)*", h_embed.description)
-        self.assertNotIn("Winter Arc • Consistency Beats Motivation", h_embed.footer.text)
+            # History embed format
+            mock_user = self.create_mock_member(user_id=u_hist, display_name="HistoryWarrior")
+            mock_user.avatar = None
+            h_embed = build_history_embed(mock_user, hist)
+            expected_date_str = past_d.strftime("%a, %b %d")
+            self.assertIn(expected_date_str, h_embed.description)
+            self.assertIn("↳ ⚔️ *+30 pts grind (Graph Dynamic Programming)*", h_embed.description)
+            self.assertNotIn("Winter Arc • Consistency Beats Motivation", h_embed.footer.text)
 
         # 3. Retroactive set_activity re-finalizes daily_summaries
         retro_date = (db.get_today_date() - timedelta(days=3)).isoformat()
