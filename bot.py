@@ -29,6 +29,26 @@ EXTENSIONS = [
     "cogs.todo",
 ]
 
+GATEWAY_CLOSE_CODES = {
+    1000: "Normal Closure",
+    1001: "Cloudflare/Discord Node Migration (Server Going Away)",
+    1006: "Abnormal Closure (TCP Connection Reset / Network Drop)",
+    4000: "Unknown Error (Transient Discord Gateway Blip)",
+    4001: "Unknown Opcode",
+    4002: "Decode Error",
+    4003: "Not Authenticated",
+    4004: "Authentication Failed (Invalid Token)",
+    4005: "Already Authenticated",
+    4007: "Invalid Sequence",
+    4008: "Rate Limited by Discord Gateway",
+    4009: "Session Timeout (Session Expired)",
+    4010: "Invalid Shard",
+    4011: "Sharding Required",
+    4012: "Invalid API Version",
+    4013: "Invalid Gateway Intent(s)",
+    4014: "Disallowed Gateway Intent(s) (Privileged Intent Missing)",
+}
+
 
 class ResilientResolver(ThreadedResolver):
     """
@@ -39,14 +59,24 @@ class ResilientResolver(ThreadedResolver):
     async def resolve(self, host: str, port: int = 0, family: socket.AddressFamily = socket.AddressFamily.AF_UNSPEC):
         for attempt in range(3):
             try:
-                return await super().resolve(host, port, family)
+                res = await super().resolve(host, port, family)
+                if attempt > 0:
+                    logger.info(f"✅ DNS resolution for '{host}' succeeded on retry {attempt + 1}/3.")
+                return res
             except socket.gaierror as e:
                 err_code = getattr(e, "errno", None)
                 if attempt < 2 and err_code in (-3, -2, -5):
                     backoff = 0.5 * (attempt + 1)
-                    logger.debug(f"Transient DNS resolution error for '{host}' ({e}). Retrying in {backoff:.1f}s...")
+                    logger.warning(
+                        f"⚠️ Container DNS lookup for '{host}' failed ([Errno {err_code}] {e}). "
+                        f"Host/Docker resolver temporary timeout. Retrying in {backoff:.1f}s (attempt {attempt + 1}/3)..."
+                    )
                     await asyncio.sleep(backoff)
                     continue
+                logger.error(
+                    f"❌ DNS resolution failed for '{host}' after {attempt + 1} attempts: {e}. "
+                    f"Check container DNS settings (/etc/resolv.conf) if this persists."
+                )
                 raise
 
 
@@ -89,6 +119,7 @@ class WinterArcBot(commands.Bot):
         from datetime import datetime, timezone
         self.start_time = datetime.now(timezone.utc)
         self._disconnect_time = time.monotonic()
+        self.reconnect_count = 0
         setup_global_exception_handlers(logger)
 
     async def login(self, token: str) -> None:
@@ -245,12 +276,32 @@ class WinterArcBot(commands.Bot):
     async def on_disconnect(self):
         """Called when the client has disconnected from Discord Gateway."""
         self._disconnect_time = time.monotonic()
-        logger.warning("⚠️ Discord Gateway connection lost. Awaiting automatic reconnect...")
+        ws = getattr(self, "ws", None)
+        close_code = getattr(ws, "close_code", None)
+        if close_code is None and hasattr(ws, "socket"):
+            close_code = getattr(ws.socket, "close_code", None)
+
+        reason = GATEWAY_CLOSE_CODES.get(close_code, f"Code {close_code}") if close_code else "Socket closed / Network drop"
+        session_id = getattr(ws, "session_id", None)
+        short_session = f"session {session_id[:8]}..." if session_id else "no active session"
+        logger.warning(
+            f"⚠️ Discord Gateway disconnected ({reason} | {short_session}). "
+            f"Awaiting automatic reconnect and resume..."
+        )
 
     async def on_resumed(self):
         """Called when a gateway session is successfully resumed."""
+        self.reconnect_count += 1
         elapsed = time.monotonic() - getattr(self, "_disconnect_time", time.monotonic())
-        logger.info(f"🔁 Discord Gateway session resumed in {elapsed:.1f}s. Active session state preserved.")
+        ws = getattr(self, "ws", None)
+        session_id = getattr(ws, "session_id", "Unknown")
+        short_session = f"{session_id[:8]}..." if session_id else "Unknown"
+        seq = getattr(ws, "sequence", None)
+        seq_str = f" | seq: {seq}" if seq is not None else ""
+        logger.info(
+            f"🔁 Discord Gateway session resumed in {elapsed:.1f}s "
+            f"(Session: {short_session}{seq_str} | Resume #{self.reconnect_count}). Active state preserved."
+        )
 
     async def on_ready(self):
         """Called when gateway connection is established."""

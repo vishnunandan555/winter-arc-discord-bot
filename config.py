@@ -105,6 +105,35 @@ class NoisyLibraryFilter(logging.Filter):
         return True
 
 
+class CleanGatewayNetworkErrorFilter(logging.Filter):
+    """
+    Transforms intimidating multi-page internal aiohttp/socket stack traces during
+    transient container DNS drops or gateway socket resets into clear, actionable warnings.
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and len(record.exc_info) > 1 and record.exc_info[1]:
+            exc = record.exc_info[1]
+            exc_str = str(exc)
+            exc_cls = exc.__class__.__name__
+
+            is_dns = "ClientConnectorDNSError" in exc_cls or "Temporary failure in name resolution" in exc_str or "gaierror" in exc_cls
+            is_net = "ClientConnectorError" in exc_cls or "ServerDisconnectedError" in exc_cls or isinstance(exc, (ConnectionResetError, BrokenPipeError))
+
+            if is_dns:
+                err_detail = getattr(exc, "os_error", exc)
+                record.msg = f"⚠️ Host DNS lookup for Gateway failed ({err_detail}). {record.msg} (Session state preserved)."
+                record.exc_info = None
+                record.levelno = logging.WARNING
+                record.levelname = "WARNING"
+            elif is_net:
+                record.msg = f"⚠️ Gateway network connection reset ({exc}). {record.msg} (Session state preserved)."
+                record.exc_info = None
+                record.levelno = logging.WARNING
+                record.levelname = "WARNING"
+
+        return True
+
+
 def setup_logging():
     log_level = getattr(logging, LOG_LEVEL_NAME, logging.INFO)
 
@@ -148,6 +177,8 @@ def setup_logging():
 
     # Apply filters
     logging.getLogger("discord.client").addFilter(VoiceWarningFilter())
+    logging.getLogger("discord.client").addFilter(CleanGatewayNetworkErrorFilter())
+    logging.getLogger("discord.gateway").addFilter(CleanGatewayNetworkErrorFilter())
     logging.getLogger("httpx").addFilter(NoisyLibraryFilter())
     logging.getLogger("httpcore").addFilter(NoisyLibraryFilter())
 

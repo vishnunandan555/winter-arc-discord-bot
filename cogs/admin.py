@@ -951,6 +951,9 @@ def get_system_health_metrics(bot: commands.Bot) -> dict:
     if os.path.exists(LOG_FILE_PATH):
         log_size_kb = round(os.path.getsize(LOG_FILE_PATH) / 1024.0, 1)
 
+    reconnects = getattr(bot, "reconnect_count", 0)
+    gateway_status = "Online" if (hasattr(bot, "is_ready") and bot.is_ready()) else "Connecting"
+
     return {
         "ram_mb": ram_mb,
         "db_size_kb": db_size_kb,
@@ -960,23 +963,28 @@ def get_system_health_metrics(bot: commands.Bot) -> dict:
         "uptime": uptime_str,
         "enrolled_count": enrolled_count,
         "latency_ms": latency_ms,
+        "reconnect_count": reconnects,
+        "gateway_status": gateway_status,
     }
 
 
 def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
-    """Builds a diagnostic status card tailored for VisiHost container limits."""
+    """Builds a diagnostic status card tailored for container limits."""
     ram = metrics["ram_mb"]
     ram_pct = int((ram / 512.0) * 100) if ram else 0
 
+    reconnect_txt = f" | Resumes: {metrics.get('reconnect_count', 0)}" if metrics.get("reconnect_count") is not None else ""
+    gw_status = metrics.get("gateway_status", "Online")
+
     desc = (
-        "**Host Environment**: VisiHost (Linux Container)\n\n"
+        "**Host Environment**: VisiHost / Container (Linux)\n\n"
         f"📊 **Memory (RAM RSS)**: **{ram} MB** / ~512 MB ({ram_pct}% container limit)\n"
         f"🗄️ **Database Disk Footprint**: **{metrics['db_size_kb']} KB** *(WAL: {metrics['wal_size_kb']} KB)*\n"
         f"📜 **Active Log File**: **{metrics['log_size_kb']} KB** *(Level: `{metrics['log_level']}`)*\n"
-        f"⚡ **Gateway Latency**: **{metrics['latency_ms']} ms**\n"
+        f"⚡ **Gateway**: **{metrics['latency_ms']} ms** *({gw_status}{reconnect_txt})*\n"
         f"⏱️ **Bot Uptime**: **{metrics['uptime']}**\n"
         f"👥 **Enrolled Warriors**: **{metrics['enrolled_count']}**\n\n"
-        "🛡️ *Optimizations active: SQLite ~2MB cache cap, message cache 100, AI client singletons, rotating logs.*"
+        "🛡️ *Optimizations active: SQLite ~2MB cache cap, 5m DNS cache, AI singletons, rotating logs.*"
     )
     if extra_note:
         desc += f"\n\n{extra_note}"
