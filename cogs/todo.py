@@ -589,8 +589,11 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
                 changes.append(f"• **Delivery**: {d_desc}")
             if remove_until:
                 changes.append("• **Deadline**: Cleared")
-            elif until and parsed_until:
-                changes.append(f"• **Deadline**: {parsed_until['confirmation_msg']}")
+            elif until and until_spec:
+                deadline_str = f"• **Deadline**: {until_spec}"
+                if until_ts:
+                    deadline_str += f" (<t:{until_ts}:f>)"
+                changes.append(deadline_str)
             if count is not None:
                 if count > 0:
                     changes.append(f"• **Goal Count**: `0/{count}`")

@@ -277,6 +277,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         progress = db.get_user_daily_progress(target_user.id, today_str)
         streak = db.calculate_streak(target_user.id, today_str)
 
+        embed = build_today_embed(target_user, progress, streak=streak, date_display=date_display)
         msg = await interaction.followup.send(embed=embed, wait=True)
         if interaction.guild is not None and msg:
             try:
@@ -338,6 +339,7 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
         progress = db.get_user_daily_progress(target_user.id, today_str)
         streak = db.calculate_streak(target_user.id, today_str)
 
+        embed = build_tasks_embed(target_user, progress, streak=streak, date_display=date_display)
         msg = await interaction.followup.send(embed=embed, wait=True)
         if interaction.guild is not None and msg:
             try:
@@ -772,8 +774,6 @@ class WarriorCog(commands.Cog, name="Warrior Commands"):
             name = "You are" if target.id == interaction.user.id else f"{target.display_name} is"
             await interaction.followup.send(f"🚫 {name} not enrolled in the Winter Arc.", ephemeral=True)
             return
-
-        await interaction.response.defer()
 
         selected_phase = phase.value if phase else None
         logger.info(f"Slash command '/recap' invoked by {interaction.user} (target: {target.display_name}, phase: {selected_phase or 'current'})")

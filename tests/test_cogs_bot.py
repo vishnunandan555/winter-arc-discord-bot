@@ -412,4 +412,45 @@ class TestErrorHandlingAndRobustLogging(WinterArcTestCase):
 
         asyncio.run(run_correct_2fa_test())
 
+    def test_today_and_tasks_commands_embed_generation(self):
+        """Verifies /today and /tasks commands successfully construct embeds and send followups without NameError."""
+        from unittest.mock import patch
+        from cogs.warrior import WarriorCog
+        import database as db
+
+        bot = MagicMock()
+        cog = WarriorCog(bot)
+
+        uid = 555666
+        db.enroll_user(uid, "TestWarrior", db_path=self.test_db)
+
+        # 1. Test /today
+        inter_today = self.create_mock_interaction(user_id=uid, display_name="TestWarrior")
+        inter_today.guild = None
+
+        with patch("database.DB_PATH", self.test_db), \
+             patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+             patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+             patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+            asyncio.run(cog.today.callback(cog, inter_today))
+            inter_today.followup.send.assert_called_once()
+            kwargs = inter_today.followup.send.call_args.kwargs
+            self.assertIn("embed", kwargs)
+            self.assertIsInstance(kwargs["embed"], discord.Embed)
+
+        # 2. Test /tasks
+        inter_tasks = self.create_mock_interaction(user_id=uid, display_name="TestWarrior")
+        inter_tasks.guild = None
+
+        with patch("database.DB_PATH", self.test_db), \
+             patch("cogs.warrior.safe_react", new_callable=AsyncMock), \
+             patch("cogs.warrior.dispatch_tip", new_callable=AsyncMock), \
+             patch("ai.groq_service.dispatch_interaction_nudge", new_callable=AsyncMock):
+            asyncio.run(cog.tasks_cmd.callback(cog, inter_tasks))
+            inter_tasks.followup.send.assert_called_once()
+            kwargs = inter_tasks.followup.send.call_args.kwargs
+            self.assertIn("embed", kwargs)
+            self.assertIsInstance(kwargs["embed"], discord.Embed)
+
+
 
