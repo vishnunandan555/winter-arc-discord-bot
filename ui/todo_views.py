@@ -900,11 +900,11 @@ class TaskAssignmentView(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.assignee_id:
-            await interaction.response.send_message("❌ This assignment request was sent to another user.", ephemeral=True)
+            await interaction.response.send_message("This assignment request was sent to another user.", ephemeral=True)
             return False
         return True
 
-    @discord.ui.button(label="✅ Accept Task", style=discord.ButtonStyle.success, custom_id="btn_assign_accept")
+    @discord.ui.button(label="Accept Task", style=discord.ButtonStyle.success, custom_id="btn_assign_accept")
     async def btn_accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         new_task = db.add_task(
             user_id=self.assignee_id,
@@ -930,16 +930,16 @@ class TaskAssignmentView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(
-            content=f"✅ **Task Accepted!** Added to your active list as **#{new_task.get('num', 1)}**.",
+            content=f"**Task Accepted!** Added to your active list as **#{new_task.get('num', 1)}**.",
             view=self
         )
 
-    @discord.ui.button(label="❌ Decline", style=discord.ButtonStyle.danger, custom_id="btn_assign_decline")
+    @discord.ui.button(label="Decline", style=discord.ButtonStyle.danger, custom_id="btn_assign_decline")
     async def btn_decline(self, interaction: discord.Interaction, button: discord.ui.Button):
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(
-            content="❌ **Task Declined.** The assignment was discarded.",
+            content="**Task Declined.** The assignment was discarded.",
             view=self
         )
 

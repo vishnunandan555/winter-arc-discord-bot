@@ -690,12 +690,16 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         )
         inter.response.send_message.assert_called_once()
         kwargs = inter.response.send_message.call_args[1]
-        self.assertIn("assigned a new task", kwargs.get("content", ""))
+        content = kwargs.get("content", "")
+        self.assertIn("assigned a new task", content)
+        self.assertIn("Review PR #42", content)
         self.assertTrue(mock_member.send.called)
 
-        # Verify task_data has all rich fields
+        # Verify task_data has all rich fields and buttons have clean labels
         view = kwargs.get("view")
         self.assertIsNotNone(view)
+        self.assertEqual(view.children[0].label, "Accept Task")
+        self.assertEqual(view.children[1].label, "Decline")
         self.assertEqual(view.task_data["target_count"], 4)
         self.assertEqual(view.task_data["reset_period"], "daily")
         self.assertEqual(view.task_data["delivery_mode"], "both")

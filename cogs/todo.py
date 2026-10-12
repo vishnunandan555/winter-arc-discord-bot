@@ -717,33 +717,34 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             db_path=self.db_path,
         )
 
-        p_badge = format_priority_badge(p_val)
-        p_str = f" • {p_badge}" if p_badge else ""
-        details = []
+        meta_items = []
+        if p_val and p_val != "normal":
+            meta_items.append(f"Priority: `{p_val.title()}`")
         if parsed["remind_spec"]:
-            details.append(f"• ⏰ **Reminder**: {parsed['remind_spec']}")
-        if delivery_mode:
-            d_name = "Both (Channel & DM)" if delivery_mode == "both" else ("Direct Message" if delivery_mode == "dm" else "Channel")
-            details.append(f"• 🔒 **Delivery**: `{d_name}`")
+            meta_items.append(f"Reminder: `{parsed['remind_spec']}`")
         if counter_cfg["target_count"] > 0:
-            details.append(f"• 🎯 **Goal Count**: `0/{counter_cfg['target_count']}`")
-        if counter_cfg["reset_period"] != "none":
-            details.append(f"• 🔁 **Reset**: `{counter_cfg['reset_period'].title()}`")
+            reset_txt = f"/{counter_cfg['reset_period']}" if counter_cfg["reset_period"] != "none" else ""
+            meta_items.append(f"Goal: `{counter_cfg['target_count']}{reset_txt}`")
         if until_spec:
-            details.append(f"• 📅 **Deadline**: {until_spec}")
+            meta_items.append(f"Deadline: `{until_spec}`")
 
-        details_block = ("\n" + "\n".join(details)) if details else ""
+        meta_line = f"\n> *{' • '.join(meta_items)}*" if meta_items else ""
+
+        channel_msg = (
+            f"<@{member.id}>, you were assigned a new task by {interaction.user.mention}!\n"
+            f"> **{task}**{meta_line}"
+        )
 
         invite_msg = (
-            f"📩 **Task Assignment Request**\n"
+            f"**Task Assignment Request**\n"
             f"**From**: <@{interaction.user.id}>\n"
-            f"**Task**: **{task}**{p_str}{details_block}\n\n"
+            f"> **{task}**{meta_line}\n\n"
             f"Click below to accept or decline:"
         )
 
         # 1. Send in channel with ping
         await interaction.response.send_message(
-            content=f"<@{member.id}>, you were assigned a new task by {interaction.user.mention}!",
+            content=channel_msg,
             view=view
         )
 
