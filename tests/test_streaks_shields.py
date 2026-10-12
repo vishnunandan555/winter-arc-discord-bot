@@ -44,11 +44,12 @@ class TestStreakCalculation(WinterArcTestCase):
         db.log_activity(user_id, "Arjun", "Squats", 100, d2, self.test_db)
         db.log_activity(user_id, "Arjun", "Running", 10, d2, self.test_db)
 
-        db.finalize_daily_summaries(d1, self.test_db)
-        db.finalize_daily_summaries(d2, self.test_db)
+        with patch("database.is_recovery_day", return_value=False):
+            db.finalize_daily_summaries(d1, self.test_db)
+            db.finalize_daily_summaries(d2, self.test_db)
 
-        streak = db.calculate_streak(user_id, as_of_date=today.isoformat(), db_path=self.test_db)
-        self.assertEqual(streak, 2)
+            streak = db.calculate_streak(user_id, as_of_date=today.isoformat(), db_path=self.test_db)
+            self.assertEqual(streak, 2)
 
     def test_streak_minimum_thirty_points_daily_threshold(self):
         """Verifies that 30 points are strictly required to preserve or advance a streak."""
@@ -267,12 +268,13 @@ class TestStreakShields(WinterArcTestCase):
             conn.commit()
 
         # Finalization should auto-shield without throwing lock error
-        summaries = db.finalize_daily_summaries(yesterday, self.test_db)
-        self.assertTrue(len(summaries) >= 1)
+        with patch("database.is_recovery_day", return_value=False):
+            summaries = db.finalize_daily_summaries(yesterday, self.test_db)
+            self.assertTrue(len(summaries) >= 1)
 
-        fin_summary = next((s for s in summaries if s["discord_id"] == fin_user), None)
-        self.assertIsNotNone(fin_summary)
-        self.assertTrue(fin_summary["is_shielded"])
+            fin_summary = next((s for s in summaries if s["discord_id"] == fin_user), None)
+            self.assertIsNotNone(fin_summary)
+            self.assertTrue(fin_summary["is_shielded"])
 
     def test_shield_milestone_break_and_rebuild(self):
         """Verifies that when a streak is broken, last_shield_milestone resets so the warrior can earn shields again."""
@@ -456,21 +458,22 @@ class TestStreakShields(WinterArcTestCase):
             conn.commit()
 
         # Finalize yesterday
-        leaderboard = db.finalize_daily_summaries(yesterday, self.test_db)
+        with patch("database.is_recovery_day", return_value=False):
+            leaderboard = db.finalize_daily_summaries(yesterday, self.test_db)
 
-        entry_a = next(e for e in leaderboard if e["discord_id"] == user_a)
-        entry_b = next(e for e in leaderboard if e["discord_id"] == user_b)
-        entry_c = next(e for e in leaderboard if e["discord_id"] == user_c)
+            entry_a = next(e for e in leaderboard if e["discord_id"] == user_a)
+            entry_b = next(e for e in leaderboard if e["discord_id"] == user_b)
+            entry_c = next(e for e in leaderboard if e["discord_id"] == user_c)
 
-        self.assertTrue(entry_a["auto_shield_applied"])
-        self.assertEqual(entry_a["shields_left"], 1)
+            self.assertTrue(entry_a["auto_shield_applied"])
+            self.assertEqual(entry_a["shields_left"], 1)
 
-        self.assertTrue(entry_b["auto_shield_applied"])
-        self.assertEqual(entry_b["shields_left"], 0)
+            self.assertTrue(entry_b["auto_shield_applied"])
+            self.assertEqual(entry_b["shields_left"], 0)
 
-        self.assertFalse(entry_c["auto_shield_applied"])
-        self.assertTrue(entry_c["streak_broken"])
-        self.assertEqual(entry_c["broken_streak_count"], 1)
+            self.assertFalse(entry_c["auto_shield_applied"])
+            self.assertTrue(entry_c["streak_broken"])
+            self.assertEqual(entry_c["broken_streak_count"], 1)
 
         # Now verify scheduler channel alerts
         mock_bot = MagicMock()
@@ -483,7 +486,8 @@ class TestStreakShields(WinterArcTestCase):
         mock_channel.send = AsyncMock()
 
         async def run_broadcast():
-            with patch("database.finalize_daily_summaries", return_value=[entry_a, entry_b, entry_c]), \
+            with patch("scheduler.is_recovery_day", return_value=False), \
+                 patch("database.finalize_daily_summaries", return_value=[entry_a, entry_b, entry_c]), \
                  patch("database.get_enrolled_users", return_value=[{"discord_id": user_a}, {"discord_id": user_b}, {"discord_id": user_c}]), \
                  patch("database.get_daily_grind_highlights", return_value=[]), \
                  patch("ai.reasoning_service.generate_daily_toast_and_roast", new_callable=AsyncMock, return_value=""), \

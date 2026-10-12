@@ -115,6 +115,7 @@ class TestRemindersAndDMs(WinterArcTestCase):
         # Test briefing generation with OpenRouter mock
         mock_briefing = "You dominated heavy pulls yesterday. Keep this unbroken standard into day 4."
         with patch("ai.reasoning_service.OPENROUTER_API_KEY", "test-key"), \
+             patch("ai.groq_service.get_groq_client", return_value=None), \
              patch("ai.reasoning_service.safe_openrouter_chat_completion", new=AsyncMock(return_value=mock_briefing)):
             briefing_or = asyncio.run(generate_personalized_morning_briefing(context))
             self.assertEqual(briefing_or, mock_briefing)

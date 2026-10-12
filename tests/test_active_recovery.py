@@ -231,16 +231,17 @@ class TestActiveRecoverySystem(WinterArcTestCase):
 
         scheduler = WinterArcScheduler(mock_bot, db_path=self.test_db)
         with patch.object(scheduler, "_get_target_channel_and_ping", return_value=(mock_channel, "<@&999888>")):
-            with patch("scheduler.is_recovery_day", return_value=True):
-                with patch("ai.reasoning_service.generate_reminder_motivation", return_value="Hydrate and stretch lightly."):
-                    asyncio.run(scheduler.broadcast_afternoon_checkin())
-                    self.assertTrue(mock_channel.send.called)
-                    sent_content = mock_channel.send.call_args.kwargs.get("content", "")
-                    # No role ping on ARD afternoon
-                    self.assertNotIn("<@&999888>", sent_content)
-                    embed = mock_channel.send.call_args.kwargs.get("embed")
-                    self.assertIn("Winter Arc — Midday Pulse 🌿", embed.title)
-                    self.assertIn("Hydrate and stretch lightly.", embed.description)
+            with patch("scheduler.is_recovery_day", return_value=True), \
+                 patch("ui.embed_builders.broadcasts.is_recovery_day", return_value=True), \
+                 patch("ai.reasoning_service.generate_reminder_motivation", return_value="Hydrate and stretch lightly."):
+                asyncio.run(scheduler.broadcast_afternoon_checkin())
+                self.assertTrue(mock_channel.send.called)
+                sent_content = mock_channel.send.call_args.kwargs.get("content", "")
+                # No role ping on ARD afternoon
+                self.assertNotIn("<@&999888>", sent_content)
+                embed = mock_channel.send.call_args.kwargs.get("embed")
+                self.assertIn("Winter Arc — Midday Pulse 🌿", embed.title)
+                self.assertIn("Hydrate and stretch lightly.", embed.description)
 
     def test_midnight_finalization_silent_on_ard(self):
         """Verifies midnight finalization silently executes without channel dispatch on ARD."""
