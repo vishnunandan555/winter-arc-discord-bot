@@ -904,6 +904,25 @@ class TaskAssignmentView(discord.ui.View):
             return False
         return True
 
+    def _build_task_summary(self) -> str:
+        meta_items = []
+        p_val = self.task_data.get("priority")
+        if p_val and p_val != "normal":
+            meta_items.append(f"Priority: `{p_val.title()}`")
+        if self.task_data.get("remind_spec"):
+            meta_items.append(f"Reminder: `{self.task_data['remind_spec']}`")
+        if self.task_data.get("target_count", 0) > 0:
+            tc = self.task_data["target_count"]
+            rp = self.task_data.get("reset_period", "none")
+            reset_txt = f"/{rp}" if rp != "none" else ""
+            meta_items.append(f"Goal: `{tc}{reset_txt}`")
+        if self.task_data.get("until_spec"):
+            meta_items.append(f"Deadline: `{self.task_data['until_spec']}`")
+
+        meta_line = f"\n> *{' • '.join(meta_items)}*" if meta_items else ""
+        task_text = self.task_data.get("task_text", "")
+        return f"> **{task_text}**{meta_line}"
+
     @discord.ui.button(label="Accept Task", style=discord.ButtonStyle.success, custom_id="btn_assign_accept")
     async def btn_accept(self, interaction: discord.Interaction, button: discord.ui.Button):
         new_task = db.add_task(
@@ -929,8 +948,12 @@ class TaskAssignmentView(discord.ui.View):
         )
         for child in self.children:
             child.disabled = True
+        summary = self._build_task_summary()
         await interaction.response.edit_message(
-            content=f"**Task Accepted!** Added to your active list as **#{new_task.get('num', 1)}**.",
+            content=(
+                f"✅ **Task Accepted!** Added to your active list as **#{new_task.get('num', 1)}**.\n"
+                f"{summary}"
+            ),
             view=self
         )
 
@@ -938,8 +961,12 @@ class TaskAssignmentView(discord.ui.View):
     async def btn_decline(self, interaction: discord.Interaction, button: discord.ui.Button):
         for child in self.children:
             child.disabled = True
+        task_text = self.task_data.get("task_text", "")
         await interaction.response.edit_message(
-            content="**Task Declined.** The assignment was discarded.",
+            content=(
+                f"❌ **Task Declined.** The assignment was discarded.\n"
+                f"> ~~{task_text}~~"
+            ),
             view=self
         )
 

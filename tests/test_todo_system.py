@@ -367,6 +367,7 @@ class TestTodoViewsAndInteractionFlow(WinterArcTestCase):
         inter.response.edit_message.assert_called()
         edit_content = inter.response.edit_message.call_args[1].get("content")
         self.assertIn("Task Accepted", edit_content)
+        self.assertIn("Shared Engineering Review", edit_content)
 
         # Assignee should now have the task active with #1
         assignee_tasks = db.get_active_tasks(assignee_id, db_path=self.todo_test_db)
@@ -400,6 +401,7 @@ class TestTodoViewsAndInteractionFlow(WinterArcTestCase):
         inter.response.edit_message.assert_called()
         edit_content = inter.response.edit_message.call_args[1].get("content")
         self.assertIn("Task Declined", edit_content)
+        self.assertIn("Optional Task", edit_content)
         # Should not be in database
         self.assertEqual(len(db.get_active_tasks(assignee_id, db_path=self.todo_test_db)), 0)
 
@@ -709,6 +711,7 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         friend_inter = self.create_mock_interaction(user_id=998877)
         friend_inter.response.edit_message = AsyncMock()
         asyncio.run(view.btn_accept.callback(friend_inter))
+        self.assertIn("Review PR #42", friend_inter.response.edit_message.call_args[1].get("content"))
 
         friend_tasks = db.get_active_tasks(998877, db_path=self.todo_test_db)
         self.assertEqual(len(friend_tasks), 1)
