@@ -964,12 +964,12 @@ def get_system_health_metrics(bot: commands.Bot) -> dict:
 
 
 def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
-    """Builds a diagnostic status card tailored for Wispbyte low-RAM container limits."""
+    """Builds a diagnostic status card tailored for VisiHost container limits."""
     ram = metrics["ram_mb"]
     ram_pct = int((ram / 512.0) * 100) if ram else 0
 
     desc = (
-        "**Host Environment**: Wispbyte Free Tier (Linux Container)\n\n"
+        "**Host Environment**: VisiHost (Linux Container)\n\n"
         f"📊 **Memory (RAM RSS)**: **{ram} MB** / ~512 MB ({ram_pct}% container limit)\n"
         f"🗄️ **Database Disk Footprint**: **{metrics['db_size_kb']} KB** *(WAL: {metrics['wal_size_kb']} KB)*\n"
         f"📜 **Active Log File**: **{metrics['log_size_kb']} KB** *(Level: `{metrics['log_level']}`)*\n"
@@ -986,7 +986,7 @@ def build_health_embed(metrics: dict, extra_note: str = "") -> discord.Embed:
         description=desc,
         color=0x2ECC71 if ram < 250 else 0xE67E22
     )
-    embed.set_footer(text="Wispbyte Resource Monitor • Click button below to free unused RAM")
+    embed.set_footer(text="VisiHost Resource Monitor • Click button below to free unused RAM")
     return embed
 
 

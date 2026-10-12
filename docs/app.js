@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDiscordSimulator();
   initCommandDirectory();
   initHostingPlatformTabs();
-  initWispbyteMethodTabs();
+  initVisiHostMethodTabs();
   initCopyEngine();
 });
 
@@ -334,9 +334,9 @@ function initHostingPlatformTabs() {
 }
 
 /**
- * Wispbyte Deployment Method Sub-Tabs Controller
+ * VisiHost / Pterodactyl Deployment Method Sub-Tabs Controller
  */
-function initWispbyteMethodTabs() {
+function initVisiHostMethodTabs() {
   const methodTabs = document.querySelectorAll('.method-tab-btn');
   const methodPanels = document.querySelectorAll('.method-panel');
 

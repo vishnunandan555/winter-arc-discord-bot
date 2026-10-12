@@ -132,7 +132,7 @@
             "name": "How can I fork and self-host this Discord bot?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "You can fork the repository on GitHub, create a bot in the Discord Developer Portal with Server Members and Message Content intents enabled, configure your .env file with DISCORD_TOKEN, and host 24/7 on Wispbyte, a Linux VPS using systemd, or containerized with Docker Compose."
+              "text": "You can fork the repository on GitHub, create a bot in the Discord Developer Portal with Server Members and Message Content intents enabled, configure your .env file with DISCORD_TOKEN, and host 24/7 on VisiHost, a Linux VPS using systemd, or containerized with Docker Compose."
             }
           },
           {
@@ -168,7 +168,7 @@
           {
             "@type": "HowToStep",
             "name": "Deploy 24/7 Service",
-            "text": "Launch using Wispbyte, a Linux VPS with systemd, Docker Compose, or Render background worker."
+            "text": "Launch using VisiHost, a Linux VPS with systemd, Docker Compose, or Render background worker."
           },
           {
             "@type": "HowToStep",
@@ -801,11 +801,11 @@
             </div>
             <h3 class="showcase-title">Modular Todo &amp; Smart Reminders</h3>
             <p class="showcase-desc">
-              Distraction-free personal &amp; team task management strictly isolated in its own dedicated <code>todo.db</code>. Features Incognito privacy mode (public vs private command responses), relative task numbering (#1..#N), 7-day auto-purged trash (T1..TN), natural language recurrence, team delegation, and cross-midnight DND quiet hours.
+              Distraction-free personal &amp; team task management strictly isolated in its own dedicated <code>todo.db</code>. Features contextual 3-mode delivery (Channel, Private DM, or Both), habit counter tracking with auto-resets, 15-item paginated lists, interactive Task Control Center, Incognito mode, relative numbering (#1..#N), 7-day trash history, and DND quiet hours.
             </p>
             <div class="code-snippet-preview">
-              <code>/todo add task:"Push project commit" when:"tomorrow 5pm" remind_me:"every 2 hours"</code>
-              <code>/todo incognito mode:on</code>
+              <code>/todo add task:"Train Typing" remind:"everyday at 4:30PM" dm:both count:1 reset:daily</code>
+              <code>/todo view id:1</code>
             </div>
           </div>
 
@@ -853,6 +853,10 @@
             <button class="sim-tab-btn" data-sim="quick">
               <span class="sim-cmd-name">/quick (AI)</span>
               <span class="sim-cmd-label">Natural Language</span>
+            </button>
+            <button class="sim-tab-btn" data-sim="todo">
+              <span class="sim-cmd-name">/todo list</span>
+              <span class="sim-cmd-label">Tasks &amp; Habits</span>
             </button>
           </div>
 
@@ -1104,6 +1108,23 @@
 
                       <div class="embed-footer">
                         <span>Parsed in 240ms &bull; Daily Total: 312 / 500 pts</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- SIMULATOR VIEW: /todo list -->
+                  <div class="discord-embed-card" id="sim-view-todo">
+                    <div class="embed-color-bar" style="background-color: #2ECC71;"></div>
+                    <div class="embed-content">
+                      <div class="embed-title">📋 Aryan's Active Todo List</div>
+                      <div class="embed-description" style="line-height: 1.8;">
+                        <strong>`#1`</strong> Train Typing On Keyboard &bull; 🔁 <em>everyday at 4:30PM</em> &bull; 🔁 <em>Resets daily</em> &bull; <code>Channel+DM</code><br>
+                        <strong>`#2`</strong> Hydration Habit <code>[▰▰▰▰▱▱▱▱] 4/8</code> &bull; 🔁 <em>every 2 hours</em> &bull; 🔁 <em>Resets daily</em> &bull; <code>DM</code><br>
+                        <strong>`#3`</strong> <code>🔴 High</code> Review PR #42 &bull; 🔁 <em>today 18:00</em> &bull; <code>DM</code><br>
+                        <strong>`#4`</strong> Read Chapter 3 of Atomic Habits
+                      </div>
+                      <div class="embed-footer">
+                        <span>Page 1 of 1 &bull; 4 items &bull; Open Control Center via /todo view [id]</span>
                       </div>
                     </div>
                   </div>
@@ -1701,18 +1722,69 @@
             </div>
           </div>
 
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/admin backup</span>
+              <button class="copy-cmd-btn" data-copy="/admin backup" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Generate an online point-in-time database snapshot of winter_arc.db and download the .db file directly in Discord.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">Security</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/admin health</span>
+              <button class="copy-cmd-btn" data-copy="/admin health" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Inspect server RAM consumption, database disk footprint, active logs, gateway latency, and host container resources with 1-click memory cleanup.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">Diagnostics</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/admin tips [state]</span>
+              <button class="copy-cmd-btn" data-copy="/admin tips" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Enable or disable automated daily training tips and tactical guidance broadcasts across your server.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">state: on|off</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="admin">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/admin nuke_day [date]</span>
+              <button class="copy-cmd-btn" data-copy="/admin nuke_day date:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Admin 2FA emergency maintenance: safely purge and reset all workout logs for any specific date.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-admin">Admin</span>
+              <span class="tag-param">date: required</span>
+              <span class="tag-param">2FA verified</span>
+            </div>
+          </div>
+
           <!-- Todo Addon Commands -->
           <div class="cmd-card" data-category="todo">
             <div class="cmd-top">
-              <span class="cmd-syntax">/todo add [task] [when] [remind_me] [until] [dm] [priority]</span>
-              <button class="copy-cmd-btn" data-copy="/todo add " title="Copy command">Copy</button>
+              <span class="cmd-syntax">/todo add [task] [remind] [dm] [count] [reset] [priority] [until]</span>
+              <button class="copy-cmd-btn" data-copy="/todo add task:" title="Copy command">Copy</button>
             </div>
-            <div class="cmd-desc">Create a new task with smart recurring natural-language reminders, indefinite habit schedules, and private DM or channel delivery.</div>
+            <div class="cmd-desc">Add a task with natural language recurrence, contextual delivery (channel, dm, both), habit counters (e.g. 7 times), and midnight auto-resets.</div>
             <div class="cmd-tags">
               <span class="tag-cat tag-todo">Todo</span>
               <span class="tag-param">task: required</span>
-              <span class="tag-param">when: optional</span>
-              <span class="tag-param">remind_me: optional</span>
+              <span class="tag-param">remind: optional</span>
+              <span class="tag-param">dm: channel|dm|both</span>
+              <span class="tag-param">count: optional</span>
+              <span class="tag-param">reset: daily|weekly|none</span>
             </div>
           </div>
 
@@ -1725,6 +1797,18 @@
             <div class="cmd-tags">
               <span class="tag-cat tag-todo">Todo</span>
               <span class="tag-param">filter: optional</span>
+            </div>
+          </div>
+
+          <div class="cmd-card" data-category="todo">
+            <div class="cmd-top">
+              <span class="cmd-syntax">/todo view [id]</span>
+              <button class="copy-cmd-btn" data-copy="/todo view id:" title="Copy command">Copy</button>
+            </div>
+            <div class="cmd-desc">Open the dedicated Control Center for an active task with interactive [ ➕ Log +1 ], [ ➖ Undo -1 ], [ ✅ Toggle Done ], [ 🔕 Silence ], and [ 🗑️ Delete ] buttons.</div>
+            <div class="cmd-tags">
+              <span class="tag-cat tag-todo">Todo</span>
+              <span class="tag-param">id: required</span>
             </div>
           </div>
 
@@ -2042,14 +2126,14 @@ GROQ_MODEL=openai/gpt-oss-20b</code></pre>
           </div>
           
           <div class="platform-tabs">
-            <button class="plat-tab-btn active" data-target="host-wispbyte">
+            <button class="plat-tab-btn active" data-target="host-visihost">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
                 <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
                 <line x1="6" y1="6" x2="6.01" y2="6"></line>
                 <line x1="6" y1="18" x2="6.01" y2="18"></line>
               </svg>
-              <span>Wispbyte / Pterodactyl</span>
+              <span>VisiHost / Pterodactyl</span>
             </button>
             <button class="plat-tab-btn" data-target="host-vps">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -2074,17 +2158,17 @@ GROQ_MODEL=openai/gpt-oss-20b</code></pre>
             </button>
           </div>
 
-          <!-- Platform 1: Wispbyte / Pterodactyl -->
-          <div class="plat-content active" id="host-wispbyte">
+          <!-- Platform 1: VisiHost / Pterodactyl -->
+          <div class="plat-content active" id="host-visihost">
             <div class="plat-inner">
-              <h4 class="plat-heading">Deploying on Wispbyte (or any Pterodactyl Panel)</h4>
+              <h4 class="plat-heading">Deploying on VisiHost (or any Pterodactyl Panel)</h4>
               <p class="plat-desc">
-                Wispbyte provides low-cost 24/7 Discord bot server containers running Python with automatic crash recovery, web console monitoring, and integrated Git deployment. Select your preferred deployment method below:
+                VisiHost provides reliable 24/7 Discord bot hosting containers running Python with automatic crash recovery, web console monitoring, and integrated Git deployment. Select your preferred deployment method below:
               </p>
 
               <!-- Deployment Strategy Sub-Tabs -->
-              <div class="method-tabs" role="tablist" aria-label="Wispbyte Deployment Strategy">
-                <button class="method-tab-btn active" data-method="wisp-method-git" role="tab" aria-selected="true">
+              <div class="method-tabs" role="tablist" aria-label="VisiHost Deployment Strategy">
+                <button class="method-tab-btn active" data-method="visihost-method-git" role="tab" aria-selected="true">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="18" cy="18" r="3"></circle>
                     <circle cx="6" cy="6" r="3"></circle>
@@ -2094,7 +2178,7 @@ GROQ_MODEL=openai/gpt-oss-20b</code></pre>
                   <span>GitHub Auto-Pull</span>
                   <span class="method-pill rec">Recommended</span>
                 </button>
-                <button class="method-tab-btn" data-method="wisp-method-zip" role="tab" aria-selected="false">
+                <button class="method-tab-btn" data-method="visihost-method-zip" role="tab" aria-selected="false">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                     <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
@@ -2109,13 +2193,13 @@ GROQ_MODEL=openai/gpt-oss-20b</code></pre>
               </div>
 
               <!-- Method 1: GitHub Integration (New & Recommended) -->
-              <div class="method-panel active" id="wisp-method-git" role="tabpanel">
+              <div class="method-panel active" id="visihost-method-git" role="tabpanel">
                 <div class="guide-steps-list">
                   <div class="guide-step-row">
                     <div class="row-num">1</div>
                     <div class="row-content">
                       <strong>Create a Python Server</strong>
-                      <p>In your Wispbyte dashboard, select <strong>Create Server</strong> and choose the <strong>Python / Generic Bot</strong> egg (Python 3.11+ recommended).</p>
+                      <p>In your VisiHost dashboard, select <strong>Create Server</strong> and choose the <strong>Python / Generic Bot</strong> egg (Python 3.11+ recommended).</p>
                     </div>
                   </div>
 
@@ -2137,7 +2221,7 @@ GROQ_MODEL=openai/gpt-oss-20b</code></pre>
                     <div class="row-num">3</div>
                     <div class="row-content">
                       <strong>Clone the Repository</strong>
-                      <p>Click the <strong>Clone / Pull</strong> button near the top of the GitHub page. Wispbyte will clone your repository directly into the server directory.</p>
+                      <p>Click the <strong>Clone / Pull</strong> button near the top of the GitHub page. VisiHost will clone your repository directly into the server directory.</p>
                     </div>
                   </div>
 
@@ -2177,7 +2261,7 @@ PREFIX=!</code></pre>
               </div>
 
               <!-- Method 2: Manual ZIP Archive (Classic) -->
-              <div class="method-panel" id="wisp-method-zip" role="tabpanel">
+              <div class="method-panel" id="visihost-method-zip" role="tabpanel">
                 <div class="guide-steps-list">
                   <div class="guide-step-row">
                     <div class="row-num">1</div>
@@ -2205,8 +2289,8 @@ PREFIX=!</code></pre>
                   <div class="guide-step-row">
                     <div class="row-num">2</div>
                     <div class="row-content">
-                      <strong>Upload &amp; Extract on Wispbyte</strong>
-                      <p>In your Wispbyte server's <strong>File Manager</strong>, click <strong>Upload</strong> and select <code>bot_deploy.zip</code>. Once uploaded, click the three dots icon next to the file and choose <strong>Unarchive / Extract</strong>.</p>
+                      <strong>Upload &amp; Extract on VisiHost</strong>
+                      <p>In your VisiHost server's <strong>File Manager</strong>, click <strong>Upload</strong> and select <code>bot_deploy.zip</code>. Once uploaded, click the three dots icon next to the file and choose <strong>Unarchive / Extract</strong>.</p>
                     </div>
                   </div>
 
@@ -2608,7 +2692,7 @@ docker compose logs -f</code></pre>
 
           <details class="faq-item">
             <summary class="faq-question">
-              <span class="faq-q-text">Can I self-host this bot on Wispbyte, a Linux VPS, or Docker?</span>
+              <span class="faq-q-text">Can I self-host this bot on VisiHost, a Linux VPS, or Docker?</span>
               <span class="faq-icon" aria-hidden="true">&plus;</span>
             </summary>
             <div class="faq-answer">
@@ -2616,7 +2700,7 @@ docker compose logs -f</code></pre>
                 Yes. Winter Arc is engineered specifically for turnkey self-hosting:
               </p>
               <ul>
-                <li><strong>Wispbyte / Pterodactyl:</strong> Direct GitHub repo pulling with auto-update on restart, or upload a pre-packaged <code>bot_deploy.zip</code> bundle.</li>
+                <li><strong>VisiHost / Pterodactyl:</strong> Direct GitHub repo pulling with auto-update on restart, or upload a pre-packaged <code>bot_deploy.zip</code> bundle.</li>
                 <li><strong>Linux VPS (Systemd):</strong> Run on Ubuntu/Debian using the included production systemd service definition.</li>
                 <li><strong>Docker:</strong> Run <code>docker compose up -d</code> with the included <code>Dockerfile</code> and <code>docker-compose.yml</code> for persistent SQLite storage.</li>
                 <li><strong>Render / Railway:</strong> Deploy as a continuous Background Worker process.</li>
@@ -2647,6 +2731,9 @@ docker compose logs -f</code></pre>
               </p>
               <ul>
                 <li><strong>Dedicated Database:</strong> Operates entirely within <code>todo.db</code>, keeping your personal/server tasks strictly separated from <code>winter_arc.db</code>.</li>
+                <li><strong>Context-Aware 3-Mode Delivery:</strong> Choose whether reminders alert in <code>channel</code> (default in servers), <code>dm</code> (default in DMs), or <code>both</code> (simultaneous channel ping and private DM).</li>
+                <li><strong>Habit Counters &amp; Auto-Reset:</strong> Track target goals (e.g. <code>count: 7 reset: daily</code>) with sleek visual progress bars that automatically roll over at midnight.</li>
+                <li><strong>Task Control Center:</strong> Run <code>/todo view id:[num]</code> for 1-click interactive action buttons: <em>[ ➕ Log +1 ]</em>, <em>[ ➖ Undo -1 ]</em>, <em>[ ✅ Toggle Done ]</em>, <em>[ 🔕 Silence ]</em>, and <em>[ 🗑️ Delete ]</em>.</li>
                 <li><strong>Relative Numbering (#1..#N):</strong> Tasks are presented sequentially without confusing database IDs. Completing or deleting a task dynamically re-indexes the active list.</li>
                 <li><strong>7-Day Auto-Purged Trash:</strong> Completed or removed items move to a temporary trash archive (<code>T1..TN</code>) and are automatically pruned after 7 days.</li>
                 <li><strong>Smart Schedules &amp; Optional Endpoints:</strong> Supports one-time dates (<em>"tomorrow 5pm"</em>), recurring intervals (<em>"every 2 hours"</em>), windowed schedules (<em>"every hour after 6 PM"</em>), and multi-daily cadences (<em>"3 times a day"</em>) with optional <code>until</code> parameters for indefinite habit tracking.</li>

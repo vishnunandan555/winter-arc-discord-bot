@@ -3,7 +3,7 @@
 This guide covers deployment instructions for:
 
 1. **The Showcase & Documentation Website** (GitHub Pages or Vercel)
-2. **The 24/7 Discord Bot Process** (Wispbyte / Pterodactyl, Linux VPS with Systemd, Docker / Compose, or Render / Railway)
+2. **The 24/7 Discord Bot Process** (VisiHost / Pterodactyl, Linux VPS with Systemd, Docker / Compose, or Render / Railway)
 
 ---
 
@@ -27,13 +27,13 @@ Before deploying to any host:
 
 ## Part 2: Hosting the 24/7 Discord Bot Process
 
-### Option A: Wispbyte / Pterodactyl Panel (Free/Low-cost 24/7)
+### Option A: VisiHost / Pterodactyl Panel (24/7 Hosting)
 
-Wispbyte provides low-cost 24/7 Discord bot server containers running Python with automatic restart on crash and web console monitoring. You can deploy using either the **New GitHub Auto-Pull Integration** (recommended) or the **Classic ZIP Bundle Upload**.
+VisiHost provides reliable 24/7 Discord bot server containers running Python with automatic restart on crash and web console monitoring. You can deploy using either the **New GitHub Auto-Pull Integration** (recommended) or the **Classic ZIP Bundle Upload**.
 
 #### Method 1: Direct GitHub Integration & Auto-Pull (New & Recommended)
 
-1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and pick the **Python / Generic Discord Bot** egg (Python 3.11+).
+1. **Create Python Server**: In the **VisiHost Game/Bot Panel**, select **Create Server** and pick the **Python / Generic Discord Bot** egg (Python 3.11+).
 2. **Configure GitHub Integration**:
    - In your server sidebar, open the **GitHub Integration** tab.
    - **Repository URL**: `https://github.com/vishnunandan555/winter-arc-discord-bot`
@@ -52,7 +52,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 
 #### Method 2: Manual ZIP Archive Deployment (`bot_deploy.zip`) (Classic)
 
-1. **Create Python Server**: In the **Wispbyte Game/Bot Panel**, select **Create Server** and choose the **Python / Generic Discord Bot** egg (Python 3.11+).
+1. **Create Python Server**: In the **VisiHost Game/Bot Panel**, select **Create Server** and choose the **Python / Generic Discord Bot** egg (Python 3.11+).
 2. **Package Locally**:
 
    - Run the bundler script on your local machine:
@@ -63,7 +63,7 @@ Wispbyte provides low-cost 24/7 Discord bot server containers running Python wit
 
    - This builds an ultra-lean `bot_deploy.zip` (~130 KB) containing all code, cogs, AI services, and your `.env`, while stripping local databases and caches.
 3. **Upload & Extract**:
-   - Under **File Manager** on Wispbyte, upload `bot_deploy.zip`.
+   - Under **File Manager** on VisiHost, upload `bot_deploy.zip`.
    - Click the options menu on `bot_deploy.zip` and select **Unarchive / Extract**.
 4. **Install Dependencies**:
 

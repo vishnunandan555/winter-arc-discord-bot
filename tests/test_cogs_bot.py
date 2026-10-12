@@ -75,7 +75,7 @@ class TestBotLifecycleAndSlashCommands(WinterArcTestCase):
         # Health embed verification
         embed = build_health_embed(metrics)
         self.assertIn("Memory Health", embed.title)
-        self.assertIn("Wispbyte Free Tier", embed.description)
+        self.assertIn("VisiHost", embed.description)
 
 
 class TestErrorHandlingAndRobustLogging(WinterArcTestCase):

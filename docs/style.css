@@ -2175,7 +2175,7 @@ code {
   max-width: 760px;
 }
 
-/* Sub-Method Tabs (Wispbyte & Panel Deployment Options) */
+/* Sub-Method Tabs (VisiHost & Panel Deployment Options) */
 .method-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

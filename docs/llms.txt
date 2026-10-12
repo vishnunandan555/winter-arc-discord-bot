@@ -93,4 +93,4 @@ cp .env.example .env
 pip install -r requirements.txt
 python bot.py
 ```
-Deployment supported on Wispbyte/Pterodactyl, Linux VPS (Systemd), Docker Compose (`docker compose up -d`), and Render/Railway background workers.
+Deployment supported on VisiHost/Pterodactyl, Linux VPS (Systemd), Docker Compose (`docker compose up -d`), and Render/Railway background workers.

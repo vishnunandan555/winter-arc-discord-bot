@@ -163,14 +163,14 @@ Winter Arc is engineered for 24/7 reliability with minimal resource consumption 
 | :--- | :--- |
 | **Linux VPS (Systemd)** | Ubuntu/Debian production service configuration with auto-restart: [docs/HOSTING.md »](docs/HOSTING.md#option-b-linux-vps--ubuntu-server-systemd-service) |
 | **Docker & Docker Compose** | One-command deployment via `docker compose up -d`: [Dockerfile](Dockerfile) • [docker-compose.yml](docker-compose.yml) |
-| **Wispbyte / Pterodactyl** | Low-cost 24/7 bot hosting (GitHub Auto-Pull & ZIP Bundle): [docs/HOSTING.md »](docs/HOSTING.md#option-a-wispbyte--pterodactyl-panel-freelow-cost-247) |
+| **VisiHost / Pterodactyl** | Reliable 24/7 bot hosting (GitHub Auto-Pull & ZIP Bundle): [docs/HOSTING.md »](docs/HOSTING.md#option-a-visihost--pterodactyl-panel-247-hosting) |
 | **Cloud (Render / Railway)** | Persistent background worker setup: [docs/HOSTING.md »](docs/HOSTING.md#option-c-hosting-on-cloud-render--railway) |
 
 For complete step-by-step instructions, see the **[Full Hosting Guide (docs/HOSTING.md)](docs/HOSTING.md)**.
 
-### 🚀 Wispbyte Deployment Options
+### 🚀 VisiHost Deployment Options
 
-- **Method 1 (Recommended): GitHub Auto-Pull** — Configure your repo in Wispbyte's **GitHub Integration** tab with `Auto Update on Startup` enabled. Bot reboots automatically pull the latest commits without manual file transfers.
+- **Method 1 (Recommended): GitHub Auto-Pull** — Configure your repo in VisiHost's **GitHub Integration** tab with `Auto Update on Startup` enabled. Bot reboots automatically pull the latest commits without manual file transfers.
 - **Method 2 (Classic): One-Click ZIP Bundle** — Generate an ultra-lean production archive with a single command:
 
 ```bash
