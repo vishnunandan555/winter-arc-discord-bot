@@ -122,7 +122,13 @@ def build_todo_list_embed(
                 else:
                     reset_str = f" • 🔁 *Resets {t['reset_period']}*"
 
-            dm_badge = " `DM`" if t.get("dm_only") else ""
+            d_mode = t.get("delivery_mode") or ("dm" if t.get("dm_only") else "channel")
+            if d_mode == "both":
+                dm_badge = " `Channel+DM`"
+            elif d_mode == "dm":
+                dm_badge = " `DM`"
+            else:
+                dm_badge = ""
             lines.append(f"**`#{num}`** {t['task_text']}{badge_str}{counter_str}{remind_str}{reset_str}{dm_badge}")
 
     # Append completed cycle tasks at bottom of page 1
@@ -206,7 +212,13 @@ def build_task_detail_embed(task: Dict[str, Any], user: Optional[discord.User] =
         reset_time_str = f" <t:{next_reset}:R>" if next_reset else " at 00:00 IST"
         fields.append(f"🔁 **Reset Schedule**: {r_cadence} (Next reset:{reset_time_str})")
 
-    dm_mode = "Direct Message (Private)" if task.get("dm_only", 1) else "Channel Notification"
+    d_mode = task.get("delivery_mode") or ("dm" if task.get("dm_only", 1) else "channel")
+    if d_mode == "both":
+        dm_mode = "Both (Channel & Direct Message)"
+    elif d_mode == "dm":
+        dm_mode = "Direct Message (Private)"
+    else:
+        dm_mode = "Channel Notification"
     fields.append(f"🔒 **Alert Mode**: {dm_mode}")
 
     created = task.get("created_at")
@@ -827,6 +839,7 @@ class TaskAssignmentView(discord.ui.View):
             until_spec=self.task_data.get("until_spec"),
             until_timestamp=self.task_data.get("until_timestamp"),
             dm_only=self.task_data.get("dm_only", True),
+            delivery_mode=self.task_data.get("delivery_mode", "dm"),
             assigned_by_user_id=self.assigner_id,
             next_reminder_at=self.task_data.get("next_reminder_at"),
             target_count=self.task_data.get("target_count", 0),

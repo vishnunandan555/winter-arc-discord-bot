@@ -75,6 +75,7 @@ def init_todo_db(db_path: Optional[str] = None):
                 until_spec TEXT,
                 until_timestamp INTEGER,
                 dm_only BOOLEAN DEFAULT 1,
+                delivery_mode TEXT DEFAULT 'channel',
                 origin_channel_id INTEGER,
                 assigned_by_user_id INTEGER,
                 status TEXT DEFAULT 'active',
@@ -112,6 +113,10 @@ def init_todo_db(db_path: Optional[str] = None):
             cursor.execute("ALTER TABLE todos ADD COLUMN last_reset_date TEXT;")
         if "next_reset_ts" not in t_cols:
             cursor.execute("ALTER TABLE todos ADD COLUMN next_reset_ts INTEGER;")
+        if "delivery_mode" not in t_cols:
+            cursor.execute("ALTER TABLE todos ADD COLUMN delivery_mode TEXT DEFAULT 'channel';")
+            cursor.execute("UPDATE todos SET delivery_mode = CASE WHEN dm_only = 1 THEN 'dm' ELSE 'channel' END;")
+            logger.info("Added 'delivery_mode' column to todos.")
 
         conn.commit()
     logger.info("Initialized isolated todo.db schema.")
@@ -360,6 +365,7 @@ def add_task(
     target_count: int = 1,
     reset_period: str = "none",
     reset_interval_days: int = 0,
+    delivery_mode: Optional[str] = None,
     db_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Adds a new task and returns its dict representation with its relative task number."""
@@ -372,6 +378,15 @@ def add_task(
     p_norm = priority.lower().strip()
     if p_norm not in ["high", "medium", "low", "normal"]:
         p_norm = "normal"
+
+    # Delivery mode normalization
+    if delivery_mode is not None:
+        deliv = delivery_mode.lower().strip()
+        if deliv not in ["channel", "dm", "both"]:
+            deliv = "channel"
+    else:
+        deliv = "dm" if dm_only else "channel"
+    dm_only_flag = 1 if deliv in ["dm", "both"] else 0
 
     tgt = max(1, int(target_count))
     cur = max(0, int(current_count))
@@ -388,14 +403,14 @@ def add_task(
                 user_id, task_text, priority, current_count, target_count,
                 reset_period, reset_interval_days, last_reset_date, next_reset_ts,
                 remind_spec, remind_type, remind_interval_mins, remind_fixed_times,
-                remind_window_start, until_spec, until_timestamp, dm_only,
+                remind_window_start, until_spec, until_timestamp, dm_only, delivery_mode,
                 origin_channel_id, assigned_by_user_id, status, next_reminder_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             user_id, task_text.strip(), p_norm, cur, tgt,
             r_period, r_days, today_str, next_reset,
             remind_spec, remind_type, remind_interval_mins, fixed_json,
-            remind_window_start, until_spec, until_timestamp, int(dm_only),
+            remind_window_start, until_spec, until_timestamp, dm_only_flag, deliv,
             origin_channel_id, assigned_by_user_id, status, next_reminder_at, now_ts
         ))
         conn.commit()

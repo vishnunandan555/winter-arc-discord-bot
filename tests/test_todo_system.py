@@ -958,6 +958,90 @@ class TestTaskCounterAndRoutineEngine(unittest.TestCase):
         view = TaskDetailView(task_id=task["id"], user_id=self.user_id, db_path=self.test_db)
         self.assertIsNotNone(view)
 
+    def test_delivery_mode_autocomplete_and_execution(self):
+        """Verifies delivery mode autocomplete in Server vs DMs and db persistence."""
+        from cogs.todo import todo_delivery_autocomplete
+
+        # 1. Autocomplete in Server (guild is present)
+        mock_guild_inter = MagicMock(spec=discord.Interaction)
+        mock_guild_inter.guild = MagicMock(spec=discord.Guild)
+        choices_guild = asyncio.run(todo_delivery_autocomplete(mock_guild_inter, ""))
+        vals_guild = [c.value for c in choices_guild]
+        self.assertIn("channel", vals_guild)
+        self.assertIn("dm", vals_guild)
+        self.assertIn("both", vals_guild)
+
+        # 2. Autocomplete in Bot DMs (guild is None)
+        mock_dm_inter = MagicMock(spec=discord.Interaction)
+        mock_dm_inter.guild = None
+        choices_dm = asyncio.run(todo_delivery_autocomplete(mock_dm_inter, ""))
+        vals_dm = [c.value for c in choices_dm]
+        self.assertEqual(vals_dm, ["dm"])
+        self.assertNotIn("both", vals_dm)
+        self.assertNotIn("channel", vals_dm)
+
+        # 3. Add task with different delivery modes
+        t_channel = db.add_task(
+            user_id=self.user_id,
+            task_text="Channel Task",
+            delivery_mode="channel",
+            db_path=self.test_db
+        )
+        self.assertEqual(t_channel.get("delivery_mode"), "channel")
+
+        t_both = db.add_task(
+            user_id=self.user_id,
+            task_text="Both Task",
+            delivery_mode="both",
+            db_path=self.test_db
+        )
+        self.assertEqual(t_both.get("delivery_mode"), "both")
+        self.assertEqual(t_both.get("dm_only"), 1)
+
+        t_dm = db.add_task(
+            user_id=self.user_id,
+            task_text="DM Task",
+            delivery_mode="dm",
+            db_path=self.test_db
+        )
+        self.assertEqual(t_dm.get("delivery_mode"), "dm")
+        self.assertEqual(t_dm.get("dm_only"), 1)
+
+    def test_reminder_alert_both_mode_delivery(self):
+        """Verifies reminder alert in 'both' mode delivers to both DM and origin channel."""
+        now_ts = int(time.time())
+        origin_ch_id = 778899
+        task = db.add_task(
+            self.user_id,
+            "Dual Notification Task",
+            remind_spec="every hour",
+            next_reminder_at=now_ts - 5,
+            delivery_mode="both",
+            origin_channel_id=origin_ch_id,
+            db_path=self.test_db
+        )
+
+        mock_bot = MagicMock()
+        mock_user = MagicMock(spec=discord.User)
+        mock_user.send = AsyncMock()
+        mock_user.display_name = "DualUser"
+        mock_bot.get_user.return_value = mock_user
+
+        mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.send = AsyncMock()
+        mock_channel.name = "reminders-chat"
+        mock_bot.get_channel.return_value = mock_channel
+
+        service = TodoReminderService(mock_bot, db_path=self.test_db)
+        delivered = asyncio.run(service._deliver_alert(task))
+
+        self.assertTrue(delivered)
+        # Check that both user DM and channel received messages
+        self.assertTrue(mock_user.send.called)
+        self.assertTrue(mock_channel.send.called)
+        channel_kwargs = mock_channel.send.call_args[1]
+        self.assertIn(f"<@{self.user_id}>", channel_kwargs.get("content"))
+
 
 
 

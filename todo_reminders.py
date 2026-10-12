@@ -134,10 +134,60 @@ class TodoReminderService:
         if schedule_info:
             embed.set_footer(text=" • ".join(schedule_info))
 
-        # Check delivery mode: DM only vs Channel
-        dm_only = bool(task.get("dm_only", 1))
+        # Determine delivery mode: 'channel', 'dm', or 'both'
+        delivery_mode = task.get("delivery_mode")
+        if not delivery_mode:
+            delivery_mode = "dm" if task.get("dm_only", 1) else "channel"
+        delivery_mode = str(delivery_mode).lower().strip()
 
-        if dm_only:
+        if delivery_mode == "both":
+            dm_delivered = False
+            ch_delivered = False
+
+            # 1. Deliver to private DM
+            try:
+                view_dm = ReminderAlertView(task_id=task_id, user_id=user_id, task_data=task, db_path=self.db_path)
+                await user.send(embed=embed, view=view_dm)
+                dm_delivered = True
+                logger.info(f"Delivered DM reminder to {user.display_name} for task #{task_id} (both mode).")
+            except Exception as e:
+                logger.warning(f"Could not send DM reminder to {user.display_name} in 'both' mode: {e}")
+
+            # 2. Deliver to origin channel
+            channel_id = task.get("origin_channel_id")
+            ch = self.bot.get_channel(channel_id) if channel_id else None
+            if ch:
+                try:
+                    view_ch = ReminderAlertView(task_id=task_id, user_id=user_id, task_data=task, db_path=self.db_path)
+                    await ch.send(content=f"<@{user_id}>", embed=embed, view=view_ch)
+                    ch_delivered = True
+                    logger.info(f"Delivered channel reminder to #{ch.name} for task #{task_id} (both mode).")
+                except Exception as e:
+                    logger.warning(f"Could not send channel reminder to channel {channel_id} in 'both' mode: {e}")
+
+            return dm_delivered or ch_delivered
+
+        elif delivery_mode == "channel":
+            # Channel delivery
+            channel_id = task.get("origin_channel_id")
+            ch = self.bot.get_channel(channel_id) if channel_id else None
+            if ch:
+                try:
+                    await ch.send(content=f"<@{user_id}>", embed=embed, view=view)
+                    logger.info(f"Delivered todo channel reminder to #{ch.name} for {user.display_name}.")
+                    return True
+                except Exception as e:
+                    logger.warning(f"Could not send reminder to channel {channel_id}: {e}")
+
+            # Fallback to DM if channel failed or not configured
+            try:
+                await user.send(embed=embed, view=view)
+                return True
+            except Exception:
+                return False
+
+        else:
+            # DM only delivery
             try:
                 await user.send(embed=embed, view=view)
                 logger.info(f"Delivered private todo DM reminder to {user.display_name} for task #{task_id}.")
@@ -157,22 +207,4 @@ class TodoReminderService:
                 return False
             except Exception as e:
                 logger.warning(f"Error sending todo DM to {user.display_name}: {e}")
-                return False
-        else:
-            # Channel delivery
-            channel_id = task.get("origin_channel_id")
-            ch = self.bot.get_channel(channel_id) if channel_id else None
-            if ch:
-                try:
-                    await ch.send(content=f"<@{user_id}>", embed=embed, view=view)
-                    logger.info(f"Delivered todo channel reminder to #{ch.name} for {user.display_name}.")
-                    return True
-                except Exception as e:
-                    logger.warning(f"Could not send reminder to channel {channel_id}: {e}")
-
-            # Fallback to DM if channel failed
-            try:
-                await user.send(embed=embed, view=view)
-                return True
-            except Exception:
                 return False

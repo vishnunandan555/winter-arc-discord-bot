@@ -94,6 +94,29 @@ async def todo_until_autocomplete(
     return choices[:25]
 
 
+async def todo_delivery_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[str]]:
+    """Contextual delivery mode suggestions based on whether the command is run in a Server or Bot DMs."""
+    curr = (current or "").strip().lower()
+    if interaction.guild is None:
+        # In Bot DMs: Server channel does not exist, so only DM is offered
+        choices = [
+            app_commands.Choice(name="🔒 Here in DM (Default)", value="dm"),
+        ]
+    else:
+        # In Server: All 3 options available
+        choices = [
+            app_commands.Choice(name="📍 This Channel (Default / Off)", value="channel"),
+            app_commands.Choice(name="🔒 Only DM (Private)", value="dm"),
+            app_commands.Choice(name="📢 Both (Channel & DM / On)", value="both"),
+        ]
+    if not curr:
+        return choices
+    return [c for c in choices if curr in c.name.lower() or curr in c.value.lower()]
+
+
 async def todo_active_tasks_autocomplete(
     interaction: discord.Interaction,
     current: str
@@ -175,7 +198,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         count="Target goal count if tracking a counter or habit (e.g. 7 for 7 times/glasses)",
         reset="How often the counter resets back to 0",
         priority="Task importance level (High, Medium, Low)",
-        dm="Send reminders via private DM (True, default) or in this channel (False)"
+        dm="Where to remind? Default: Current chat. Options: 'channel' (off), 'dm' (only DM), 'both' (on)"
     )
     @app_commands.choices(priority=[
         app_commands.Choice(name="🔴 High", value="high"),
@@ -187,7 +210,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🔁 Reset Every Week (at 00:00 IST)", value="weekly"),
         app_commands.Choice(name="🚫 No Reset (Keep count until cleared)", value="none"),
     ])
-    @app_commands.autocomplete(remind=todo_remind_autocomplete, until=todo_until_autocomplete)
+    @app_commands.autocomplete(remind=todo_remind_autocomplete, until=todo_until_autocomplete, dm=todo_delivery_autocomplete)
     async def todo_add(
         self,
         interaction: discord.Interaction,
@@ -197,14 +220,34 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         count: Optional[int] = None,
         reset: Optional[app_commands.Choice[str]] = None,
         priority: Optional[app_commands.Choice[str]] = None,
-        dm: Optional[bool] = True,
+        dm: Optional[str] = None,
     ):
         p_val = priority.value if priority else "normal"
-        dm_val = True if dm is None else bool(dm)
         reset_val = reset.value if reset else None
 
+        is_in_dm = (interaction.guild is None)
+
+        # Context-aware delivery mode resolution
+        if dm is None or not str(dm).strip():
+            delivery_mode = "dm" if is_in_dm else "channel"
+        else:
+            dm_raw = str(dm).strip().lower()
+            if dm_raw in ["dm", "only_dm", "only dm", "true", "1", "private"]:
+                delivery_mode = "dm"
+            elif dm_raw in ["both", "all", "on"]:
+                if is_in_dm:
+                    delivery_mode = "dm"  # Graceful fallback in DMs
+                else:
+                    delivery_mode = "both"
+            elif dm_raw in ["channel", "here", "default", "false", "0", "off"]:
+                delivery_mode = "dm" if is_in_dm else "channel"
+            else:
+                delivery_mode = "dm" if is_in_dm else "channel"
+
+        dm_val = (delivery_mode in ["dm", "both"])
+
         origin_ch = None
-        if interaction.channel_id is not None:
+        if not is_in_dm and interaction.channel_id is not None:
             try:
                 origin_ch = int(interaction.channel_id)
             except (ValueError, TypeError):
@@ -229,6 +272,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             until_spec=parsed["until_spec"],
             until_timestamp=parsed["until_timestamp"],
             dm_only=dm_val,
+            delivery_mode=delivery_mode,
             origin_channel_id=origin_ch,
             next_reminder_at=parsed["next_reminder_at"],
             target_count=counter_cfg["target_count"],
@@ -240,7 +284,21 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         num = new_item.get("num", 1)
         p_badge = format_priority_badge(p_val)
         p_str = f" {p_badge}" if p_badge else ""
-        delivery_str = "🔒 Direct Message" if dm_val else f"💬 <#{interaction.channel_id}>"
+
+        if delivery_mode == "both":
+            ch_tag = f"<#{interaction.channel_id}>" if interaction.channel_id else "This Channel"
+            delivery_str = f"📢 Both ({ch_tag} & 🔒 Direct Message)"
+        elif delivery_mode == "dm":
+            if is_in_dm:
+                delivery_str = "🔒 Direct Message"
+            else:
+                delivery_str = "🔒 Private DM (Only to you)"
+        else:
+            ch_tag = f"<#{interaction.channel_id}>" if interaction.channel_id else "This Channel"
+            delivery_str = f"💬 Current Channel ({ch_tag})"
+
+        if is_in_dm and dm and str(dm).strip().lower() in ["both", "on", "channel", "off"]:
+            delivery_str += " *(Delivered in DM; server channel unavailable)*"
 
         details = [
             f"• **Delivery**: {delivery_str}",
@@ -486,6 +544,7 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             "reset_period": counter_cfg["reset_period"],
             "reset_interval_days": counter_cfg["reset_interval_days"],
             "dm_only": True,
+            "delivery_mode": "dm",
         }
 
         view = TaskAssignmentView(
