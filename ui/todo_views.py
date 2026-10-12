@@ -919,6 +919,7 @@ class TaskAssignmentView(discord.ui.View):
             until_timestamp=self.task_data.get("until_timestamp"),
             dm_only=self.task_data.get("dm_only", True),
             delivery_mode=self.task_data.get("delivery_mode", "dm"),
+            origin_channel_id=self.task_data.get("origin_channel_id"),
             assigned_by_user_id=self.assigner_id,
             next_reminder_at=self.task_data.get("next_reminder_at"),
             target_count=self.task_data.get("target_count", 0),

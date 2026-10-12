@@ -661,8 +661,12 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         self.assertEqual(len(db.get_trashed_tasks(self.user_id, db_path=self.todo_test_db)), 0)
 
     def test_cmd_todo_assign(self):
-        """Verifies /todo assign sends proposal embed and view to target member."""
+        """Verifies /todo assign sends proposal embed and view to target member with full add options."""
+        from discord import app_commands
         inter = self.create_mock_interaction(user_id=self.user_id)
+        inter.channel_id = 888999
+        inter.guild = MagicMock()
+
         mock_member = MagicMock(spec=discord.Member)
         mock_member.bot = False
         mock_member.id = 998877
@@ -670,19 +674,46 @@ class TestTodoCommandCallbacks(WinterArcTestCase):
         mock_member.display_name = "Teammate"
         mock_member.send = AsyncMock()
 
+        reset_choice = app_commands.Choice(name="Daily", value="daily")
         asyncio.run(
             self.cog.todo_assign.callback(
                 self.cog,
                 inter,
                 member=mock_member,
                 task="Review PR #42",
-                remind="tomorrow 10:00"
+                remind="tomorrow 10:00",
+                until="until next Sunday",
+                count=4,
+                reset=reset_choice,
+                dm="both"
             )
         )
         inter.response.send_message.assert_called_once()
         kwargs = inter.response.send_message.call_args[1]
         self.assertIn("assigned a new task", kwargs.get("content", ""))
         self.assertTrue(mock_member.send.called)
+
+        # Verify task_data has all rich fields
+        view = kwargs.get("view")
+        self.assertIsNotNone(view)
+        self.assertEqual(view.task_data["target_count"], 4)
+        self.assertEqual(view.task_data["reset_period"], "daily")
+        self.assertEqual(view.task_data["delivery_mode"], "both")
+        self.assertEqual(view.task_data["origin_channel_id"], 888999)
+
+        # Accept task as assignee and verify DB storage
+        friend_inter = self.create_mock_interaction(user_id=998877)
+        friend_inter.response.edit_message = AsyncMock()
+        asyncio.run(view.btn_accept.callback(friend_inter))
+
+        friend_tasks = db.get_active_tasks(998877, db_path=self.todo_test_db)
+        self.assertEqual(len(friend_tasks), 1)
+        ft = friend_tasks[0]
+        self.assertEqual(ft["task_text"], "Review PR #42")
+        self.assertEqual(ft["target_count"], 4)
+        self.assertEqual(ft["reset_period"], "daily")
+        self.assertEqual(ft["delivery_mode"], "both")
+        self.assertEqual(ft["origin_channel_id"], 888999)
 
     def test_todo_incognito_mode_toggle_and_check(self):
         """Verifies /todo incognito default state, on/off toggles, user checks, and command visibility."""

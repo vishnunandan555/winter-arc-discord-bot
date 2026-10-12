@@ -98,14 +98,15 @@ def parse_remind_spec(
     - confirmation_msg: user-facing confirmation
     """
     if not remind_text or not remind_text.strip():
+        u_spec, u_ts = parse_until_spec(until_text, tz=tz) if (until_text and until_text.strip()) else (None, None)
         return {
             "remind_spec": None,
             "remind_type": None,
             "remind_interval_mins": None,
             "remind_fixed_times": None,
             "remind_window_start": None,
-            "until_spec": None,
-            "until_timestamp": None,
+            "until_spec": u_spec,
+            "until_timestamp": u_ts,
             "next_reminder_at": None,
             "confirmation_msg": "Task added to your list.",
         }

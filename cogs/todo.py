@@ -538,9 +538,10 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         if remind and not remove_reminder:
             parsed = parser.parse_remind_spec(remind)
 
-        parsed_until = None
+        until_spec = None
+        until_ts = None
         if until and not remove_until:
-            parsed_until = parser.parse_until_spec(until)
+            until_spec, until_ts = parser.parse_until_spec(until)
 
         res = db.edit_task(
             user_id=interaction.user.id,
@@ -554,8 +555,8 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             remind_interval_mins=parsed["remind_interval_mins"] if parsed else None,
             remind_fixed_times=parsed["remind_fixed_times"] if parsed else None,
             remind_window_start=parsed["remind_window_start"] if parsed else None,
-            until_spec=parsed_until["until_spec"] if parsed_until else None,
-            until_timestamp=parsed_until["until_timestamp"] if parsed_until else None,
+            until_spec=until_spec,
+            until_timestamp=until_ts,
             remove_until=bool(remove_until),
             target_count=count,
             reset_period=reset_val,
@@ -611,7 +612,11 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
     @app_commands.describe(
         member="Friend to assign task to",
         task="Task description",
-        remind="Optional reminder schedule",
+        remind="Optional reminder schedule (e.g. 'everyday at 4:30PM')",
+        dm="Delivery mode: 'channel', 'dm', or 'both'",
+        until="Task deadline or expiration date (e.g. 'until next Friday')",
+        count="Target goal count (e.g. 5 reps)",
+        reset="Reset schedule cadence",
         priority="Priority level"
     )
     @app_commands.choices(priority=[
@@ -619,14 +624,27 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
         app_commands.Choice(name="🟡 Medium", value="medium"),
         app_commands.Choice(name="⚪ Low", value="low"),
     ])
-    @app_commands.autocomplete(remind=todo_remind_autocomplete)
+    @app_commands.choices(reset=[
+        app_commands.Choice(name="🔁 Reset Every Day (at 00:00 IST)", value="daily"),
+        app_commands.Choice(name="🔁 Reset Every Week (at 00:00 IST)", value="weekly"),
+        app_commands.Choice(name="🚫 No Reset (Keep count until cleared)", value="none"),
+    ])
+    @app_commands.autocomplete(
+        remind=todo_remind_autocomplete,
+        dm=todo_delivery_autocomplete,
+        until=todo_until_autocomplete
+    )
     async def todo_assign(
         self,
         interaction: discord.Interaction,
         member: discord.Member,
         task: str,
         remind: Optional[str] = None,
+        until: Optional[str] = None,
+        count: Optional[int] = None,
+        reset: Optional[app_commands.Choice[str]] = None,
         priority: Optional[app_commands.Choice[str]] = None,
+        dm: Optional[str] = None,
     ):
         if member.id == interaction.user.id:
             await interaction.response.send_message("❌ You cannot assign a task to yourself. Use `/todo add` instead.", ephemeral=True)
@@ -636,8 +654,42 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             return
 
         p_val = priority.value if priority else "normal"
-        parsed = parser.parse_remind_spec(remind)
-        counter_cfg = parser.infer_task_counter_and_reset(parsed)
+        reset_val = reset.value if reset else None
+
+        is_in_dm = (interaction.guild is None)
+
+        # Context-aware delivery mode resolution
+        if dm is None or not str(dm).strip():
+            delivery_mode = "dm" if is_in_dm else "channel"
+        else:
+            dm_raw = str(dm).strip().lower()
+            if dm_raw in ["dm", "only_dm", "only dm", "true", "1", "private"]:
+                delivery_mode = "dm"
+            elif dm_raw in ["both", "all", "on"]:
+                delivery_mode = "dm" if is_in_dm else "both"
+            elif dm_raw in ["channel", "here", "default", "false", "0", "off"]:
+                delivery_mode = "dm" if is_in_dm else "channel"
+            else:
+                delivery_mode = "dm" if is_in_dm else "channel"
+
+        dm_val = (delivery_mode in ["dm", "both"])
+        origin_ch = None
+        if not is_in_dm and interaction.channel_id is not None:
+            origin_ch = interaction.channel_id
+
+        try:
+            parsed = parser.parse_remind_spec(remind, until_text=until)
+            counter_cfg = parser.infer_task_counter_and_reset(
+                parsed,
+                raw_count=count,
+                raw_reset=reset_val
+            )
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {e}", ephemeral=True)
+            return
+
+        until_spec = parsed["until_spec"]
+        until_ts = parsed["until_timestamp"]
 
         task_data = {
             "task_text": task,
@@ -647,14 +699,15 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
             "remind_interval_mins": parsed["remind_interval_mins"],
             "remind_fixed_times": parsed["remind_fixed_times"],
             "remind_window_start": parsed["remind_window_start"],
-            "until_spec": parsed["until_spec"],
-            "until_timestamp": parsed["until_timestamp"],
+            "until_spec": until_spec,
+            "until_timestamp": until_ts,
             "next_reminder_at": parsed["next_reminder_at"],
             "target_count": counter_cfg["target_count"],
             "reset_period": counter_cfg["reset_period"],
             "reset_interval_days": counter_cfg["reset_interval_days"],
-            "dm_only": True,
-            "delivery_mode": "dm",
+            "dm_only": dm_val,
+            "delivery_mode": delivery_mode,
+            "origin_channel_id": origin_ch,
         }
 
         view = TaskAssignmentView(
@@ -666,12 +719,25 @@ class TodoCog(commands.Cog, name="Todo & Reminders"):
 
         p_badge = format_priority_badge(p_val)
         p_str = f" • {p_badge}" if p_badge else ""
-        r_str = f"\n• ⏰ **Reminder**: {parsed['remind_spec']}" if parsed["remind_spec"] else ""
+        details = []
+        if parsed["remind_spec"]:
+            details.append(f"• ⏰ **Reminder**: {parsed['remind_spec']}")
+        if delivery_mode:
+            d_name = "Both (Channel & DM)" if delivery_mode == "both" else ("Direct Message" if delivery_mode == "dm" else "Channel")
+            details.append(f"• 🔒 **Delivery**: `{d_name}`")
+        if counter_cfg["target_count"] > 0:
+            details.append(f"• 🎯 **Goal Count**: `0/{counter_cfg['target_count']}`")
+        if counter_cfg["reset_period"] != "none":
+            details.append(f"• 🔁 **Reset**: `{counter_cfg['reset_period'].title()}`")
+        if until_spec:
+            details.append(f"• 📅 **Deadline**: {until_spec}")
+
+        details_block = ("\n" + "\n".join(details)) if details else ""
 
         invite_msg = (
             f"📩 **Task Assignment Request**\n"
             f"**From**: <@{interaction.user.id}>\n"
-            f"**Task**: **{task}**{p_str}{r_str}\n\n"
+            f"**Task**: **{task}**{p_str}{details_block}\n\n"
             f"Click below to accept or decline:"
         )
 
