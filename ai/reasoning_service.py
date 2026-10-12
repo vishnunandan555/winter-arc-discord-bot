@@ -113,6 +113,11 @@ def clean_ai_thought_leakage(text: Optional[str], is_json: bool = False) -> Opti
         r"(?i)\b\*\*guidelines:\*\*",
         r"(?i)\b\*\*tone:\*\*",
         r"(?i)\b\*\*target\s+audience:\*\*",
+        r"(?i)\bthe\s+user\s+wants\b",
+        r"(?i)\buser\s+safety:\s*safe\b",
+        r"(?i)\bconstraints\s*:\b",
+        r"(?i)\bstrictly\s+under\b",
+        r"(?i)\bno\s+cheerleading\b",
     ]
 
     has_leak = any(re.search(p, text) for p in thought_leak_patterns)
@@ -165,6 +170,56 @@ def get_openrouter_candidate_models(requested_model: Optional[str] = None) -> Li
     return res
 
 
+_openrouter_exhausted_until: float = 0.0
+_openrouter_last_quota_check: float = 0.0
+_openrouter_quota_cache: Optional[Dict[str, Any]] = None
+
+
+async def get_openrouter_quota_info() -> Dict[str, Any]:
+    """Queries OpenRouter /api/v1/auth/key to check live remaining free requests (cached for 60s)."""
+    global _openrouter_last_quota_check, _openrouter_quota_cache, _openrouter_exhausted_until
+    import time
+    now = time.time()
+    if _openrouter_quota_cache and (now - _openrouter_last_quota_check) < 60.0:
+        return _openrouter_quota_cache
+
+    if not OPENROUTER_API_KEY:
+        return {"configured": False, "remaining": 0, "limit": 0, "used": 0}
+
+    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}"}
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as http_client:
+            resp = await http_client.get("https://openrouter.ai/api/v1/auth/key", headers=headers)
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                free_quota = data.get("free_model_daily_requests", {})
+                used = int(free_quota.get("used", 0))
+                limit = int(free_quota.get("limit", 50))
+                remaining = int(free_quota.get("remaining", max(0, limit - used)))
+                info = {
+                    "configured": True,
+                    "used": used,
+                    "limit": limit,
+                    "remaining": remaining,
+                    "is_free_tier": data.get("is_free_tier", True),
+                }
+                _openrouter_quota_cache = info
+                _openrouter_last_quota_check = now
+                if remaining <= 1:
+                    _openrouter_exhausted_until = now + 900.0  # 15 min fast-fail cooldown
+                return info
+    except Exception as e:
+        logger.debug(f"Could not fetch OpenRouter quota info: {e}")
+
+    return {"configured": bool(OPENROUTER_API_KEY), "remaining": 50, "limit": 50, "used": 0}
+
+
+def is_openrouter_quota_exhausted() -> bool:
+    """Checks if OpenRouter daily quota is currently marked as exhausted."""
+    import time
+    return time.time() < _openrouter_exhausted_until
+
+
 async def safe_openrouter_chat_completion(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
@@ -176,9 +231,15 @@ async def safe_openrouter_chat_completion(
 ) -> Optional[str]:
     """
     Executes a chat completion via OpenRouter with candidate fallback models.
-    Returns the string text content of the completion or None if all models fail.
+    Enforces the 50 req/day quota limit and fast-fails directly to Groq if exhausted.
     """
+    global _openrouter_exhausted_until
+    import time
     if not OPENROUTER_API_KEY:
+        return None
+
+    if is_openrouter_quota_exhausted():
+        logger.info("OpenRouter daily 50 req/day quota exhausted. Fast-failing directly to Groq.")
         return None
 
     candidates = get_openrouter_candidate_models(model)
@@ -223,6 +284,8 @@ async def safe_openrouter_chat_completion(
                                 logger.warning(f"⚠️ OpenRouter model '{cand_model}' returned thought leakage or empty response. Attempting next model...")
                 elif resp.status_code == 429:
                     logger.warning(f"⚠️ OpenRouter model '{cand_model}' rate-limited (429). Attempting next model...")
+                    if idx + 1 >= len(candidates):
+                        _openrouter_exhausted_until = time.time() + 900.0
                 else:
                     logger.warning(f"⚠️ OpenRouter model '{cand_model}' returned {resp.status_code}: {resp.text[:100]}")
         except Exception as e:
@@ -238,7 +301,7 @@ async def safe_openrouter_chat_completion(
 async def check_ai_health() -> Dict[str, str]:
     """
     Performs startup health checks on configured AI services (OpenRouter & Groq)
-    and logs their operational status.
+    and logs their operational status without burning completion quota.
     """
     results = {}
     logger.info("Verifying AI engines connectivity and availability...")
@@ -247,33 +310,17 @@ async def check_ai_health() -> Dict[str, str]:
     openrouter_status = "NOT CONFIGURED (OPENROUTER_API_KEY missing)"
     if OPENROUTER_API_KEY:
         try:
-            ping_res = await asyncio.wait_for(
-                safe_openrouter_chat_completion(
-                    messages=[{"role": "user", "content": "ping"}],
-                    model=OPENROUTER_MODEL,
-                    max_tokens=10,
-                    timeout=8.0,
-                    allow_raw=True,
-                ),
-                timeout=10.0
-            )
-            if ping_res:
-                openrouter_status = f"ONLINE ({OPENROUTER_MODEL})"
+            quota_info = await get_openrouter_quota_info()
+            if quota_info.get("configured"):
+                used = quota_info.get("used", 0)
+                limit = quota_info.get("limit", 50)
+                rem = quota_info.get("remaining", 0)
+                if rem > 1:
+                    openrouter_status = f"ONLINE ({OPENROUTER_MODEL} | Quota: {used}/{limit} used, {rem} left)"
+                else:
+                    openrouter_status = f"RATE LIMITED ({used}/{limit} daily free quota used; resets 00:00 UTC) -> Groq Active"
             else:
-                try:
-                    headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}"}
-                    async with httpx.AsyncClient(timeout=4.0) as http_client:
-                        auth_resp = await http_client.get("https://openrouter.ai/api/v1/auth/key", headers=headers)
-                        if auth_resp.status_code == 200:
-                            free_quota = auth_resp.json().get("data", {}).get("free_model_daily_requests", {})
-                            if free_quota.get("remaining") == 0:
-                                openrouter_status = f"RATE LIMITED ({free_quota.get('used')}/{free_quota.get('limit')} daily free quota used; resets 00:00 UTC) -> Groq Active"
-                            else:
-                                openrouter_status = "UNAVAILABLE (Candidate models failed)"
-                        else:
-                            openrouter_status = "UNAVAILABLE (All candidate models failed)"
-                except Exception:
-                    openrouter_status = "UNAVAILABLE (All candidate models failed)"
+                openrouter_status = "UNAVAILABLE (Invalid API Key)"
         except Exception as e:
             openrouter_status = f"ERROR ({str(e)[:80]})"
     results["openrouter"] = openrouter_status
@@ -614,44 +661,12 @@ async def generate_reminder_motivation(
     word_limit = 65 if reminder_type in ["afternoon_recovery", "evening_recovery"] else 35
     sys_instruction = REMINDER_SYSTEM_INSTRUCTION
 
-    # 1. Primary: OpenRouter
-    if OPENROUTER_API_KEY:
-        try:
-            logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for {reminder_type} reminder quote...")
-            txt = await safe_openrouter_chat_completion(
-                messages=[
-                    {"role": "system", "content": sys_instruction},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=tokens_to_use,
-                timeout=8.0,
-            )
-            txt = clean_ai_thought_leakage(txt)
-            if not txt or len(txt.split()) < 3:
-                raise ValueError("OpenRouter quote rejected due to thought leakage or invalid length.")
-
-            if len(txt.split()) > word_limit:
-                sentences = re.split(r"(?<=[.!?])\s+", txt)
-                accum = []
-                for s in sentences:
-                    if len((" ".join(accum + [s])).split()) <= word_limit:
-                        accum.append(s)
-                    else:
-                        break
-                txt = " ".join(accum) if accum else (" ".join(txt.split()[:word_limit - 5]) + ".")
-
-            logger.info(f"OpenRouter {reminder_type} quote generated: '{txt}'")
-            return txt
-        except Exception as e:
-            logger.warning(f"OpenRouter {reminder_type} reminder quote failed ({e}). Falling back to Groq...")
-
-    # 2. Secondary: Groq Fallback
+    # 1. Primary: Groq (Ultra-fast, zero OpenRouter quota burn for routine 1-line DM quotes)
     try:
         from ai.groq_service import get_groq_client
         groq_client = get_groq_client()
         if groq_client:
-            logger.info(f"Calling Groq API ({GROQ_MODEL}) for fallback {reminder_type} reminder quote...")
+            logger.info(f"Calling Groq API ({GROQ_MODEL}) for {reminder_type} reminder quote...")
             completion = await asyncio.wait_for(
                 safe_groq_chat_completion(
                     groq_client,
@@ -680,10 +695,42 @@ async def generate_reminder_motivation(
                         break
                 g_txt = " ".join(accum) if accum else (" ".join(g_txt.split()[:word_limit - 5]) + ".")
 
-            logger.info(f"Groq fallback {reminder_type} quote generated: '{g_txt}'")
+            logger.info(f"Groq {reminder_type} quote generated: '{g_txt}'")
             return g_txt
-    except Exception as groq_err:
-        logger.warning(f"Groq {reminder_type} quote fallback failed: {groq_err}")
+    except Exception as e:
+        logger.warning(f"Groq {reminder_type} reminder quote failed ({e}). Falling back to OpenRouter...")
+
+    # 2. Secondary: OpenRouter Fallback
+    if OPENROUTER_API_KEY:
+        try:
+            logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for fallback {reminder_type} reminder quote...")
+            txt = await safe_openrouter_chat_completion(
+                messages=[
+                    {"role": "system", "content": sys_instruction},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=tokens_to_use,
+                timeout=8.0,
+            )
+            txt = clean_ai_thought_leakage(txt)
+            if not txt or len(txt.split()) < 3:
+                raise ValueError("OpenRouter quote rejected due to thought leakage or invalid length.")
+
+            if len(txt.split()) > word_limit:
+                sentences = re.split(r"(?<=[.!?])\s+", txt)
+                accum = []
+                for s in sentences:
+                    if len((" ".join(accum + [s])).split()) <= word_limit:
+                        accum.append(s)
+                    else:
+                        break
+                txt = " ".join(accum) if accum else (" ".join(txt.split()[:word_limit - 5]) + ".")
+
+            logger.info(f"OpenRouter fallback {reminder_type} quote generated: '{txt}'")
+            return txt
+        except Exception as e:
+            logger.warning(f"OpenRouter fallback {reminder_type} reminder quote failed ({e}). Using curated fallback...")
 
     # 3. Tertiary: Static Fallback
     logger.warning(f"Could not generate AI {reminder_type} quote. Using curated fallback.")
@@ -709,35 +756,12 @@ async def generate_personalized_morning_briefing(
     prompt = build_personalized_morning_briefing_prompt(briefing_context, is_recovery)
     briefing_sys_prompt = BRIEFING_SYSTEM_PROMPT
 
-    # 1. Primary: OpenRouter
-    if OPENROUTER_API_KEY:
-        try:
-            logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for personalized morning briefing for {u_name}...")
-            txt = await safe_openrouter_chat_completion(
-                messages=[
-                    {"role": "system", "content": briefing_sys_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.7,
-                max_tokens=220,
-                timeout=10.0,
-            )
-            txt = clean_ai_thought_leakage(txt)
-            if not txt or len(txt.split()) < 3:
-                raise ValueError("OpenRouter morning briefing rejected due to thought leakage or invalid length.")
-
-            if len(txt.split()) <= 70:
-                logger.info(f"OpenRouter morning briefing generated for {u_name}: '{txt}'")
-                return txt
-        except Exception as e:
-            logger.warning(f"OpenRouter morning briefing failed for {u_name} ({e}). Falling back to Groq...")
-
-    # 2. Secondary: Groq Fallback
+    # 1. Primary: Groq (Conserves OpenRouter 50/day quota for routine morning DMs)
     try:
         from ai.groq_service import get_groq_client
         groq_client = get_groq_client()
         if groq_client:
-            logger.info(f"Calling Groq API ({GROQ_MODEL}) for fallback morning briefing for {u_name}...")
+            logger.info(f"Calling Groq API ({GROQ_MODEL}) for morning briefing for {u_name}...")
             completion = await asyncio.wait_for(
                 safe_groq_chat_completion(
                     groq_client,
@@ -757,10 +781,33 @@ async def generate_personalized_morning_briefing(
                 raise ValueError("Groq morning briefing rejected due to thought leakage or invalid length.")
 
             if len(g_txt.split()) <= 70:
-                logger.info(f"Groq fallback morning briefing generated: '{g_txt}'")
+                logger.info(f"Groq morning briefing generated for {u_name}: '{g_txt}'")
                 return g_txt
-    except Exception as groq_err:
-        logger.warning(f"Groq morning briefing fallback also failed: {groq_err}")
+    except Exception as e:
+        logger.warning(f"Groq morning briefing failed for {u_name} ({e}). Falling back to OpenRouter...")
+
+    # 2. Secondary: OpenRouter Fallback
+    if OPENROUTER_API_KEY:
+        try:
+            logger.info(f"Calling OpenRouter API ({OPENROUTER_MODEL}) for fallback morning briefing for {u_name}...")
+            txt = await safe_openrouter_chat_completion(
+                messages=[
+                    {"role": "system", "content": briefing_sys_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=220,
+                timeout=10.0,
+            )
+            txt = clean_ai_thought_leakage(txt)
+            if not txt or len(txt.split()) < 3:
+                raise ValueError("OpenRouter morning briefing rejected due to thought leakage or invalid length.")
+
+            if len(txt.split()) <= 70:
+                logger.info(f"OpenRouter fallback morning briefing generated for {u_name}: '{txt}'")
+                return txt
+        except Exception as e:
+            logger.warning(f"OpenRouter morning briefing fallback failed for {u_name} ({e}). Using curated fallback...")
 
     # 3. Tertiary: Static Fallback
     logger.warning(f"Could not generate personalized morning briefing for {u_name}. Using curated fallback.")

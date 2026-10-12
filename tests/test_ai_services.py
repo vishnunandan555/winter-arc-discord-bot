@@ -255,7 +255,8 @@ class TestGroqWorkoutParserAndNudges(WinterArcTestCase):
         ))
         self.assertEqual(result, mock_res)
         self.assertEqual(mock_client.chat.completions.create.call_count, 2)
-        self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], "openai/gpt-oss-20b")
+        import config
+        self.assertEqual(mock_client.chat.completions.create.call_args_list[1][1]["model"], config.GROQ_MODEL)
 
     def test_safe_groq_chat_completion_cascade_3_fallbacks(self):
         """Verifies safe_groq_chat_completion cascades through at least 3 fallback models with logging."""

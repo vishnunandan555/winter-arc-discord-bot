@@ -59,16 +59,16 @@ OPENROUTER_FALLBACK_MODELS = [
 
 # Groq API: Ultra-fast inference for rapid NLP workout parsing, failover evaluations, & reactive nudges
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-_raw_groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
+_raw_groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b").strip()
 if _raw_groq_model in ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]:
-    GROQ_MODEL = "openai/gpt-oss-20b"
+    GROQ_MODEL = "qwen/qwen3.8-27b"
 else:
-    GROQ_MODEL = _raw_groq_model or "openai/gpt-oss-20b"
+    GROQ_MODEL = _raw_groq_model or "qwen/qwen3.8-27b"
 
 # 3+ verified active Groq fallback models (tested against Groq Cloud API)
 GROQ_FALLBACK_MODELS = [
     GROQ_MODEL,
-    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-20b",
     "openai/gpt-oss-120b",
     "allam-2-7b",
 ]

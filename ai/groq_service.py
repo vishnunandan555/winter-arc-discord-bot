@@ -271,17 +271,25 @@ async def parse_quicklog(raw_text: str, active_tasks: List[Dict[str, Any]]) -> D
         return extract_disciplines_fallback(raw_text, active_tasks)
 
 
-REACTIVE_STOIC_FALLBACKS = [
-    "Zero points on the board won't defend your streak. Drop and get moving.",
-    "You could be good today, but instead you choose tomorrow. Drop and begin.",
-    "Decent set, but the rest of the board is still waiting for you.",
-    "We suffer more often in imagination than in reality. Finish the reps.",
-    "Stop checking your numbers and go put more work on the board.",
-    "The day is slipping away. Finish your remaining disciplines before midnight.",
-    "Think of how long you have put this off. Put the work on the board.",
+ACTIVE_VOLUME_FALLBACKS = [
+    "Solid work on the board. Don't cool down—finish the remaining disciplines before midnight.",
     "Good pace so far, but don't get comfortable until you hit a Perfect Day.",
+    "Decent set in the books. The rest of today's disciplines are waiting for you.",
+    "Respect the sweat. Rest briefly, then lock in your remaining volume.",
+    "Discipline logged. Keep this same standard and close out today's board.",
     "No man is more unhappy than he who never faces adversity. Keep pushing.",
 ]
+
+SLACKER_STOIC_FALLBACKS = [
+    "Zero points on the board won't defend your streak. Drop and get moving.",
+    "You could be good today, but instead you choose tomorrow. Drop and begin.",
+    "We suffer more often in imagination than in reality. Finish the reps.",
+    "Stop checking your numbers and go put real work on the board.",
+    "The day is slipping away. Finish your remaining disciplines before midnight.",
+    "Think of how long you have put this off. Put the work on the board.",
+]
+
+REACTIVE_STOIC_FALLBACKS = ACTIVE_VOLUME_FALLBACKS + SLACKER_STOIC_FALLBACKS
 
 RECOVERY_STOIC_FALLBACKS = [
     "Active recovery is not weakness; it is the tactical rebuild for the next hunt.",
@@ -290,6 +298,16 @@ RECOVERY_STOIC_FALLBACKS = [
     "Active Recovery Day (ARD) logged. Your streak is safe. Focus on light mobility and recovery.",
     "He who does not recover cannot conquer. Take active recovery and prepare for tomorrow.",
 ]
+
+
+def _pick_stoic_fallback(today_recovery: bool, pts: int) -> str:
+    """Selects an appropriate fallback message based on whether user has logged volume."""
+    import random
+    if today_recovery:
+        return random.choice(RECOVERY_STOIC_FALLBACKS)
+    if pts > 0:
+        return random.choice(ACTIVE_VOLUME_FALLBACKS)
+    return random.choice(SLACKER_STOIC_FALLBACKS)
 
 
 async def generate_reactive_nudge(
@@ -308,9 +326,17 @@ async def generate_reactive_nudge(
     from phases import is_recovery_day
     today_recovery = is_recovery_day()
 
+    pts = progression.get("points", 0)
+    max_pts = progression.get("max_points", 500)
+    streak = progression.get("streak", 0)
+    extra = progression.get("extra_info", "")
+    completed = progression.get("completed_tasks", [])
+    pending = progression.get("pending_tasks", [])
+    task_status = progression.get("task_status", [])
+
     client = get_groq_client()
     if not client:
-        return random.choice(RECOVERY_STOIC_FALLBACKS if today_recovery else REACTIVE_STOIC_FALLBACKS)
+        return _pick_stoic_fallback(today_recovery, pts)
 
     system_prompt = (
         "You are Amarok, an uncompromising, sharp accountability coach for the Winter Arc challenge.\n"
@@ -348,14 +374,6 @@ async def generate_reactive_nudge(
             "Instead: Acknowledge the Active Recovery Day, commend light movement, mobility, or stretching, remind them their streak is protected, and tell them to prepare for tomorrow's grind."
         )
 
-    pts = progression.get("points", 0)
-    max_pts = progression.get("max_points", 500)
-    streak = progression.get("streak", 0)
-    extra = progression.get("extra_info", "")
-    completed = progression.get("completed_tasks", [])
-    pending = progression.get("pending_tasks", [])
-    task_status = progression.get("task_status", [])
-
     user_prompt = (
         f"User: {user_name}. Command: /{command_name}.\n"
         f"Points today: {pts} (out of {max_pts}).\n"
@@ -384,7 +402,7 @@ async def generate_reactive_nudge(
                 ],
                 model=GROQ_MODEL,
                 temperature=0.8,
-                max_tokens=100,
+                max_tokens=250,
             ),
             timeout=4.0
         )
@@ -396,12 +414,12 @@ async def generate_reactive_nudge(
         txt = txt.strip("*").strip("_").strip('"').strip("'")
         logger.info(f"Groq reactive observation generated in {latency:.2f}s: '{txt}'")
 
-        if txt and 3 <= len(txt.split()) <= 30:
+        if txt and 3 <= len(txt.split()) <= 45:
             return txt
-        return random.choice(REACTIVE_STOIC_FALLBACKS)
+        return _pick_stoic_fallback(today_recovery, pts)
     except Exception as e:
         logger.warning(f"Groq reactive nudge generation failed: {e}. Using curated fallback.", exc_info=True)
-        return random.choice(REACTIVE_STOIC_FALLBACKS)
+        return _pick_stoic_fallback(today_recovery, pts)
 
 
 _last_nudge_timestamps: Dict[int, float] = {}
