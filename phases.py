@@ -131,7 +131,7 @@ RECOVERY_DATES_SET = set(ALL_RECOVERY_DATES)
 
 
 def _normalize_date(target: Optional[Union[date, datetime, str]] = None) -> date:
-    """Helper to convert date, datetime, or ISO string to standard date in BOT_TZ."""
+    """Helper to convert date, datetime, or ISO/formatted string to standard date in BOT_TZ."""
     if target is None:
         return datetime.now(BOT_TZ).date()
     if isinstance(target, datetime):
@@ -139,10 +139,41 @@ def _normalize_date(target: Optional[Union[date, datetime, str]] = None) -> date
     if isinstance(target, date):
         return target
     if isinstance(target, str):
+        cleaned = target.strip()
         try:
-            return date.fromisoformat(target[:10])
+            return date.fromisoformat(cleaned[:10])
         except Exception:
-            return date(1970, 1, 1)
+            pass
+
+        # Try common human-readable date formats with full year
+        for fmt in (
+            "%A, %B %d, %Y",
+            "%A, %d %B %Y",
+            "%B %d, %Y",
+            "%b %d, %Y",
+            "%Y/%m/%d",
+            "%d-%m-%Y",
+            "%d/%m/%Y",
+        ):
+            try:
+                return datetime.strptime(cleaned, fmt).date()
+            except ValueError:
+                continue
+
+        # Try formats without year, defaulting to BASE_YEAR
+        for fmt in (
+            "%A, %b %d",
+            "%A, %B %d",
+            "%b %d",
+            "%B %d",
+        ):
+            try:
+                dt = datetime.strptime(cleaned, fmt)
+                return dt.replace(year=BASE_YEAR).date()
+            except ValueError:
+                continue
+
+        return date(1970, 1, 1)
     return datetime.now(BOT_TZ).date()
 
 

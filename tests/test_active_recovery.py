@@ -220,6 +220,41 @@ class TestActiveRecoverySystem(WinterArcTestCase):
                         allowed_mentions = mock_channel.send.call_args.kwargs.get("allowed_mentions")
                         self.assertIsNotNone(allowed_mentions)
                         self.assertTrue(allowed_mentions.roles)
+                        embed = mock_channel.send.call_args.kwargs.get("embed")
+                        self.assertIsNotNone(embed)
+                        self.assertIn("Rest & Recovery Day", embed.title)
+                        field_names = [f.name for f in embed.fields]
+                        self.assertIn("🌿 Active Recovery Protocol", field_names)
+                        self.assertIn("🛡️ Streak & Competition Status", field_names)
+
+    def test_morning_kickoff_embed_ard_design(self):
+        """Verifies morning kickoff embed renders rich ARD layout with protocol and streak protection."""
+        active_tasks = [{"name": "Push-ups", "target": 100, "unit": "reps", "max_points": 100}]
+        # 1. Recovery day with formatted date string
+        embed = build_morning_kickoff_embed(
+            active_tasks=active_tasks,
+            date_display="Wednesday, October 14, 2026",
+            quote="\"The mind needs rest as much as the body.\" — Seneca",
+            is_recovery=True,
+        )
+        self.assertIn("Rest & Recovery Day", embed.title)
+        self.assertIn("Wednesday, October 14, 2026", embed.description)
+        self.assertIn("The mind needs rest as much as the body.", embed.description)
+        field_names = [f.name for f in embed.fields]
+        self.assertIn("🌿 Active Recovery Protocol", field_names)
+        self.assertIn("🛡️ Streak & Competition Status", field_names)
+        self.assertIn("Streaks protected", embed.footer.text)
+
+        # 2. Non-recovery day renders regular kickoff disciplines
+        embed_regular = build_morning_kickoff_embed(
+            active_tasks=active_tasks,
+            date_display="Thursday, October 15, 2026",
+            quote="Rise and grind.",
+            is_recovery=False,
+        )
+        self.assertIn("Daily Kickoff", embed_regular.title)
+        reg_fields = [f.name for f in embed_regular.fields]
+        self.assertIn("🎯 Today's Disciplines", reg_fields)
 
     def test_afternoon_checkin_ard_format(self):
         """Verifies afternoon check-in on ARD has no role ping, simple AI reminder, and no roster."""

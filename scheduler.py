@@ -324,6 +324,7 @@ class WinterArcScheduler:
             active_tasks=active_tasks,
             date_display=date_display,
             quote=quote,
+            is_recovery=today_recovery,
         )
 
         if target_channel:
@@ -370,6 +371,7 @@ class WinterArcScheduler:
             enrolled_users=enrolled_users,
             today_str=today_str,
             quote=quote,
+            is_recovery=today_recovery,
         )
 
         if target_channel:
@@ -438,6 +440,7 @@ class WinterArcScheduler:
             today_str=today_str,
             quote=stoic_quote,
             callouts=callouts,
+            is_recovery=today_recovery,
         )
 
         if target_channel:
