@@ -50,16 +50,63 @@ GATEWAY_CLOSE_CODES = {
 }
 
 
+# Known Discord Anycast IP addresses for emergency fallback when container DNS is dead
+DISCORD_GATEWAY_DEFAULT_IPS = [
+    "162.159.130.234",
+    "162.159.133.234",
+    "162.159.134.234",
+    "162.159.135.234",
+    "162.159.136.234",
+]
+
+DISCORD_API_DEFAULT_IPS = [
+    "162.159.128.233",
+    "162.159.135.232",
+    "162.159.136.232",
+    "162.159.137.232",
+    "162.159.138.232",
+]
+
+
 class ResilientResolver(ThreadedResolver):
     """
-    Threaded DNS resolver with exponential backoff retry for transient name resolution errors.
+    Threaded DNS resolver with exponential backoff retry, persistent stale caching,
+    and emergency Discord anycast IP fallback.
     Shields against container networking glitches (e.g. EAI_AGAIN / [Errno -3] Temporary failure in name resolution)
     frequently seen in Docker and Pterodactyl container environments.
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stale_cache: dict[tuple[str, int, socket.AddressFamily], list[dict]] = {}
+
+    def _get_emergency_fallback(self, host: str, port: int, family: socket.AddressFamily) -> list[dict] | None:
+        """Returns emergency anycast IP records for Discord services if DNS fails with no stale cache."""
+        target_ips = None
+        if host.endswith(".discord.gg") or host == "discord.gg":
+            target_ips = DISCORD_GATEWAY_DEFAULT_IPS
+        elif host == "discord.com" or host.endswith(".discord.com"):
+            target_ips = DISCORD_API_DEFAULT_IPS
+
+        if target_ips:
+            return [
+                {
+                    "hostname": host,
+                    "host": ip,
+                    "port": port,
+                    "family": socket.AF_INET,
+                    "proto": 6,
+                    "flags": socket.AI_NUMERICHOST | socket.AI_NUMERICSERV,
+                }
+                for ip in target_ips
+            ]
+        return None
+
     async def resolve(self, host: str, port: int = 0, family: socket.AddressFamily = socket.AddressFamily.AF_UNSPEC):
+        cache_key = (host, port, family)
         for attempt in range(3):
             try:
                 res = await super().resolve(host, port, family)
+                self._stale_cache[cache_key] = res
                 if attempt > 0:
                     logger.info(f"✅ DNS resolution for '{host}' succeeded on retry {attempt + 1}/3.")
                 return res
@@ -73,9 +120,30 @@ class ResilientResolver(ThreadedResolver):
                     )
                     await asyncio.sleep(backoff)
                     continue
+
+                # Check if we have stale DNS fallback cache available
+                cached_res = self._stale_cache.get(cache_key)
+                if not cached_res:
+                    for (k_host, _, _), v in self._stale_cache.items():
+                        if k_host == host:
+                            cached_res = v
+                            break
+
+                # If still no cached resolution, check emergency anycast fallback
+                if not cached_res:
+                    cached_res = self._get_emergency_fallback(host, port, family)
+
+                if cached_res:
+                    ips = [entry.get("host") for entry in cached_res if isinstance(entry, dict) and "host" in entry]
+                    logger.warning(
+                        f"⚠️ Container DNS resolution failed for '{host}' after {attempt + 1} attempts ([Errno {err_code}] {e}). "
+                        f"Host resolver down; recovering seamlessly using cached/anycast IP fallback: {ips}."
+                    )
+                    return cached_res
+
                 logger.error(
                     f"❌ DNS resolution failed for '{host}' after {attempt + 1} attempts: {e}. "
-                    f"Check container DNS settings (/etc/resolv.conf) if this persists."
+                    f"No fallback IP available for this host. Check container DNS settings (/etc/resolv.conf) if this persists."
                 )
                 raise
 
